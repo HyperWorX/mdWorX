@@ -1316,8 +1316,16 @@ HRESULT OnControllerCreated(ViewerState* state,
                 // the settings dialog opens above DOpus the same way it does
                 // when launched from Preferences -> Plugins -> Viewer.
                 if (msg.find(L"\"openSettings\"") != std::wstring::npos) {
-                    HWND owner = state->hwnd ? state->hwnd : state->hwndParent;
-                    DVP_Configure(owner, nullptr, 0);
+                    HWND owner = state->hwndSelf ? state->hwndSelf : state->hwndParent;
+                    // hWndNotify = this pane's own hwnd. On Apply the dialog
+                    // posts DVPLUGINMSG_REINITIALIZE here, which ViewerWndProc
+                    // handles by re-reading settings.json + re-pushing to the
+                    // webview (theme overrides, encoding choices, etc.). Going
+                    // direct rather than via g_hwndDOpusMsg because DOpus's
+                    // broadcast hub doesn't necessarily forward messages it
+                    // didn't originate; the dialog→pane→webview path always
+                    // works.
+                    DVP_Configure(owner, state->hwndSelf, 0);
                     return S_OK;
                 }
 
