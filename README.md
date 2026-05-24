@@ -2,7 +2,7 @@
 
 > A small Markdown viewer and inline editor for **Directory Opus**. Live preview, split-screen source + render, palette-aware theming, and a few quality-of-life extras built on top.
 
-![mdWorX live mode](img/live_mode.png)
+![mdWorX in the DOpus viewer pane](img/hero.png)
 
 ## Why this exists
 
@@ -56,7 +56,7 @@ Switch between **Reading**, **Live**, and **Source** from the top toolbar.
 
 Click the Source button a second time and the pane splits: raw Markdown on the left, live rendered preview on the right.
 
-![Split-screen source + preview inside the DOpus viewer pane](img/split_view.png)
+![Split-screen source + preview](img/split.png)
 
 - **Drag the middle handle** to resize each pane.
 - **Link / unlink scrolling** via the small chain-link icon on the handle. When linked, scrolling either side keeps the other in step.
@@ -65,11 +65,16 @@ Click the Source button a second time and the pane splits: raw Markdown on the l
 
 mdWorX lives inside the DOpus viewer pane, or you can pop it out into its own window (double-click). The windowed mode is the same editor with all the same modes and the split view, just without the DOpus chrome around it.
 
+![Split mode running inside the DOpus viewer pane](img/insidepane.png)
+
 ### Palette-aware theming
 
 Light and dark theme out of the box; any custom accent colour re-tints the toolbars, selection, syntax highlights, links, and scrollbars to match.
 
-![Custom palette — split view with a blue accent re-tinting the whole UI](img/palette_custom.png)
+<p align="center">
+  <img src="img/palleteL.png" width="49%" alt="Light custom palette">
+  <img src="img/PalleteR.png" width="49%" alt="Dark default palette">
+</p>
 
 ### Configurable
 
