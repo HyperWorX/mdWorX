@@ -723,14 +723,33 @@ body.mode-live .cm-md-heading-6 {
  * we bump the font-size enough to visually match. line-height: 0 prevents
  * the bigger font from stretching the line vertically. */
 .cm-md-bullet {
-    display: inline-block;
+    /* Absolute positioning takes the bullet out of inline flow so it does
+     * not consume line width. Without this, the bullet's inline width
+     * (~1.45em at font-size 1.45em) eats into every first-line text width,
+     * making Live list items wrap ~9-20px narrower than Reading. With
+     * absolute positioning the bullet sits in the cm-line's padding zone
+     * (the [0, 1.6em] strip reserved by .cm-md-list-item-L0 padding-left),
+     * mirroring Reading's li::marker which renders outside the li content
+     * box. The bullet is anchored to the .cm-md-list-item (.cm-line) via
+     * `position: relative` set on that element above. text-align: right +
+     * padding-right 0.25em pushes the glyph to the right end of the
+     * marker zone, with a small gap before the text begins.
+     *
+     * Per-level horizontal position: the marker zone for L0 is [0, 1.6em],
+     * for L1 [1.6em, 3.2em], etc. We anchor the bullet so its right edge
+     * sits at the text content edge (padding-left value), matching where
+     * Reading's marker visually ends. */
+    position: absolute;
+    left: var(--bullet-left, 0);
+    width: 1.6em;
+    box-sizing: border-box;
+    padding-right: 0.25em;
+    text-align: right;
+    pointer-events: none;
     color: var(--accent-override, var(--accent));
     font-weight: 700;
-    width: 1ch;
-    text-align: center;
-    margin-right: 0.5em;
     font-size: 1.45em;
-    line-height: 0;
+    line-height: inherit;
     vertical-align: -0.06em;
 }
 
@@ -738,24 +757,21 @@ body.mode-live .cm-md-heading-6 {
  * Each line of a ListItem gets the .cm-md-list-item class; nesting depth is
  * encoded in -L0..-L3 for indent levels.
  *
- * Hanging-indent pattern mirrors Reading's marker-in-padding behaviour:
- *   padding-left:  1.6em (per level)  - text content edge matches Reading's
- *                                        `:is(#content, ...) ul` padding-left.
- *   text-indent:  -1.6em               - pulls the FIRST inline (the bullet
- *                                        widget) into the padding zone so it
- *                                        sits where Reading's ::marker sits;
- *                                        wrapped sublines start at the
- *                                        padding edge, identical to Reading.
+ * Layout goal: match Reading's `:is(#content, ...) ul` (padding-left: 1.6em
+ * with marker rendered OUTSIDE the li content box) so a paragraph that wraps
+ * to N lines in Reading also wraps to N lines in Live.
  *
- * Result: Live and Reading wrap at the same content-box right edge so a
- * paragraph that wraps to N lines in Reading also wraps to N in Live.
- *
- * Earlier 0.8em padding-left was sized assuming the bullet glyph took
- * ~0.8em inline. A later `.cm-md-bullet { font-size: 1.45em }` bump made
- * the bullet ~1.45em inline (width 1ch + margin-right 0.5em, both in the
- * 1.45em bullet font), so text was pushed past Reading's 1.6em column and
- * Live wrapped ~9px narrower per line - enough to add wrap lines in long
- * paragraphs.
+ *   - padding-left: 1.6em on the cm-line gives text content edge at the same
+ *     column as Reading's li content box.
+ *   - position: relative on the cm-line creates the positioning context for
+ *     the absolutely positioned bullet (set on .cm-md-bullet below).
+ *   - The bullet widget itself is taken OUT of inline flow (position:
+ *     absolute) so it sits in the padding zone exactly like Reading's
+ *     ::marker without consuming line width. Without this, the bullet's
+ *     ~1.45em inline footprint (width 1ch + margin-right 0.5em at
+ *     font-size: 1.45em) eats into the first line of every list item,
+ *     wrapping ~9-20px narrower than Reading and accumulating extra wrap
+ *     lines in long paragraphs.
  *
  * `!important` required: the `body.mode-live .cm-line { padding: 0 }` rule
  * (later in source order) has identical specificity (0,0,2,1) and the
@@ -768,12 +784,12 @@ body.mode-live .cm-md-list-item    {
      * Decoration.line; lineWrapping propagates the line-height across
      * wrapped sublines too. */
     line-height: var(--line-height-override, 1.7);
-    text-indent: -1.6em !important;
+    position: relative;
 }
-body.mode-live .cm-md-list-item-L0 { padding-left: 1.6em !important; }
-body.mode-live .cm-md-list-item-L1 { padding-left: 3.2em !important; }
-body.mode-live .cm-md-list-item-L2 { padding-left: 4.8em !important; }
-body.mode-live .cm-md-list-item-L3 { padding-left: 6.4em !important; }
+body.mode-live .cm-md-list-item-L0 { padding-left: 1.6em !important; --bullet-left: 0;     }
+body.mode-live .cm-md-list-item-L1 { padding-left: 3.2em !important; --bullet-left: 1.6em; }
+body.mode-live .cm-md-list-item-L2 { padding-left: 4.8em !important; --bullet-left: 3.2em; }
+body.mode-live .cm-md-list-item-L3 { padding-left: 6.4em !important; --bullet-left: 4.8em; }
 /* Bullet and numbered-list markers share font-weight: 700 so the marker
  * glyph has enough visual mass to stand out from list-item body text,
  * especially in palettes where the accent hue is perceptually close to
