@@ -69,6 +69,8 @@ mdWorX lives inside the DOpus viewer pane, or you can pop it out into its own wi
 
 Light and dark theme out of the box; any custom accent colour re-tints the toolbars, selection, syntax highlights, links, and scrollbars to match.
 
+![Custom palette — split view with a blue accent re-tinting the whole UI](img/palette_custom.png)
+
 ### Configurable
 
 A built-in settings UI for fonts, colours, page widths, line heights, accents, etc. Settings live alongside your other DOpus preferences as DOpus XML config.
