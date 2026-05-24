@@ -734,11 +734,12 @@ body.mode-live .cm-md-heading-6 {
  * shorthand padding: 0 zeros our padding-left without !important. */
 body.mode-live .cm-md-list-item    {
     color: var(--ink-soft);
-    /* Match Reading's `li { margin: 0.15em 0 }` — pull successive list
-     * lines closer together so multi-item lists don't look airier than
-     * Reading. line-height stays inherited from cm-content so wrapped
-     * lines within a single item still look right. */
-    line-height: 1.4;
+    /* Follow the user's line-height setting so Live bullets wrap at the
+     * same rhythm as Reading. Falls back to 1.7 to match Reading's prose
+     * default. Each cm-line in a list item carries .cm-md-list-item via
+     * Decoration.line; lineWrapping propagates the line-height across
+     * wrapped sublines too. */
+    line-height: var(--line-height-override, 1.7);
 }
 body.mode-live .cm-md-list-item-L0 { padding-left: 0.8em !important; }
 body.mode-live .cm-md-list-item-L1 { padding-left: 2.4em !important; }
@@ -928,10 +929,15 @@ body.mode-live .cm-md-rendered-hr {
 .cm-md-inline-image img {
     display: block;
     max-width: 100%;
-    height: auto;
     border-radius: 4px;
     margin: 0.5em auto;
     border: 1px solid var(--rule-override, var(--rule));
+}
+/* Match the Reading-mode rule: only auto-scale height when the user
+ * hasn't specified an explicit width or height via the Obsidian pipe
+ * syntax (which the widget hoists onto the img element). */
+.cm-md-inline-image img:not([width]):not([height]) {
+    height: auto;
 }
 .cm-md-image-placeholder {
     display: inline-block;
@@ -1247,7 +1253,7 @@ body.heading-underline-gradient.mode-live .cm-md-heading-6 {
 :is(#content, .cm-md-rendered-block) p {
     margin: 0 0 12px;
     color: var(--ink-soft);
-    line-height: 1.7;       /* a touch more open than the body default */
+    line-height: var(--line-height-override, 1.7);
 }
 
 :is(#content, .cm-md-rendered-block) a {
@@ -1429,11 +1435,17 @@ body.mode-live .cm-md-superscript { vertical-align: super; }
 
 :is(#content, .cm-md-rendered-block) img {
     max-width: 100%;
-    height: auto;
     border-radius: 4px;
     display: block;
     margin: 0.5em auto;
     border: 1px solid var(--rule-override, var(--rule));
+}
+/* Only force auto height when the image has no explicit width/height.
+ * Without the :not() guards, CSS height:auto wins over the HTML
+ * height attribute and `<img height="100">` would render at natural
+ * aspect-ratio height instead of 100px. */
+:is(#content, .cm-md-rendered-block) img:not([width]):not([height]) {
+    height: auto;
 }
 :is(#content, .cm-md-rendered-block) figure { margin: 1em 0; text-align: center; }
 :is(#content, .cm-md-rendered-block) figure img { margin: 0 auto; }
