@@ -460,22 +460,33 @@ body {
     font-weight: 600;
 }
 
-/* Image alignment classes emitted by the Insert Image toolbar via
- * markdown-it-attrs. Center is a block-level centred image; left/right
- * float so surrounding text wraps. Margin chosen to keep wrapped text
- * from butting up against the image. */
-img.md-img-center {
+/* Image alignment classes emitted by the Insert Image toolbar via the
+ * Obsidian `![alt|WxH|center](src)` pipe syntax. All three are block
+ * elements on their own line; the alignment shifts the block within the
+ * available width. No float, so the image stays where the user put it in
+ * the markdown rather than wrapping into adjacent paragraphs.
+ *
+ * The :is(#content, ...) ancestor selector is REQUIRED for specificity:
+ * the Reading-mode base rule `:is(#content, .cm-md-rendered-block) img`
+ * has a #content ID in its :is() group which gives it (1,0,1). A plain
+ * `img.md-img-right` is only (0,1,1) and gets overridden, which is why
+ * unscoped alignment classes silently lost. Scoping ours under the same
+ * :is() group bumps us to (1,1,1) and we win. The third member
+ * .cm-md-inline-image covers Live-mode widgets too. */
+:is(#content, .cm-md-rendered-block, .cm-md-inline-image) img.md-img-center {
     display: block;
     margin-left: auto;
     margin-right: auto;
 }
-img.md-img-left {
-    float: left;
-    margin: 0.25em 1em 0.5em 0;
+:is(#content, .cm-md-rendered-block, .cm-md-inline-image) img.md-img-left {
+    display: block;
+    margin-left: 0;
+    margin-right: auto;
 }
-img.md-img-right {
-    float: right;
-    margin: 0.25em 0 0.5em 1em;
+:is(#content, .cm-md-rendered-block, .cm-md-inline-image) img.md-img-right {
+    display: block;
+    margin-left: auto;
+    margin-right: 0;
 }
 
 /* Editor mount. CodeMirror manages internal layout. We give it a flex item
@@ -660,7 +671,7 @@ body.mode-reading .editor { display: none; }
  * (see :is(#content, .cm-md-rendered-block) hN rules below); H3 inherits the accent fallback so it
  * reads as accent-coloured at rest, matching Reading.
  */
-.cm-md-heading-line { font-weight: 600; line-height: 1.25; letter-spacing: 0.01em; }
+.cm-md-heading-line { font-weight: 600; line-height: var(--line-height-override, 1.25); letter-spacing: 0.01em; }
 /* defaultHighlightStyle (re-registered in editor.js so the fenced-code
  * widget's spans get coloured CSS) sets `text-decoration: underline` on
  * tags.heading. In Live mode that lands on the span inside
@@ -1108,7 +1119,7 @@ body.mode-live .cm-activeLine { background: transparent; }
 :is(#content, .cm-md-rendered-block) h1, :is(#content, .cm-md-rendered-block) h2, :is(#content, .cm-md-rendered-block) h3,
 :is(#content, .cm-md-rendered-block) h4, :is(#content, .cm-md-rendered-block) h5, :is(#content, .cm-md-rendered-block) h6 {
     color: var(--ink-override, var(--ink));
-    line-height: 1.25;
+    line-height: var(--line-height-override, 1.25);
     font-weight: 600;
     letter-spacing: 0.01em;
     margin: 2em 0 0.6em;
