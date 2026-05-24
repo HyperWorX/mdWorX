@@ -58,7 +58,7 @@ const palettes = {
         pageColor: '#002b36',
         textColor: '#93a1a1',
         accentColor: '#b58900',
-        linkColor: '#268bd2',
+        linkColor: '#3295da',
         codeBg: '#073642',
         ruleColor: '#586e75',
         hrColor: '#586e75',
@@ -107,7 +107,7 @@ const palettes = {
         headingUnderlineStyle: 'gradient',
         // Gruvbox Dark: rainbow per insanum/obsidian_gruvbox using the
         // "neutral" tier (warm→cool arc: red/orange/yellow/green/aqua/blue).
-        h1Color: '#cc241d',             // neutral-red
+        h1Color: '#e96761',             // neutral-red
         h2Color: '#d65d0e',             // neutral-orange
         h3Color: '#d79921',             // neutral-yellow
         h4Color: '#98971a',             // neutral-green
@@ -272,13 +272,13 @@ const palettes = {
         theme: 'dark',
         pageColor: '#3b4252',           // Nord polar-night 3 (--b1)
         textColor: '#f5f7f9',           // Nord snow-storm-derived
-        accentColor: '#b48ead',         // Nord aurora purple — runtime --color-accent default
-        linkColor: '#b48ead',
+        accentColor: '#c4a7bf',         // Nord aurora purple — runtime --color-accent default
+        linkColor: '#c4a7bf',
         codeBg: '#2e3440',              // Nord polar-night 0
         ruleColor: '#4c566a',           // Nord polar-night 4
         hrColor: '#4c566a',
         headingUnderlineStyle: 'solid',
-        h1Color: '#bf616a',             // Nord aurora red (from .pln-hdcl)
+        h1Color: '#d89fa4',             // Nord aurora red (from .pln-hdcl)
         h2Color: '#d08770',             // Nord aurora orange
         h3Color: '#ebcb8b',             // Nord aurora yellow
         h4Color: '#a3be8c',             // Nord aurora green
@@ -292,18 +292,18 @@ const palettes = {
         theme: 'light',
         pageColor: '#f5f7f9',
         textColor: '#2e3440',
-        accentColor: '#b48ead',
-        linkColor: '#b48ead',
+        accentColor: '#906088',
+        linkColor: '#906088',
         codeBg: '#eceff4',
         ruleColor: '#d8dee9',
         hrColor: '#d8dee9',
         headingUnderlineStyle: 'solid',
-        h1Color: '#bf616a',
-        h2Color: '#d08770',
-        h3Color: '#ebcb8b',
-        h4Color: '#a3be8c',
-        h5Color: '#8fbcbb',
-        h6Color: '#88c0d0',
+        h1Color: '#b84f59',
+        h2Color: '#b0563a',
+        h3Color: '#916919',
+        h4Color: '#5c7844',
+        h5Color: '#487978',
+        h6Color: '#387a8d',
         highlightBg: '#b48ead',
         highlightFg: '#f5f7f9',
         highlightOpacity: 1.0,
@@ -333,16 +333,16 @@ const palettes = {
         theme: 'light',
         pageColor: '#fdf6e3',
         textColor: '#657b83',
-        accentColor: '#b58900',
-        linkColor: '#268bd2',
+        accentColor: '#8c6a00',
+        linkColor: '#2074af',
         codeBg: '#eee8d5',
         ruleColor: '#93a1a1',
         hrColor: '#93a1a1',
         headingUnderlineColor: '#93a1a1',
         headingUnderlineStyle: 'gradient',
         // Solarized: single accent (blue #268bd2).
-        h1Color: '#268bd2', h2Color: '#268bd2', h3Color: '#268bd2',
-        h4Color: '#268bd2', h5Color: '#268bd2', h6Color: '#268bd2',
+        h1Color: '#2074af', h2Color: '#2074af', h3Color: '#2074af',
+        h4Color: '#2074af', h5Color: '#2074af', h6Color: '#2074af',
         highlightBg: '#b58900',
         highlightFg: '#002b36',
         highlightOpacity: 0.55,
@@ -369,16 +369,16 @@ const palettes = {
         theme: 'light',
         pageColor: '#fafafa',
         textColor: '#6c7680',           // common.fg per ayu-theme/ayu-colors v7.1.0
-        accentColor: '#ff9940',
-        linkColor: '#399ee6',
+        accentColor: '#ba5700',
+        linkColor: '#1877bb',
         codeBg: '#f3f4f5',
         ruleColor: '#dadfe5',
         hrColor: '#dadfe5',
         headingUnderlineColor: '#dadfe5',
         headingUnderlineStyle: 'gradient',
         // Ayu Light: single orange (--keyword equivalent, the iconic Ayu accent).
-        h1Color: '#fa8d3e', h2Color: '#fa8d3e', h3Color: '#fa8d3e',
-        h4Color: '#fa8d3e', h5Color: '#fa8d3e', h6Color: '#fa8d3e',
+        h1Color: '#be5305', h2Color: '#be5305', h3Color: '#be5305',
+        h4Color: '#be5305', h5Color: '#be5305', h6Color: '#be5305',
         // Highlight: yellow (--func) - stands clear of the orange headings.
         highlightBg: '#f2ae49',
         highlightFg: '#fafafa',         // common.bg (was #0f1419, the dark-variant bg)
@@ -388,7 +388,7 @@ const palettes = {
         theme: 'light',
         pageColor: '#fbf1c7',
         textColor: '#3c3836',
-        accentColor: '#b57614',
+        accentColor: '#956110',
         linkColor: '#076678',
         codeBg: '#ebdbb2',
         ruleColor: '#d5c4a1',
@@ -399,7 +399,7 @@ const palettes = {
         // "faded" tier for legibility on cream bg.
         h1Color: '#9d0006',             // faded-red
         h2Color: '#af3a03',             // faded-orange
-        h3Color: '#b57614',             // faded-yellow
+        h3Color: '#956110',             // faded-yellow
         h4Color: '#79740e',             // faded-green
         h5Color: '#427b58',             // faded-aqua
         h6Color: '#076678',             // faded-blue
@@ -412,7 +412,7 @@ const palettes = {
         pageColor: '#eff1f5',
         textColor: '#4c4f69',
         accentColor: '#8839ef',
-        linkColor: '#1e66f5',
+        linkColor: '#145ff5',
         codeBg: '#e6e9ef',
         ruleColor: '#ccd0da',
         hrColor: '#bcc0cc',
@@ -420,11 +420,11 @@ const palettes = {
         headingUnderlineStyle: 'gradient',
         // Catppuccin Latte: Neovim port rainbow (same role mapping as Mocha).
         h1Color: '#d20f39',             // red
-        h2Color: '#fe640b',             // peach
-        h3Color: '#df8e1d',             // yellow
-        h4Color: '#40a02b',             // green
-        h5Color: '#209fb5',             // sapphire
-        h6Color: '#7287fd',             // lavender
+        h2Color: '#bc4501',             // peach
+        h3Color: '#976014',             // yellow
+        h4Color: '#327c21',             // green
+        h5Color: '#187585',             // sapphire
+        h6Color: '#3b58fc',             // lavender
         highlightBg: '#df8e1d',         // canonical Latte yellow
         highlightFg: '#4c4f69',
         highlightOpacity: 0.40,         // dropped from 0.95 since solid yellow is much stronger than the previous pastel
@@ -434,7 +434,7 @@ const palettes = {
         pageColor: '#fafafa',
         textColor: '#383a42',
         accentColor: '#a626a4',
-        linkColor: '#4078f2',
+        linkColor: '#2d6af1',
         codeBg: '#f0f0f0',
         ruleColor: '#e5e5e6',
         hrColor: '#a0a1a7',
@@ -442,8 +442,8 @@ const palettes = {
         headingUnderlineStyle: 'gradient',
         // One Light: single colour @hue-5 #e45649 (red) per canonical
         // Atom one-light-syntax. Same role as One Dark, lighter-bg variant.
-        h1Color: '#e45649', h2Color: '#e45649', h3Color: '#e45649',
-        h4Color: '#e45649', h5Color: '#e45649', h6Color: '#e45649',
+        h1Color: '#da3020', h2Color: '#da3020', h3Color: '#da3020',
+        h4Color: '#da3020', h5Color: '#da3020', h6Color: '#da3020',
         highlightBg: '#ffeb8a',
         highlightFg: '#383a42',
         highlightOpacity: 0.95,
@@ -455,8 +455,8 @@ const palettes = {
         theme: 'light',
         pageColor: '#e1e2e7',           // bg
         textColor: '#3760bf',           // fg
-        accentColor: '#2e7de9',         // blue - canonical Day primary accent
-        linkColor: '#2e7de9',
+        accentColor: '#1561ca',         // blue - canonical Day primary accent
+        linkColor: '#1561ca',
         codeBg: '#d0d5e3',              // bg_dark (analogous to dark's Storm bg used for code)
         ruleColor: '#c4c8da',           // bg_highlight
         hrColor: '#c4c8da',
@@ -466,7 +466,7 @@ const palettes = {
         h2Color: '#b15c00',             // orange
         h3Color: '#8c6c3e',             // yellow
         h4Color: '#587539',             // green
-        h5Color: '#2e7de9',             // blue
+        h5Color: '#1561ca',             // blue
         h6Color: '#9854f1',             // magenta
         highlightBg: '#8c6c3e',         // yellow - distinct from orange h2
         highlightFg: '#e1e2e7',         // page bg (mirror of dark variant's choice)
@@ -479,8 +479,8 @@ const palettes = {
         theme: 'light',
         pageColor: '#eceff4',
         textColor: '#2e3440',
-        accentColor: '#5e81ac',
-        linkColor: '#5e81ac',
+        accentColor: '#4d6d95',
+        linkColor: '#4d6d95',
         codeBg: '#e5e9f0',
         ruleColor: '#d8dee9',
         hrColor: '#d8dee9',
@@ -488,8 +488,8 @@ const palettes = {
         headingUnderlineStyle: 'solid',
         // Nord Light: same Aurora rainbow as Nord dark — Aurora colours
         // are spec-mandated to work on both ambiances.
-        h1Color: '#bf616a', h2Color: '#d08770', h3Color: '#ebcb8b',
-        h4Color: '#a3be8c', h5Color: '#b48ead', h6Color: '#5e81ac',
+        h1Color: '#b44953', h2Color: '#a85237', h3Color: '#8d6618',
+        h4Color: '#597442', h5Color: '#8a5c82', h6Color: '#5e81ac',
         highlightBg: '#ebcb8b',
         highlightFg: '#2e3440',
         highlightOpacity: 0.60,
@@ -522,14 +522,14 @@ const palettes = {
         theme: 'light',
         pageColor: '#fbfbfb',
         textColor: '#333333',
-        accentColor: '#0fb6d6',
-        linkColor: '#92a1a1',
+        accentColor: '#0a7d93',
+        linkColor: '#667676',
         codeBg: '#f0f0f0',
         ruleColor: '#92a1a17a',
         hrColor: '#92a1a1',
         headingUnderlineColor: '#f4569d',
         headingUnderlineStyle: 'gradient',
-        h1Color: '#0fb6d6',
+        h1Color: '#0a7d93',
         h2Color: '#666666',
         h3Color: '#666666',
         h4Color: '#666666',
