@@ -599,7 +599,22 @@ body.mode-live .cm-md-list-item-L0 { padding-left: 0.8em !important; }
 body.mode-live .cm-md-list-item-L1 { padding-left: 2.4em !important; }
 body.mode-live .cm-md-list-item-L2 { padding-left: 4.0em !important; }
 body.mode-live .cm-md-list-item-L3 { padding-left: 5.6em !important; }
-.cm-md-list-number                 { color: var(--accent-override, var(--accent)); }
+/* Bullet and numbered-list markers share font-weight: 700 so the marker
+ * glyph has enough visual mass to stand out from list-item body text,
+ * especially in palettes where the accent hue is perceptually close to
+ * the page hue (Catppuccin Mocha, Obsidianite, etc.). The thin default
+ * weight made digits in particular hard to spot against similar-hue
+ * backgrounds even when WCAG luminance contrast was nominally fine. */
+.cm-md-list-number {
+    color: var(--accent-override, var(--accent));
+    font-weight: 700;
+}
+/* Reading-mode list markers (<ul>/<ol> ::marker) — match the weight bump
+ * so Reading and Live look consistent. */
+:is(#content, .cm-md-rendered-block) ul > li::marker,
+:is(#content, .cm-md-rendered-block) ol > li::marker {
+    font-weight: 700;
+}
 
 /* Definition-list line styling. Lezer-markdown doesn't ship a deflist
  * grammar so the decorator (deflist.js) detects via regex. The term line
