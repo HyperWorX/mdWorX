@@ -671,7 +671,11 @@ body.mode-reading .editor { display: none; }
  * (see :is(#content, .cm-md-rendered-block) hN rules below); H3 inherits the accent fallback so it
  * reads as accent-coloured at rest, matching Reading.
  */
-.cm-md-heading-line { font-weight: 600; line-height: var(--line-height-override, 1.25); letter-spacing: 0.01em; }
+/* `body.mode-live .cm-line.cm-md-heading-line` raises specificity to (0,0,3,1)
+ * so the tight heading line-height wins over `body.mode-live .cm-line
+ * { line-height: inherit }` (0,0,2,1). Otherwise headings would inherit
+ * .cm-content's prose line-height and stretch vertically. */
+body.mode-live .cm-line.cm-md-heading-line { font-weight: 600; line-height: var(--line-height-override, 1.25); letter-spacing: 0.01em; }
 /* defaultHighlightStyle (re-registered in editor.js so the fenced-code
  * widget's spans get coloured CSS) sets `text-decoration: underline` on
  * tags.heading. In Live mode that lands on the span inside
@@ -1076,7 +1080,13 @@ body.mode-live .cm-scroller   { font-family: inherit; overflow: visible; }
  *
  * Without this line, the wrap toggle in Live mode appears to "break
  * everything" the moment any unwrappable widget exists in the document. */
-body.mode-live .cm-content    { padding: 0; min-width: 0; }
+/* line-height MUST be set here so it overrides CodeMirror 6's baseTheme
+ * `.cm-content { line-height: 1.4 }` (specificity 0,0,1,0). Without this,
+ * `.cm-line { line-height: inherit }` below propagates CM6's hardcoded 1.4
+ * down to every visible line and the user's Body line-height setting is
+ * silently ignored in Live mode. 1.7 fallback matches Reading's `p` rule
+ * so Live and Reading body text share the same default rhythm. */
+body.mode-live .cm-content    { padding: 0; min-width: 0; line-height: var(--line-height-override, 1.7); }
 body.mode-live .cm-line       { padding: 0; line-height: inherit; }
 body.mode-live .cm-focused    { outline: none; }
 body.mode-live .cm-gutters    { display: none; }
