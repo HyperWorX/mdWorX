@@ -99,6 +99,109 @@ std::wstring GetUserSettingsPath() {
     return dir + L"\\settings.json";
 }
 
+// Custom theme storage. Each theme is one JSON file in this directory,
+// named after the sanitised theme name + ".json". Sits beside settings.json
+// in Roaming AppData so themes follow the user's profile.
+std::wstring GetCustomThemesDir() {
+    PWSTR raw = nullptr;
+    if (FAILED(SHGetKnownFolderPath(FOLDERID_RoamingAppData, 0, nullptr, &raw))) {
+        return L"";
+    }
+    std::wstring dir = raw;
+    CoTaskMemFree(raw);
+    dir += L"\\HyperWorX\\mdWorX\\themes";
+    SHCreateDirectoryExW(nullptr, dir.c_str(), nullptr);
+    return dir;
+}
+
+// Sanitise a user-supplied theme name for use as a filename. Returns the
+// cleaned name on success, empty string on rejection. Rules:
+//   - Trim leading/trailing whitespace
+//   - Reject empty result
+//   - Reject Windows-forbidden chars: \ / : * ? " < > | and control chars (< 0x20)
+//   - Reject reserved device names: CON, PRN, AUX, NUL, COM1-9, LPT1-9 (case insensitive)
+//   - Reject names longer than 100 wchars (leaves room for .json + .tmp suffixes)
+// Defence in depth: JS validates first, but native re-checks before
+// touching the filesystem in case the message bridge is bypassed.
+std::wstring SanitiseThemeName(const std::wstring& raw) {
+    // Trim whitespace.
+    size_t first = 0;
+    while (first < raw.size() &&
+           (raw[first] == L' ' || raw[first] == L'\t')) ++first;
+    size_t last = raw.size();
+    while (last > first &&
+           (raw[last - 1] == L' ' || raw[last - 1] == L'\t')) --last;
+    if (last <= first) return L"";
+    std::wstring name = raw.substr(first, last - first);
+
+    if (name.size() > 100) return L"";
+
+    for (wchar_t c : name) {
+        if (c < 0x20) return L"";
+        if (c == L'\\' || c == L'/'  || c == L':' || c == L'*' ||
+            c == L'?'  || c == L'"'  || c == L'<' || c == L'>' ||
+            c == L'|') return L"";
+    }
+
+    // Reserved device names. Strip any "." suffix for the comparison.
+    std::wstring stem = name;
+    size_t dotPos = stem.find(L'.');
+    if (dotPos != std::wstring::npos) stem = stem.substr(0, dotPos);
+    std::wstring upper = stem;
+    for (auto& c : upper) {
+        if (c >= L'a' && c <= L'z') c = c - L'a' + L'A';
+    }
+    static const wchar_t* kReserved[] = {
+        L"CON", L"PRN", L"AUX", L"NUL",
+        L"COM1", L"COM2", L"COM3", L"COM4", L"COM5",
+        L"COM6", L"COM7", L"COM8", L"COM9",
+        L"LPT1", L"LPT2", L"LPT3", L"LPT4", L"LPT5",
+        L"LPT6", L"LPT7", L"LPT8", L"LPT9",
+    };
+    for (const wchar_t* r : kReserved) {
+        if (upper == r) return L"";
+    }
+
+    return name;
+}
+
+// Enumerate all *.json files in the custom themes directory and return
+// their base names (sans extension), case-insensitively sorted.
+std::vector<std::wstring> EnumerateCustomThemes() {
+    std::vector<std::wstring> out;
+    std::wstring dir = GetCustomThemesDir();
+    if (dir.empty()) return out;
+
+    std::wstring pattern = dir + L"\\*.json";
+    WIN32_FIND_DATAW fd{};
+    HANDLE h = FindFirstFileW(pattern.c_str(), &fd);
+    if (h == INVALID_HANDLE_VALUE) return out;
+    do {
+        if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) continue;
+        std::wstring name = fd.cFileName;
+        if (name.size() < 5) continue;  // "x.json" minimum
+        // Strip trailing ".json" (case-insensitive).
+        std::wstring tail = name.substr(name.size() - 5);
+        for (auto& c : tail) {
+            if (c >= L'A' && c <= L'Z') c = c - L'A' + L'a';
+        }
+        if (tail != L".json") continue;
+        std::wstring base = name.substr(0, name.size() - 5);
+        // Re-validate via SanitiseThemeName so files hand-placed with
+        // illegal characters don't surface in the picker.
+        if (!SanitiseThemeName(base).empty()) {
+            out.push_back(base);
+        }
+    } while (FindNextFileW(h, &fd));
+    FindClose(h);
+
+    std::sort(out.begin(), out.end(),
+              [](const std::wstring& a, const std::wstring& b) {
+                  return _wcsicmp(a.c_str(), b.c_str()) < 0;
+              });
+    return out;
+}
+
 // Returns the directory containing this DLL. Used to locate the bundled
 // web assets folder (mdWorX_assets/) which sits next to
 // the DLL after install.
@@ -1056,6 +1159,77 @@ void HandleSaveAsMessage(ViewerState* state, const std::wstring& msg) {
                      addBOM ? L"utf-8-bom" : L"utf-8", nullptr);
 }
 
+// Pick an image file from disk for the editor toolbar's Insert Image
+// button. Opens GetOpenFileNameW filtered to common image formats, returns
+// both the absolute path and a relative-to-current-file path (when the
+// current file's parent directory is known). Reply shape:
+//   {type:'imagePicked', cancelled:false, path:'C:\\...', relative:'./img/x.png'}
+//   {type:'imagePicked', cancelled:true}
+void HandlePickImageMessage(ViewerState* state) {
+    if (!state) return;
+
+    wchar_t pathBuf[MAX_PATH] = {0};
+
+    OPENFILENAMEW ofn{};
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner   = state->hwndSelf;
+    ofn.lpstrFilter =
+        L"Image files (*.png;*.jpg;*.jpeg;*.gif;*.webp;*.bmp;*.svg)\0"
+        L"*.png;*.jpg;*.jpeg;*.gif;*.webp;*.bmp;*.svg\0"
+        L"PNG (*.png)\0*.png\0"
+        L"JPEG (*.jpg;*.jpeg)\0*.jpg;*.jpeg\0"
+        L"All files (*.*)\0*.*\0";
+    ofn.nFilterIndex = 1;
+    ofn.lpstrFile    = pathBuf;
+    ofn.nMaxFile     = MAX_PATH;
+    ofn.lpstrTitle   = L"Insert image";
+    ofn.Flags        = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST
+                     | OFN_HIDEREADONLY  | OFN_NOCHANGEDIR;
+    if (!state->currentFileDir.empty()) {
+        ofn.lpstrInitialDir = state->currentFileDir.c_str();
+    }
+
+    if (!GetOpenFileNameW(&ofn)) {
+        // 0 = user cancel; non-zero = real error (still treat as cancel
+        // for the picker since there's nothing useful to do).
+        if (state->webview) {
+            state->webview->PostWebMessageAsJson(
+                L"{\"type\":\"imagePicked\",\"cancelled\":true}");
+        }
+        return;
+    }
+
+    std::wstring chosen = pathBuf;
+
+    // Compute a path relative to the current file's directory when the
+    // markdown file's parent is known. PathRelativePathToW returns the
+    // result in the form ".\subdir\file.png" or "..\..\other\file.png".
+    std::wstring relative;
+    if (!state->currentFileDir.empty()) {
+        wchar_t rel[MAX_PATH] = {0};
+        if (PathRelativePathToW(rel,
+                state->currentFileDir.c_str(), FILE_ATTRIBUTE_DIRECTORY,
+                chosen.c_str(),                FILE_ATTRIBUTE_NORMAL)) {
+            relative = rel;
+            // Strip a leading ".\" — cosmetic, but keeps the inserted
+            // markdown clean for the common same-folder case.
+            if (relative.size() >= 2 &&
+                relative[0] == L'.' && relative[1] == L'\\') {
+                relative = relative.substr(2);
+            }
+            // Markdown URL paths use forward slashes; convert.
+            for (auto& c : relative) if (c == L'\\') c = L'/';
+        }
+    }
+
+    std::wstring out = L"{\"type\":\"imagePicked\",\"cancelled\":false,"
+                       L"\"path\":\"" + JsonEscape(chosen) +
+                       L"\",\"relative\":\"" + JsonEscape(relative) + L"\"}";
+    if (state->webview) {
+        state->webview->PostWebMessageAsJson(out.c_str());
+    }
+}
+
 // ---------------------------------------------------------------------------
 // WebView2 lifecycle
 
@@ -1308,6 +1482,14 @@ HRESULT OnControllerCreated(ViewerState* state,
                 // update current path, post saveAsResult back.
                 if (msg.find(L"\"saveAs\"") != std::wstring::npos) {
                     HandleSaveAsMessage(state, msg);
+                    return S_OK;
+                }
+
+                // {type:"pickImage"} - Insert Image button in the editor
+                // toolbar. Opens the native image file picker and replies
+                // with {type:'imagePicked', cancelled, path, relative}.
+                if (msg.find(L"\"pickImage\"") != std::wstring::npos) {
+                    HandlePickImageMessage(state);
                     return S_OK;
                 }
 
@@ -1684,6 +1866,67 @@ bool WriteUserSettingsAtomic(const std::wstring& settingsText) {
                        MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != FALSE;
 }
 
+// Atomic write of UTF-8 text to a custom theme file. Same .tmp + rename
+// pattern as WriteUserSettingsAtomic. Name MUST already be sanitised.
+// Returns false on any failure.
+bool WriteCustomThemeAtomic(const std::wstring& name,
+                            const std::wstring& themeText) {
+    std::wstring dir = GetCustomThemesDir();
+    if (dir.empty() || name.empty()) return false;
+    std::wstring path = dir + L"\\" + name + L".json";
+    std::wstring tmpPath = path + L".tmp";
+
+    int blen = WideCharToMultiByte(CP_UTF8, 0, themeText.c_str(),
+                                    static_cast<int>(themeText.size()),
+                                    nullptr, 0, nullptr, nullptr);
+    if (blen < 0) return false;
+    std::vector<char> bytes(static_cast<size_t>(blen));
+    if (blen > 0) {
+        WideCharToMultiByte(CP_UTF8, 0, themeText.c_str(),
+                            static_cast<int>(themeText.size()),
+                            bytes.data(), blen, nullptr, nullptr);
+    }
+
+    HANDLE h = CreateFileW(tmpPath.c_str(), GENERIC_WRITE, 0, nullptr,
+                            CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE) return false;
+
+    DWORD written = 0;
+    BOOL ok = WriteFile(h, bytes.data(),
+                        static_cast<DWORD>(bytes.size()),
+                        &written, nullptr);
+    CloseHandle(h);
+    if (!ok || written != bytes.size()) {
+        DeleteFileW(tmpPath.c_str());
+        return false;
+    }
+
+    return MoveFileExW(tmpPath.c_str(), path.c_str(),
+                       MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != FALSE;
+}
+
+// Delete a custom theme file by name. Name MUST already be sanitised.
+// Returns true if the file is gone after the call (whether or not it
+// existed before), false on hard errors.
+bool DeleteCustomThemeFile(const std::wstring& name) {
+    std::wstring dir = GetCustomThemesDir();
+    if (dir.empty() || name.empty()) return false;
+    std::wstring path = dir + L"\\" + name + L".json";
+    if (DeleteFileW(path.c_str())) return true;
+    DWORD err = GetLastError();
+    return err == ERROR_FILE_NOT_FOUND || err == ERROR_PATH_NOT_FOUND;
+}
+
+// Read a custom theme file by name and return its raw UTF-8 content as a
+// wide string. Empty string on missing/unreadable file. Name MUST already
+// be sanitised.
+std::wstring ReadCustomThemeFile(const std::wstring& name) {
+    std::wstring dir = GetCustomThemesDir();
+    if (dir.empty() || name.empty()) return L"";
+    std::wstring path = dir + L"\\" + name + L".json";
+    return ReadFileUtf8(path);
+}
+
 HRESULT OnSettingsControllerCreated(SettingsState* s,
                                     HRESULT result,
                                     ICoreWebView2Controller* controller) {
@@ -1785,6 +2028,112 @@ HRESULT OnSettingsControllerCreated(SettingsState* s,
                     // Echo result back so the page can show a status line.
                     std::wstring out = std::wstring(L"{\"type\":\"saveResult\",\"ok\":") +
                         (ok ? L"true" : L"false") + L"}";
+                    s->webview->PostWebMessageAsJson(out.c_str());
+                    return S_OK;
+                }
+                // Custom theme storage handlers.
+                //
+                // {type:'listCustomThemes'} -> reply with
+                //   {type:'customThemesList', names:[...]}
+                // {type:'loadCustomTheme', name:'X'} -> reply with
+                //   {type:'customTheme', name:'X', json:'<raw>'} or
+                //   {type:'customThemeError', op:'load', name:'X', message:'...'}
+                // {type:'saveCustomTheme', name:'X', json:'<raw>'} -> reply
+                //   {type:'customThemeSaved', name:'X'} or error
+                // {type:'deleteCustomTheme', name:'X'} -> reply
+                //   {type:'customThemeDeleted', name:'X'} or error
+                //
+                // Sanitisation is enforced here even though JS also validates,
+                // so a bypass of the JS layer can't write files with unsafe
+                // names. Theme content is treated as opaque text; native does
+                // not parse it.
+                if (msg.find(L"\"listCustomThemes\"") != std::wstring::npos) {
+                    std::vector<std::wstring> names = EnumerateCustomThemes();
+                    std::wstring out = L"{\"type\":\"customThemesList\",\"names\":[";
+                    for (size_t i = 0; i < names.size(); ++i) {
+                        if (i > 0) out += L",";
+                        out += L"\"" + JsonEscape(names[i]) + L"\"";
+                    }
+                    out += L"]}";
+                    s->webview->PostWebMessageAsJson(out.c_str());
+                    return S_OK;
+                }
+                if (msg.find(L"\"loadCustomTheme\"") != std::wstring::npos) {
+                    std::wstring rawName = ExtractJsonStringKey(msg, L"name");
+                    std::wstring name = SanitiseThemeName(rawName);
+                    if (name.empty()) {
+                        std::wstring err =
+                            L"{\"type\":\"customThemeError\",\"op\":\"load\","
+                            L"\"name\":\"" + JsonEscape(rawName) +
+                            L"\",\"message\":\"Invalid theme name.\"}";
+                        s->webview->PostWebMessageAsJson(err.c_str());
+                        return S_OK;
+                    }
+                    std::wstring content = ReadCustomThemeFile(name);
+                    if (content.empty()) {
+                        std::wstring err =
+                            L"{\"type\":\"customThemeError\",\"op\":\"load\","
+                            L"\"name\":\"" + JsonEscape(name) +
+                            L"\",\"message\":\"Theme file missing or unreadable.\"}";
+                        s->webview->PostWebMessageAsJson(err.c_str());
+                        return S_OK;
+                    }
+                    std::wstring out =
+                        L"{\"type\":\"customTheme\",\"name\":\"" + JsonEscape(name) +
+                        L"\",\"json\":\"" + JsonEscape(content) + L"\"}";
+                    s->webview->PostWebMessageAsJson(out.c_str());
+                    return S_OK;
+                }
+                if (msg.find(L"\"saveCustomTheme\"") != std::wstring::npos) {
+                    std::wstring rawName = ExtractJsonStringKey(msg, L"name");
+                    std::wstring name = SanitiseThemeName(rawName);
+                    if (name.empty()) {
+                        std::wstring err =
+                            L"{\"type\":\"customThemeError\",\"op\":\"save\","
+                            L"\"name\":\"" + JsonEscape(rawName) +
+                            L"\",\"message\":\"Invalid theme name.\"}";
+                        s->webview->PostWebMessageAsJson(err.c_str());
+                        return S_OK;
+                    }
+                    std::wstring payload = ExtractJsonStringKey(msg, L"json");
+                    bool ok = WriteCustomThemeAtomic(name, payload);
+                    if (!ok) {
+                        std::wstring err =
+                            L"{\"type\":\"customThemeError\",\"op\":\"save\","
+                            L"\"name\":\"" + JsonEscape(name) +
+                            L"\",\"message\":\"Failed to write theme file.\"}";
+                        s->webview->PostWebMessageAsJson(err.c_str());
+                        return S_OK;
+                    }
+                    std::wstring out =
+                        L"{\"type\":\"customThemeSaved\",\"name\":\"" +
+                        JsonEscape(name) + L"\"}";
+                    s->webview->PostWebMessageAsJson(out.c_str());
+                    return S_OK;
+                }
+                if (msg.find(L"\"deleteCustomTheme\"") != std::wstring::npos) {
+                    std::wstring rawName = ExtractJsonStringKey(msg, L"name");
+                    std::wstring name = SanitiseThemeName(rawName);
+                    if (name.empty()) {
+                        std::wstring err =
+                            L"{\"type\":\"customThemeError\",\"op\":\"delete\","
+                            L"\"name\":\"" + JsonEscape(rawName) +
+                            L"\",\"message\":\"Invalid theme name.\"}";
+                        s->webview->PostWebMessageAsJson(err.c_str());
+                        return S_OK;
+                    }
+                    bool ok = DeleteCustomThemeFile(name);
+                    if (!ok) {
+                        std::wstring err =
+                            L"{\"type\":\"customThemeError\",\"op\":\"delete\","
+                            L"\"name\":\"" + JsonEscape(name) +
+                            L"\",\"message\":\"Failed to delete theme file.\"}";
+                        s->webview->PostWebMessageAsJson(err.c_str());
+                        return S_OK;
+                    }
+                    std::wstring out =
+                        L"{\"type\":\"customThemeDeleted\",\"name\":\"" +
+                        JsonEscape(name) + L"\"}";
                     s->webview->PostWebMessageAsJson(out.c_str());
                     return S_OK;
                 }

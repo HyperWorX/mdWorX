@@ -14,16 +14,21 @@ import abbr from 'markdown-it-abbr';
 import markIns from 'markdown-it-mark';
 import sub from 'markdown-it-sub';
 import sup from 'markdown-it-sup';
+import attrs from 'markdown-it-attrs';
 import DOMPurify from 'dompurify';
 import { createEditor } from './editor.js';
-import { COMMANDS as EDITOR_COMMANDS } from './editor-toolbar.js';
+import { COMMANDS as EDITOR_COMMANDS, insertImage } from './editor-toolbar.js';
 import { rewriteImageUrl } from './lib/local-url.js';
 
 // ---------------------------------------------------------------------------
 // Markdown configuration
 
 const md = new MarkdownIt({
-    html: false,        // sanitise via DOMPurify; settings can relax later
+    // Raw HTML is allowed because the Insert Image toolbar (and users
+    // writing markdown by hand) need <img width=...> tags for sized and
+    // aligned images. DOMPurify after render is the safety net: scripts,
+    // iframes, on* handlers, and other dangerous constructs are stripped.
+    html: true,
     linkify: true,
     typographer: true,
     breaks: false,
@@ -36,6 +41,13 @@ md.use(abbr);
 md.use(markIns);
 md.use(sub);
 md.use(sup);
+// Attribute syntax `{width=200 height=150 .class-name #id}` after inline
+// images, links, headings, code fences, etc. Used by the Insert Image
+// toolbar so sized/aligned images stay as portable markdown rather than
+// becoming raw <img> tags.
+md.use(attrs, {
+    allowedAttributes: ['id', 'class', 'width', 'height', 'title'],
+});
 
 // Image rewriting: relative paths -> virtual host the native side maps
 // to the markdown file's parent directory. Absolute paths (file:// or
@@ -96,6 +108,28 @@ function render(markdownText) {
         FORBID_ATTR: ['onerror', 'onload', 'onclick'],
     });
     contentEl.innerHTML = clean;
+
+    // Rewrite <img src> for any raw HTML <img> tags the user authored or
+    // the Insert Image toolbar produced. Markdown image syntax already
+    // routes through md.renderer.rules.image; this catches the HTML path
+    // so both produce the same final URL (relative -> local virtual host;
+    // http/https stays as-is; unsupported schemes get blanked with an
+    // alt-text note).
+    contentEl.querySelectorAll('img').forEach(img => {
+        const raw = img.getAttribute('src');
+        if (!raw) return;
+        if (raw.startsWith('https://local.mdworx.test/') ||
+            raw.startsWith('https://app.mdworx.test/')) return;
+        const rewritten = rewriteImageUrl(raw);
+        if (rewritten.unsupportedScheme) {
+            img.removeAttribute('src');
+            const prevAlt = img.getAttribute('alt') || '';
+            img.setAttribute('alt',
+                prevAlt + ` (unsupported scheme: ${rewritten.unsupportedScheme})`);
+        } else if (rewritten.src && rewritten.src !== raw) {
+            img.setAttribute('src', rewritten.src);
+        }
+    });
 
     // Intercept external link clicks: hand to native to open in default browser.
     contentEl.querySelectorAll('a[data-external="1"]').forEach(a => {
@@ -405,8 +439,110 @@ if (editingToolbarEl) {
         const btn = e.target.closest('button');
         if (!btn || !btn.dataset.cmd) return;
         if (!editor) return;
+        // Image button: open the image insert popup (which collects path
+        // via native file picker, plus optional dimensions + alignment).
+        if (btn.dataset.cmd === 'image') {
+            toggleImagePopup();
+            return;
+        }
         const cmd = EDITOR_COMMANDS[btn.dataset.cmd];
         if (cmd) cmd(editor.view);
+    });
+}
+
+// --- Image insert popup ----------------------------------------------------
+//
+// User clicks the image button -> popup opens. Browse... posts pickImage
+// to native, which opens GetOpenFileNameW and replies with an absolute
+// path plus (when the current file's parent dir is known) a relative
+// path. We prefer the relative one for the inserted markdown since it
+// keeps the .md file portable across machines.
+//
+// The Insert button is disabled until a path is chosen; the path label
+// shows whichever path will actually be inserted.
+
+const imagePopupEl   = document.getElementById('image-popup');
+const imgSrcInput    = document.getElementById('img-pop-src');
+const imgBrowseBtn   = document.getElementById('img-pop-browse');
+const imgAltInput    = document.getElementById('img-pop-alt');
+const imgWidthInput  = document.getElementById('img-pop-width');
+const imgHeightInput = document.getElementById('img-pop-height');
+const imgInsertBtn   = document.getElementById('img-pop-insert');
+const imgCancelBtn   = document.getElementById('img-pop-cancel');
+
+// Insert is enabled whenever the source input has any non-whitespace text,
+// so a typed URL counts the same as a path returned by the native Browse
+// dialog.
+function updateImageInsertEnabled() {
+    if (!imgInsertBtn || !imgSrcInput) return;
+    imgInsertBtn.disabled = imgSrcInput.value.trim() === '';
+}
+
+function resetImagePopupState() {
+    if (imgSrcInput)    imgSrcInput.value    = '';
+    if (imgAltInput)    imgAltInput.value    = '';
+    if (imgWidthInput)  imgWidthInput.value  = '';
+    if (imgHeightInput) imgHeightInput.value = '';
+    const noneRadio = document.querySelector('input[name="img-pop-align"][value="none"]');
+    if (noneRadio) noneRadio.checked = true;
+    updateImageInsertEnabled();
+}
+
+function toggleImagePopup(force) {
+    if (!imagePopupEl) return;
+    const willOpen = (typeof force === 'boolean') ? force : imagePopupEl.hidden;
+    if (willOpen) resetImagePopupState();
+    imagePopupEl.hidden = !willOpen;
+    if (willOpen && imgSrcInput) imgSrcInput.focus();
+}
+
+if (imgSrcInput) {
+    imgSrcInput.addEventListener('input', updateImageInsertEnabled);
+    imgSrcInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && imgInsertBtn && !imgInsertBtn.disabled) {
+            e.preventDefault();
+            imgInsertBtn.click();
+        }
+    });
+}
+if (imgBrowseBtn) {
+    imgBrowseBtn.addEventListener('click', () => {
+        send({ type: 'pickImage' });
+    });
+}
+if (imgCancelBtn) {
+    imgCancelBtn.addEventListener('click', () => toggleImagePopup(false));
+}
+if (imgInsertBtn) {
+    imgInsertBtn.addEventListener('click', () => {
+        if (!editor || !imgSrcInput) return;
+        const src = imgSrcInput.value.trim();
+        if (!src) return;
+        const alignChosen = document.querySelector('input[name="img-pop-align"]:checked');
+        const alignment = alignChosen ? alignChosen.value : 'none';
+        const widthVal  = imgWidthInput  ? imgWidthInput.value.trim()  : '';
+        const heightVal = imgHeightInput ? imgHeightInput.value.trim() : '';
+        insertImage(editor.view, {
+            path:      src,
+            alt:       imgAltInput ? imgAltInput.value : '',
+            width:     widthVal  || null,
+            height:    heightVal || null,
+            alignment: alignment,
+        });
+        toggleImagePopup(false);
+    });
+}
+if (imagePopupEl) {
+    // Close on outside click.
+    document.addEventListener('mousedown', (e) => {
+        if (imagePopupEl.hidden) return;
+        if (imagePopupEl.contains(e.target)) return;
+        const btn = e.target.closest('[data-cmd="image"]');
+        if (btn) return;
+        toggleImagePopup(false);
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !imagePopupEl.hidden) toggleImagePopup(false);
     });
 }
 
@@ -542,9 +678,11 @@ const settingsCssMap = {
     maxWidth:              '--page-max-override',
     pagePadding:           '--page-pad-override',
     hrThickness:           '--hr-thickness-override',
+    pageBorderColor:       '--page-border-color-override',
+    pageBorderThickness:   '--page-border-thickness-override',
 };
 
-const settingsPxKeys = new Set(['fontSize', 'maxWidth', 'pagePadding', 'hrThickness']);
+const settingsPxKeys = new Set(['fontSize', 'maxWidth', 'pagePadding', 'hrThickness', 'pageBorderThickness']);
 
 let defaultSettings = {};   // populated by loadDefaults()
 let userSettings    = {};   // populated by 'userSettings' messages
@@ -559,9 +697,18 @@ function applySettings(s) {
         if (v === undefined || v === null || v === '') {
             root.removeProperty(varName);
         } else {
-            const out = settingsPxKeys.has(k) && typeof v === 'number'
-                ? `${v}px`
-                : v;
+            // Px-typed keys: coerce numbers OR numeric strings to "<n>px".
+            // The number-only check missed text-input values like "5" that
+            // older settings.json files store as strings, producing invalid
+            // CSS (`border: 5 solid ...` instead of `5px solid ...`).
+            let out = v;
+            if (settingsPxKeys.has(k)) {
+                if (typeof v === 'number') {
+                    out = `${v}px`;
+                } else if (typeof v === 'string' && /^\s*-?\d+(\.\d+)?\s*$/.test(v)) {
+                    out = `${v.trim()}px`;
+                }
+            }
             root.setProperty(varName, out);
         }
     }
@@ -675,6 +822,20 @@ function onHostMessage(event) {
                 setStatus('saved as ' + (loadedPath ? loadedPath.split(/[\\/]/).pop() : 'file'), 'ok');
             } else {
                 setStatus('save as failed: ' + (m.error || 'unknown'), 'error');
+            }
+            break;
+        case 'imagePicked':
+            // {type:'imagePicked', cancelled:bool, path:string, relative:string}
+            // Native reply to pickImage. If cancelled, leave the popup as
+            // the user left it. Otherwise fill the source input, preferring
+            // the relative path so the inserted markdown stays portable.
+            if (m.cancelled) break;
+            if (imgSrcInput) {
+                const chosen = (m.relative && m.relative.length) ? m.relative : (m.path || '');
+                imgSrcInput.value = chosen;
+                updateImageInsertEnabled();
+                imgSrcInput.focus();
+                imgSrcInput.select();
             }
             break;
         case 'theme':

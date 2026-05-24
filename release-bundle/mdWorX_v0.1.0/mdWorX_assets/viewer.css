@@ -31,8 +31,22 @@ body.theme-light {
     --h1:       #1a1a1a;                       /* black on light page */
     --check-bg: #4caf50;
     --check-fg: #ffffff;
-    --mark-fg:  #ffffff;
+    /* Highlighter convention: dark text on yellow background, regardless
+     * of the palette accent. Splitting --mark-bg from --accent so the
+     * default light theme renders <mark> / ==text== as a classic
+     * highlighter swipe rather than purple-accent-with-white-text. When
+     * a palette is selected it overrides via --highlight-bg-override and
+     * --highlight-fg-override; this is just the no-palette default. */
+    --mark-bg:  #ffeb8a;
+    --mark-fg:  #1a1a1a;
     --shadow:   0 1px 2px rgba(0,0,0,0.05), 0 2px 12px rgba(0,0,0,0.04);
+    /* UI chrome text: always high-contrast against an accent-tinted toolbar
+     * background, regardless of what the active palette uses for `textColor`.
+     * Without this, palettes whose textColor is mid-grey (Ayu Light #6c7680,
+     * Solarized Light #657b83, Tokyo Night Day #3760bf, etc.) end up with
+     * unreadable toolbar buttons because the 25–35% accent tint shrinks the
+     * effective text contrast below WCAG AA. */
+    --ui-text:  #1a1a1a;
 }
 
 body.theme-dark {
@@ -49,8 +63,13 @@ body.theme-dark {
     --h1:       #ffffff;                       /* white on dark page */
     --check-bg: #4caf50;
     --check-fg: #ffffff;
+    /* Highlighter pair for the dark theme — warm yellow + dark text is the
+     * same convention as light theme, picked darker (#d29922) so the swipe
+     * reads clearly against the dark page. */
+    --mark-bg:  #d29922;
     --mark-fg:  #1a1a1a;
     --shadow:   0 1px 2px rgba(0,0,0,0.2), 0 2px 12px rgba(0,0,0,0.25);
+    --ui-text:  #f5f5f5;
 }
 
 html, body {
@@ -102,7 +121,13 @@ body {
      * edges (was 40px 64px). Same value used for both Reading and Live
      * because both modes render inside this container. */
     padding: var(--page-pad-override, 36px 36px);
-    border: 1px solid var(--rule-override, var(--rule));
+    /* Border colour + thickness are independently settable (--page-border-
+     * color-override, --page-border-thickness-override). Both fall back to
+     * the rule colour / 1px when unset, preserving previous default look. */
+    border:
+        var(--page-border-thickness-override, 1px)
+        solid
+        var(--page-border-color-override, var(--rule-override, var(--rule)));
     box-shadow: var(--shadow);
     border-radius: 12px;
     box-sizing: border-box;
@@ -196,7 +221,9 @@ body {
     appearance: none;
     background: transparent;
     border: 1px solid transparent;
-    color: var(--ink-override, var(--ink));
+    /* --ui-text forces always-readable text against the accent-tinted
+     * toolbar background. See body.theme-light/dark for definitions. */
+    color: var(--ui-text);
     padding: 3px 8px;
     border-radius: 5px;
     font: inherit;
@@ -211,7 +238,7 @@ body {
      * orange/purple stored in --accent-faded. */
     background: color-mix(in srgb, var(--accent-override, var(--accent)) 30%, transparent);
     border-color: var(--accent-override, var(--accent));
-    color: var(--ink-override, var(--ink));
+    color: var(--ui-text);
 }
 .toolbar button:disabled {
     opacity: 0.4;
@@ -281,7 +308,7 @@ body {
     appearance: none;
     background: transparent;
     border: 1px solid transparent;
-    color: var(--ink-override, var(--ink));
+    color: var(--ui-text);
     width: 30px;
     height: 28px;
     padding: 0;
@@ -303,6 +330,7 @@ body {
     background: color-mix(in srgb, var(--accent-override, var(--accent)) 30%, transparent);
     border-color: var(--accent-override, var(--accent));
 }
+
 
 .etb-icon {
     width: 16px;
@@ -331,6 +359,123 @@ body {
     background: color-mix(in srgb, var(--accent-override, var(--accent)) 45%, var(--rule-override, var(--rule)));
     margin: 0 6px;
     opacity: 0.7;
+}
+
+/* Image insert popup. Anchored above the editing toolbar. Form-style
+ * layout with Browse / dimensions / alignment, Insert disabled until a
+ * file is chosen. */
+.image-popup {
+    position: fixed;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 51;
+    width: min(440px, calc(100vw - 24px));
+    padding: 14px 16px;
+    background: var(--page-override, var(--page));
+    color: var(--ink-override, var(--ink));
+    border: 1px solid color-mix(in srgb, var(--accent-override, var(--accent)) 55%, var(--rule-override, var(--rule)));
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 13px;
+}
+.image-popup[hidden] { display: none; }
+.image-popup .img-pop-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.image-popup .img-pop-row > label:first-child {
+    flex: 0 0 70px;
+    color: var(--ink-soft);
+    font-size: 12px;
+}
+.image-popup input[type="text"],
+.image-popup input[type="number"] {
+    font: inherit;
+    font-size: 13px;
+    padding: 4px 8px;
+    border: 1px solid var(--rule-override, var(--rule));
+    border-radius: 4px;
+    background: var(--page-override, var(--page));
+    color: var(--ink-override, var(--ink));
+    outline: none;
+}
+.image-popup input[type="text"] { flex: 1 1 200px; min-width: 120px; }
+.image-popup input[type="number"] { width: 70px; }
+.image-popup .img-pop-unit {
+    color: var(--ink-soft);
+    font-size: 11px;
+    margin-right: 6px;
+}
+.image-popup .img-pop-path {
+    flex: 1 1 200px;
+    color: var(--ink-soft);
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.image-popup .img-pop-align {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.image-popup .img-pop-align label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+}
+.image-popup .img-pop-row-actions {
+    justify-content: flex-end;
+    margin-top: 4px;
+}
+.image-popup .btn {
+    font: inherit;
+    font-size: 13px;
+    padding: 5px 12px;
+    border: 1px solid var(--rule-override, var(--rule));
+    border-radius: 4px;
+    background: var(--page-override, var(--page));
+    color: var(--ink-override, var(--ink));
+    cursor: pointer;
+}
+.image-popup .btn:hover {
+    border-color: var(--accent-override, var(--accent));
+}
+.image-popup .btn[disabled] {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+.image-popup .btn-primary {
+    background: var(--accent-override, var(--accent));
+    border-color: var(--accent-override, var(--accent));
+    color: var(--page-override, var(--page));
+    font-weight: 600;
+}
+
+/* Image alignment classes emitted by the Insert Image toolbar via
+ * markdown-it-attrs. Center is a block-level centred image; left/right
+ * float so surrounding text wraps. Margin chosen to keep wrapped text
+ * from butting up against the image. */
+img.md-img-center {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
+img.md-img-left {
+    float: left;
+    margin: 0.25em 1em 0.5em 0;
+}
+img.md-img-right {
+    float: right;
+    margin: 0.25em 0 0.5em 1em;
 }
 
 /* Editor mount. CodeMirror manages internal layout. We give it a flex item
@@ -1044,11 +1189,17 @@ body.heading-underline-none.mode-live .cm-md-heading-2 {
 }
 
 /* Gradient style: every heading gets its own coloured fading underline. */
+/* Gradient style respects --heading-underline-override (the user's
+ * "Heading underline" colour setting) as the primary source. When the
+ * user sets a colour, the gradient uses that single colour across every
+ * heading level. When it's unset, each heading level falls back to its
+ * own per-heading colour (so Tokyo-Night-style rainbow gradients still
+ * work in palettes that intend them). */
 body.heading-underline-gradient :is(#content, .cm-md-rendered-block) h1,
 body.heading-underline-gradient.mode-live .cm-md-heading-1 {
     border-bottom: 2px solid;
     border-image: linear-gradient(to right,
-        var(--h1-color-override, var(--h1-override, var(--h1))) 30%,
+        var(--heading-underline-override, var(--h1-color-override, var(--h1-override, var(--h1)))) 30%,
         transparent 70%) 1;
     padding-bottom: 0.35em;
 }
@@ -1056,7 +1207,7 @@ body.heading-underline-gradient :is(#content, .cm-md-rendered-block) h2,
 body.heading-underline-gradient.mode-live .cm-md-heading-2 {
     border-bottom: 2px solid;
     border-image: linear-gradient(to right,
-        var(--h2-color-override, var(--ink-override, var(--ink))) 30%,
+        var(--heading-underline-override, var(--h2-color-override, var(--ink-override, var(--ink)))) 30%,
         transparent 70%) 1;
     padding-bottom: 0.3em;
 }
@@ -1064,7 +1215,7 @@ body.heading-underline-gradient :is(#content, .cm-md-rendered-block) h3,
 body.heading-underline-gradient.mode-live .cm-md-heading-3 {
     border-bottom: 2px solid;
     border-image: linear-gradient(to right,
-        var(--h3-color-override, var(--accent-override, var(--accent))) 30%,
+        var(--heading-underline-override, var(--h3-color-override, var(--accent-override, var(--accent)))) 30%,
         transparent 70%) 1;
     padding-bottom: 0.25em;
 }
@@ -1072,7 +1223,7 @@ body.heading-underline-gradient :is(#content, .cm-md-rendered-block) h4,
 body.heading-underline-gradient.mode-live .cm-md-heading-4 {
     border-bottom: 1px solid;
     border-image: linear-gradient(to right,
-        var(--h4-color-override, var(--ink-override, var(--ink))) 30%,
+        var(--heading-underline-override, var(--h4-color-override, var(--ink-override, var(--ink)))) 30%,
         transparent 70%) 1;
     padding-bottom: 0.2em;
 }
@@ -1080,7 +1231,7 @@ body.heading-underline-gradient :is(#content, .cm-md-rendered-block) h5,
 body.heading-underline-gradient.mode-live .cm-md-heading-5 {
     border-bottom: 1px solid;
     border-image: linear-gradient(to right,
-        var(--h5-color-override, var(--ink-soft)) 30%,
+        var(--heading-underline-override, var(--h5-color-override, var(--ink-soft))) 30%,
         transparent 70%) 1;
     padding-bottom: 0.2em;
 }
@@ -1088,7 +1239,7 @@ body.heading-underline-gradient :is(#content, .cm-md-rendered-block) h6,
 body.heading-underline-gradient.mode-live .cm-md-heading-6 {
     border-bottom: 1px solid;
     border-image: linear-gradient(to right,
-        var(--h6-color-override, var(--ink-soft)) 30%,
+        var(--heading-underline-override, var(--h6-color-override, var(--ink-soft))) 30%,
         transparent 70%) 1;
     padding-bottom: 0.2em;
 }
@@ -1112,13 +1263,17 @@ body.heading-underline-gradient.mode-live .cm-md-heading-6 {
 
 :is(#content, .cm-md-rendered-block) mark,
 body.mode-live .cm-md-highlight {
-    /* Highlight (<mark>, GFM '==text==') has its own colour pair so it can
-     * read as a highlighter swipe instead of inheriting the accent. The
-     * opacity setting mixes the bg toward transparent via color-mix; the
-     * text colour stays opaque. */
+    /* Highlight (<mark>, GFM '==text==') reads as a classic highlighter
+     * swipe: dark text on a yellow background by default. Palettes can
+     * override via --highlight-bg-override / --highlight-fg-override (set
+     * from the user's settings.json), in which case the palette pair wins.
+     * When no override is set we fall back to --mark-bg (a yellow tuned
+     * per theme), NOT --accent — using accent for highlight made palettes
+     * with light/mid-tone accents render unreadable swipes (white text on
+     * pale lavender, etc.). */
     background: color-mix(
         in srgb,
-        var(--highlight-bg-override, var(--accent-override, var(--accent)))
+        var(--highlight-bg-override, var(--mark-bg))
         calc(var(--highlight-opacity-override, 0.9) * 100%),
         transparent
     );

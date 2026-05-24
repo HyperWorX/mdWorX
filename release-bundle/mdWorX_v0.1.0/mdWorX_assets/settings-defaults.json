@@ -8,6 +8,8 @@
 
     "textColor":   null,
     "pageColor":   null,
+    "pageBorderColor":     null,
+    "pageBorderThickness": null,
     "accentColor": null,
     "codeBg":      null,
     "linkColor":   null,
@@ -41,5 +43,7 @@
 
     "maxWidth":     null,
     "pagePadding":  null,
-    "hrThickness":  null
+    "hrThickness":  null,
+
+    "activeCustomTheme": null
 }
