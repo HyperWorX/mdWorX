@@ -14,8 +14,8 @@ import abbr from 'markdown-it-abbr';
 import markIns from 'markdown-it-mark';
 import sub from 'markdown-it-sub';
 import sup from 'markdown-it-sup';
-import attrs from 'markdown-it-attrs';
 import DOMPurify from 'dompurify';
+import { parseImageAlt } from './lib/image-alt.js';
 import { createEditor } from './editor.js';
 import { COMMANDS as EDITOR_COMMANDS, insertImage } from './editor-toolbar.js';
 import { rewriteImageUrl } from './lib/local-url.js';
@@ -41,13 +41,6 @@ md.use(abbr);
 md.use(markIns);
 md.use(sub);
 md.use(sup);
-// Attribute syntax `{width=200 height=150 .class-name #id}` after inline
-// images, links, headings, code fences, etc. Used by the Insert Image
-// toolbar so sized/aligned images stay as portable markdown rather than
-// becoming raw <img> tags.
-md.use(attrs, {
-    allowedAttributes: ['id', 'class', 'width', 'height', 'title'],
-});
 
 // Image rewriting: relative paths -> virtual host the native side maps
 // to the markdown file's parent directory. Absolute paths (file:// or
@@ -57,6 +50,22 @@ const defaultImageRender = md.renderer.rules.image ||
 
 md.renderer.rules.image = (tokens, idx, options, env, slf) => {
     const token = tokens[idx];
+
+    // Parse Obsidian-style alt-text tokens (`alt|400x300|center`) and
+    // hoist dimensions/alignment to real img attributes. The token's
+    // content (text inside `[...]`) is the alt; markdown-it stores it
+    // in token.children before render.
+    const rawAlt = token.attrGet('alt') || (token.content || '');
+    const parsed = parseImageAlt(rawAlt);
+    token.attrSet('alt', parsed.alt);
+    if (parsed.width  != null) token.attrSet('width',  String(parsed.width));
+    if (parsed.height != null) token.attrSet('height', String(parsed.height));
+    if (parsed.alignment !== 'none') {
+        const existing = token.attrGet('class') || '';
+        const cls = (existing ? existing + ' ' : '') + 'md-img-' + parsed.alignment;
+        token.attrSet('class', cls);
+    }
+
     const raw = token.attrGet('src');
     if (raw) {
         const rewritten = rewriteImageUrl(raw);
@@ -350,6 +359,9 @@ function setMode(next) {
 // TEMP DIAGNOSTIC. Prints the box position + width of every element in the
 // layout chain so we can see which one is causing the source-mode editor
 // to sit on the left instead of centring. Remove once diagnosed.
+//
+// Also exposed as window.mdwxLayout() so users can invoke it manually from
+// DevTools while comparing Live and Reading wrap behaviour.
 function logLayout(label) {
     const pick = sel => {
         const el = typeof sel === 'string' ? document.querySelector(sel) : sel;
@@ -365,6 +377,11 @@ function logLayout(label) {
             margin: cs.marginLeft + ' / ' + cs.marginRight,
             padding: cs.paddingLeft + ' / ' + cs.paddingRight,
             inlineW: el.style.width || '—',
+            whiteSpace: cs.whiteSpace,
+            wordBreak: cs.wordBreak,
+            overflowWrap: cs.overflowWrap,
+            font: cs.fontFamily.slice(0, 40),
+            fontSize: cs.fontSize,
         };
     };
     console.group('[layout] ' + label);
@@ -374,13 +391,19 @@ function logLayout(label) {
         pick('html'),
         pick('body'),
         pick('.page'),
+        pick('#content'),
+        pick('#content p'),
+        pick('#content li'),
         pick('.editor'),
         pick('.cm-editor'),
         pick('.cm-scroller'),
         pick('.cm-content'),
+        pick('.cm-line'),
+        pick('.cm-line.cm-md-list-item'),
     ].filter(Boolean));
     console.groupEnd();
 }
+window.mdwxLayout = (label = 'manual') => logLayout(label);
 
 function cycleMode() {
     setMode(MODES[(MODES.indexOf(mode) + 1) % MODES.length]);
@@ -467,8 +490,15 @@ const imgBrowseBtn   = document.getElementById('img-pop-browse');
 const imgAltInput    = document.getElementById('img-pop-alt');
 const imgWidthInput  = document.getElementById('img-pop-width');
 const imgHeightInput = document.getElementById('img-pop-height');
+const imgCopyChk     = document.getElementById('img-pop-copy');
 const imgInsertBtn   = document.getElementById('img-pop-insert');
 const imgCancelBtn   = document.getElementById('img-pop-cancel');
+
+// When the copy checkbox is ticked and the source is a local file path,
+// Insert sends a copyImage message to native and waits for the reply
+// before calling insertImage. pendingImageInsert stashes the other form
+// fields so the reply handler can call insertImage with everything.
+let pendingImageInsert = null;
 
 // Insert is enabled whenever the source input has any non-whitespace text,
 // so a typed URL counts the same as a path returned by the native Browse
@@ -483,8 +513,10 @@ function resetImagePopupState() {
     if (imgAltInput)    imgAltInput.value    = '';
     if (imgWidthInput)  imgWidthInput.value  = '';
     if (imgHeightInput) imgHeightInput.value = '';
+    if (imgCopyChk)     imgCopyChk.checked   = false;
     const noneRadio = document.querySelector('input[name="img-pop-align"][value="none"]');
     if (noneRadio) noneRadio.checked = true;
+    pendingImageInsert = null;
     updateImageInsertEnabled();
 }
 
@@ -522,13 +554,26 @@ if (imgInsertBtn) {
         const alignment = alignChosen ? alignChosen.value : 'none';
         const widthVal  = imgWidthInput  ? imgWidthInput.value.trim()  : '';
         const heightVal = imgHeightInput ? imgHeightInput.value.trim() : '';
-        insertImage(editor.view, {
-            path:      src,
+        const opts = {
             alt:       imgAltInput ? imgAltInput.value : '',
             width:     widthVal  || null,
             height:    heightVal || null,
             alignment: alignment,
-        });
+        };
+
+        // Copy mode: only meaningful for a local file path (not a URL).
+        // Send copyImage to native; reply handler will call insertImage
+        // with the returned relative path.
+        const wantsCopy = imgCopyChk && imgCopyChk.checked;
+        const looksLocal = /^[A-Za-z]:[\\/]/.test(src) || !/^[a-z]+:\/\//i.test(src);
+        if (wantsCopy && looksLocal && /^[A-Za-z]:[\\/]/.test(src)) {
+            pendingImageInsert = opts;
+            send({ type: 'copyImage', path: src });
+            imgInsertBtn.disabled = true;  // re-enabled by reply or error
+            return;
+        }
+
+        insertImage(editor.view, { ...opts, path: src });
         toggleImagePopup(false);
     });
 }
@@ -827,15 +872,34 @@ function onHostMessage(event) {
         case 'imagePicked':
             // {type:'imagePicked', cancelled:bool, path:string, relative:string}
             // Native reply to pickImage. If cancelled, leave the popup as
-            // the user left it. Otherwise fill the source input, preferring
-            // the relative path so the inserted markdown stays portable.
+            // the user left it. Otherwise fill the source input with the
+            // ABSOLUTE path by default (renderer serves any local file via
+            // the local-host _abs/ route). Users can edit it down to a
+            // relative path or URL, or tick the copy checkbox to vendor
+            // the file into the document's folder.
             if (m.cancelled) break;
             if (imgSrcInput) {
-                const chosen = (m.relative && m.relative.length) ? m.relative : (m.path || '');
+                const chosen = m.path || m.relative || '';
                 imgSrcInput.value = chosen;
                 updateImageInsertEnabled();
                 imgSrcInput.focus();
                 imgSrcInput.select();
+            }
+            break;
+        case 'imageCopied':
+            // {type:'imageCopied', cancelled, relative?, error?}
+            // Reply to copyImage. On success insert with the new relative
+            // path; on failure surface the error and leave the popup open.
+            if (m.error) {
+                setStatus('image copy failed: ' + m.error, 'error');
+                pendingImageInsert = null;
+                updateImageInsertEnabled();
+                break;
+            }
+            if (m.relative && pendingImageInsert && editor) {
+                insertImage(editor.view, { ...pendingImageInsert, path: m.relative });
+                pendingImageInsert = null;
+                toggleImagePopup(false);
             }
             break;
         case 'theme':
