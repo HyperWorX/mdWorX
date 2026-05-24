@@ -24,7 +24,7 @@ There's also a formatting toolbar at the bottom of the editor (bold, italic, str
 
 ## What it renders
 
-GitHub-flavoured Markdown plus footnotes, definition lists, abbreviations, highlights (`==text==`), subscript (`H~2~O`), superscript (`E=mc^2^`), task lists, autolinks, and emoji shortcodes. Code blocks are syntax-highlighted and have a copy button that appears in the corner when you hover. Footnotes at the bottom of the doc are editable in place: click the text and start typing.
+GitHub-flavoured Markdown plus footnotes, definition lists, abbreviations, highlights (`==text==`), subscript (`H~2~O`), superscript (`E=mc^2^`), task lists, autolinks, and emoji shortcodes. Code blocks are syntax-highlighted and have a copy button in the corner that you click to copy the snippet (it flashes green to confirm). Footnotes at the bottom of the doc are editable in place: click the text and start typing.
 
 ![Rendered code block, table, and blockquote](img/features.png)
 
@@ -72,8 +72,8 @@ Viewers\mdWorX_assets\
 - Switch modes from the centred top toolbar.
 - Click Source again while already in Source mode to open the split view.
 - The disk icons save the file. The icon next to them toggles word wrap on code blocks and long URLs.
-- Hover any rendered code block to copy it.
-- Save before clicking off the file. Unsaved edits are lost when DOpus loads a new selection.
+- Click the copy button in the corner of any rendered code block to copy the snippet.
+- In the viewer pane: save before clicking off to another file. If you switch files without saving, the pane reloads with the new selection and unsaved edits are gone. The pop-out window doesn't have this problem (you can edit, click around DOpus, come back, and click save).
 
 ## Building from source
 

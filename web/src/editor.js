@@ -10,7 +10,7 @@ import { EditorView, keymap, drawSelection, highlightActiveLine,
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
-import { syntaxHighlighting, HighlightStyle,
+import { syntaxHighlighting, HighlightStyle, defaultHighlightStyle,
          bracketMatching, indentOnInput, syntaxTree } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
 import { livePreviewExtension } from './editor-livepreview.js';
@@ -196,6 +196,17 @@ export function createEditor({ parent, doc, onChange, onSave, onSaveAs,
             highlightActiveLineGutter(),
             syntaxHighlighting(markdownSyntaxStyle),
         ]),
+        // defaultHighlightStyle is registered for BOTH modes so the
+        // rendered-code-block widget in Live mode (which calls
+        // highlightTree(tree, defaultHighlightStyle, ...) in
+        // livepreview/fenced-code.js to colour nested-language tokens)
+        // gets its CSS rules injected into the document. markdownSyntaxStyle
+        // is registered first in Source mode and wins for the markdown-specific
+        // tags it covers (heading, emphasis, strong, processingInstruction,
+        // etc.); defaultHighlightStyle then covers everything else
+        // (keyword, string, number, comment) which is exactly what the
+        // nested code in fenced blocks needs.
+        syntaxHighlighting(defaultHighlightStyle),
         highlightActiveLine(),
         history(),
         drawSelection(),
