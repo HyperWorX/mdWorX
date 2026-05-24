@@ -1,0 +1,1684 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>mdWorX palette previews</title>
+<style>
+@page { size: A4; margin: 12mm; }
+body {
+    font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+    font-size: 12px;
+    color: #1c1c1a;
+    background: #f7f7f6;
+    margin: 0;
+    padding: 16px 20px;
+}
+h1.doctitle {
+    font-size: 22px;
+    margin: 0 0 4px;
+    color: #1c1c1a;
+}
+.intro {
+    color: #5e5e5b;
+    max-width: 800px;
+    margin: 0 0 18px;
+    line-height: 1.5;
+}
+.card {
+    background: #fff;
+    border: 1px solid #d9d6cd;
+    border-radius: 8px;
+    margin-bottom: 14px;
+    padding: 12px 14px;
+    page-break-inside: avoid;
+}
+.card header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+.card header h2 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: #1c1c1a;
+}
+.theme {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 2px 7px;
+    border-radius: 9px;
+    color: #5e5e5b;
+    background: #eee;
+}
+.theme.dark { background: #2a2a30; color: #ddd; }
+.theme.light { background: #f0e4d0; color: #5a4818; }
+.swatches { margin-left: auto; display: flex; gap: 3px; }
+.swatches span {
+    width: 12px; height: 12px; border-radius: 2px;
+    border: 1px solid rgba(0,0,0,0.15);
+    display: inline-block;
+}
+.views { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.view .label {
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #8a857b;
+    margin: 0 0 4px;
+    font-weight: 600;
+}
+.card footer {
+    margin-top: 8px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.card footer code {
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-size: 9.5px;
+    color: #5e5e5b;
+    background: #f3f1ec;
+    padding: 1px 5px;
+    border-radius: 3px;
+}
+</style>
+</head>
+<body>
+<h1 class="doctitle">mdWorX palette previews</h1>
+<p class="intro">Every shipped palette (23 total) rendered with the current
+mdWorX styling. Each card shows the palette's source-view appearance (left)
+and live-view appearance (right) using the exact <code>pageColor</code>,
+<code>textColor</code>, <code>accentColor</code>, <code>linkColor</code>,
+<code>codeBg</code>, and per-heading colour values from <code>settings.js</code>.</p>
+<section class="card">
+        <header>
+            <h2>Dracula</h2>
+            <span class="theme dark">dark</span>
+            <div class="swatches">
+                <span style="background:#282a36" title="page #282a36"></span>
+                <span style="background:#f8f8f2" title="text #f8f8f2"></span>
+                <span style="background:#bd93f9" title="accent #bd93f9"></span>
+                <span style="background:#8be9fd" title="link #8be9fd"></span>
+                <span style="background:#44475a" title="codeBg #44475a"></span>
+            </div>
+        </header>
+        <div class="views">
+            <div class="view">
+                <p class="label">Source view</p>
+                <pre class="src" style="
+        background:#282a36; color:#f8f8f2;
+        font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+        font-size: 12px; line-height: 1.55;
+        padding: 14px 16px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        "><span style="color:#44475a;opacity:0.6">  1</span>   <span style="color:#bd93f9">#</span> Heading One
+<span style="color:#44475a;opacity:0.6">  2</span>   <span style="color:#bd93f9">##</span> Heading Two
+<span style="color:#44475a;opacity:0.6">  3</span>
+<span style="color:#44475a;opacity:0.6">  4</span>   Body text with <span style="color:#bd93f9">**</span><b>bold</b><span style="color:#bd93f9">**</span> and <span style="color:#bd93f9">*</span><i>italic</i><span style="color:#bd93f9">*</span> and
+<span style="color:#44475a;opacity:0.6">  5</span>   <span style="color:#bd93f9">`</span><span style="background:#44475a;border-radius:3px;padding:0 3px">inline code</span><span style="color:#bd93f9">`</span> plus a <span style="color:#bd93f9">[</span>link<span style="color:#bd93f9">](</span><span style="color:#8be9fd">https://example.org</span><span style="color:#bd93f9">)</span>.
+<span style="color:#44475a;opacity:0.6">  6</span>
+<span style="color:#44475a;opacity:0.6">  7</span>   <span style="color:#bd93f9">&gt;</span> A blockquote.
+<span style="color:#44475a;opacity:0.6">  8</span>
+<span style="color:#44475a;opacity:0.6">  9</span>   <span style="color:#bd93f9">-</span> first item
+<span style="color:#44475a;opacity:0.6"> 10</span>   <span style="color:#bd93f9">-</span> second
+<span style="color:#44475a;opacity:0.6"> 11</span>   <span style="color:#bd93f9">1.</span> numbered
+<span style="color:#44475a;opacity:0.6"> 12</span>
+<span style="color:#44475a;opacity:0.6"> 13</span>   <span style="color:#bd93f9">---</span>
+<span style="color:#44475a;opacity:0.6"> 14</span>
+<span style="color:#44475a;opacity:0.6"> 15</span>   <span style="color:#bd93f9">```</span><span style="color:#44475a">javascript</span>
+<span style="color:#44475a;opacity:0.6"> 16</span>   <span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;
+<span style="color:#44475a;opacity:0.6"> 17</span>   <span style="color:#bd93f9">```</span></pre>
+            </div>
+            <div class="view">
+                <p class="label">Live view</p>
+                <div class="live" style="
+        background:#282a36; color:#f8f8f2;
+        font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+        font-size: 13px; line-height: 1.55;
+        padding: 16px 22px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        ">
+        <h1 style="color:#ff79c6;font-weight:600;font-size:1.6em;margin:0 0 0.5em;line-height:1.25;border-bottom:2px solid;border-image:linear-gradient(to right, #ff79c6 30%, transparent 70%) 1;padding-bottom:0.35em;">Heading One</h1>
+        <h2 style="color:#bd93f9;font-weight:600;font-size:1.25em;margin:1em 0 0.4em;line-height:1.25;border-bottom:2px solid;border-image:linear-gradient(to right, #bd93f9 30%, transparent 70%) 1;padding-bottom:0.3em;">Heading Two</h2>
+        <p style="color:#b8b8b8;margin:0 0 0.8em;">Body text with <b style="color:#f8f8f2">bold</b> and <i>italic</i> and <code style="background:#44475a;padding:0.1em 0.35em;border-radius:3px;color:#f8f8f2;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.88em;">inline code</code> plus a <a style="color:#8be9fd;text-decoration:none;border-bottom:1px solid #8be9fd;">link</a>.</p>
+        <blockquote style="border-left:3px solid #bd93f9;background:#44475a;color:#b8b8b8;margin:0 0 0.8em;padding:6px 12px;border-radius:5px;">A blockquote.</blockquote>
+        <ul style="color:#b8b8b8;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;">first item <span style="color:#bd93f9;font-weight:700;">●</span></li><li style="margin:0.1em 0;">second</li></ul>
+        <ol style="color:#b8b8b8;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;"><span style="color:#bd93f9;font-weight:700;">1.</span> numbered</li></ol>
+        <hr style="border:0;height:1px;background:#6272a4;margin:1em 0;">
+        <pre style="background:#44475a;border-left:3px solid #bd93f9;color:#f8f8f2;padding:10px 12px;border-radius:5px;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.85em;margin:0;overflow:hidden;"><code><span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;</code></pre>
+    </div>
+            </div>
+        </div>
+        <footer>
+            <code>accent #bd93f9</code>
+            <code>link #8be9fd</code>
+            <code>text #f8f8f2</code>
+            <code>codeBg #44475a</code>
+            <code>page #282a36</code>
+        </footer>
+    </section>
+<section class="card">
+        <header>
+            <h2>Solarized Dark</h2>
+            <span class="theme dark">dark</span>
+            <div class="swatches">
+                <span style="background:#002b36" title="page #002b36"></span>
+                <span style="background:#93a1a1" title="text #93a1a1"></span>
+                <span style="background:#b58900" title="accent #b58900"></span>
+                <span style="background:#3295da" title="link #3295da"></span>
+                <span style="background:#073642" title="codeBg #073642"></span>
+            </div>
+        </header>
+        <div class="views">
+            <div class="view">
+                <p class="label">Source view</p>
+                <pre class="src" style="
+        background:#002b36; color:#93a1a1;
+        font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+        font-size: 12px; line-height: 1.55;
+        padding: 14px 16px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        "><span style="color:#586e75;opacity:0.6">  1</span>   <span style="color:#b58900">#</span> Heading One
+<span style="color:#586e75;opacity:0.6">  2</span>   <span style="color:#b58900">##</span> Heading Two
+<span style="color:#586e75;opacity:0.6">  3</span>
+<span style="color:#586e75;opacity:0.6">  4</span>   Body text with <span style="color:#b58900">**</span><b>bold</b><span style="color:#b58900">**</span> and <span style="color:#b58900">*</span><i>italic</i><span style="color:#b58900">*</span> and
+<span style="color:#586e75;opacity:0.6">  5</span>   <span style="color:#b58900">`</span><span style="background:#073642;border-radius:3px;padding:0 3px">inline code</span><span style="color:#b58900">`</span> plus a <span style="color:#b58900">[</span>link<span style="color:#b58900">](</span><span style="color:#3295da">https://example.org</span><span style="color:#b58900">)</span>.
+<span style="color:#586e75;opacity:0.6">  6</span>
+<span style="color:#586e75;opacity:0.6">  7</span>   <span style="color:#b58900">&gt;</span> A blockquote.
+<span style="color:#586e75;opacity:0.6">  8</span>
+<span style="color:#586e75;opacity:0.6">  9</span>   <span style="color:#b58900">-</span> first item
+<span style="color:#586e75;opacity:0.6"> 10</span>   <span style="color:#b58900">-</span> second
+<span style="color:#586e75;opacity:0.6"> 11</span>   <span style="color:#b58900">1.</span> numbered
+<span style="color:#586e75;opacity:0.6"> 12</span>
+<span style="color:#586e75;opacity:0.6"> 13</span>   <span style="color:#b58900">---</span>
+<span style="color:#586e75;opacity:0.6"> 14</span>
+<span style="color:#586e75;opacity:0.6"> 15</span>   <span style="color:#b58900">```</span><span style="color:#586e75">javascript</span>
+<span style="color:#586e75;opacity:0.6"> 16</span>   <span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;
+<span style="color:#586e75;opacity:0.6"> 17</span>   <span style="color:#b58900">```</span></pre>
+            </div>
+            <div class="view">
+                <p class="label">Live view</p>
+                <div class="live" style="
+        background:#002b36; color:#93a1a1;
+        font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+        font-size: 13px; line-height: 1.55;
+        padding: 16px 22px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        ">
+        <h1 style="color:#268bd2;font-weight:600;font-size:1.6em;margin:0 0 0.5em;line-height:1.25;border-bottom:2px solid;border-image:linear-gradient(to right, #268bd2 30%, transparent 70%) 1;padding-bottom:0.35em;">Heading One</h1>
+        <h2 style="color:#268bd2;font-weight:600;font-size:1.25em;margin:1em 0 0.4em;line-height:1.25;border-bottom:2px solid;border-image:linear-gradient(to right, #268bd2 30%, transparent 70%) 1;padding-bottom:0.3em;">Heading Two</h2>
+        <p style="color:#b8b8b8;margin:0 0 0.8em;">Body text with <b style="color:#93a1a1">bold</b> and <i>italic</i> and <code style="background:#073642;padding:0.1em 0.35em;border-radius:3px;color:#93a1a1;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.88em;">inline code</code> plus a <a style="color:#3295da;text-decoration:none;border-bottom:1px solid #3295da;">link</a>.</p>
+        <blockquote style="border-left:3px solid #b58900;background:#073642;color:#b8b8b8;margin:0 0 0.8em;padding:6px 12px;border-radius:5px;">A blockquote.</blockquote>
+        <ul style="color:#b8b8b8;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;">first item <span style="color:#b58900;font-weight:700;">●</span></li><li style="margin:0.1em 0;">second</li></ul>
+        <ol style="color:#b8b8b8;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;"><span style="color:#b58900;font-weight:700;">1.</span> numbered</li></ol>
+        <hr style="border:0;height:1px;background:#586e75;margin:1em 0;">
+        <pre style="background:#073642;border-left:3px solid #b58900;color:#93a1a1;padding:10px 12px;border-radius:5px;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.85em;margin:0;overflow:hidden;"><code><span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;</code></pre>
+    </div>
+            </div>
+        </div>
+        <footer>
+            <code>accent #b58900</code>
+            <code>link #3295da</code>
+            <code>text #93a1a1</code>
+            <code>codeBg #073642</code>
+            <code>page #002b36</code>
+        </footer>
+    </section>
+<section class="card">
+        <header>
+            <h2>Nord</h2>
+            <span class="theme dark">dark</span>
+            <div class="swatches">
+                <span style="background:#2e3440" title="page #2e3440"></span>
+                <span style="background:#d8dee9" title="text #d8dee9"></span>
+                <span style="background:#88c0d0" title="accent #88c0d0"></span>
+                <span style="background:#81a1c1" title="link #81a1c1"></span>
+                <span style="background:#3b4252" title="codeBg #3b4252"></span>
+            </div>
+        </header>
+        <div class="views">
+            <div class="view">
+                <p class="label">Source view</p>
+                <pre class="src" style="
+        background:#2e3440; color:#d8dee9;
+        font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+        font-size: 12px; line-height: 1.55;
+        padding: 14px 16px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        "><span style="color:#4c566a;opacity:0.6">  1</span>   <span style="color:#88c0d0">#</span> Heading One
+<span style="color:#4c566a;opacity:0.6">  2</span>   <span style="color:#88c0d0">##</span> Heading Two
+<span style="color:#4c566a;opacity:0.6">  3</span>
+<span style="color:#4c566a;opacity:0.6">  4</span>   Body text with <span style="color:#88c0d0">**</span><b>bold</b><span style="color:#88c0d0">**</span> and <span style="color:#88c0d0">*</span><i>italic</i><span style="color:#88c0d0">*</span> and
+<span style="color:#4c566a;opacity:0.6">  5</span>   <span style="color:#88c0d0">`</span><span style="background:#3b4252;border-radius:3px;padding:0 3px">inline code</span><span style="color:#88c0d0">`</span> plus a <span style="color:#88c0d0">[</span>link<span style="color:#88c0d0">](</span><span style="color:#81a1c1">https://example.org</span><span style="color:#88c0d0">)</span>.
+<span style="color:#4c566a;opacity:0.6">  6</span>
+<span style="color:#4c566a;opacity:0.6">  7</span>   <span style="color:#88c0d0">&gt;</span> A blockquote.
+<span style="color:#4c566a;opacity:0.6">  8</span>
+<span style="color:#4c566a;opacity:0.6">  9</span>   <span style="color:#88c0d0">-</span> first item
+<span style="color:#4c566a;opacity:0.6"> 10</span>   <span style="color:#88c0d0">-</span> second
+<span style="color:#4c566a;opacity:0.6"> 11</span>   <span style="color:#88c0d0">1.</span> numbered
+<span style="color:#4c566a;opacity:0.6"> 12</span>
+<span style="color:#4c566a;opacity:0.6"> 13</span>   <span style="color:#88c0d0">---</span>
+<span style="color:#4c566a;opacity:0.6"> 14</span>
+<span style="color:#4c566a;opacity:0.6"> 15</span>   <span style="color:#88c0d0">```</span><span style="color:#4c566a">javascript</span>
+<span style="color:#4c566a;opacity:0.6"> 16</span>   <span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;
+<span style="color:#4c566a;opacity:0.6"> 17</span>   <span style="color:#88c0d0">```</span></pre>
+            </div>
+            <div class="view">
+                <p class="label">Live view</p>
+                <div class="live" style="
+        background:#2e3440; color:#d8dee9;
+        font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+        font-size: 13px; line-height: 1.55;
+        padding: 16px 22px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        ">
+        <h1 style="color:#bf616a;font-weight:600;font-size:1.6em;margin:0 0 0.5em;line-height:1.25;border-bottom:2px solid;border-image:linear-gradient(to right, #bf616a 30%, transparent 70%) 1;padding-bottom:0.35em;">Heading One</h1>
+        <h2 style="color:#d08770;font-weight:600;font-size:1.25em;margin:1em 0 0.4em;line-height:1.25;border-bottom:2px solid;border-image:linear-gradient(to right, #d08770 30%, transparent 70%) 1;padding-bottom:0.3em;">Heading Two</h2>
+        <p style="color:#b8b8b8;margin:0 0 0.8em;">Body text with <b style="color:#d8dee9">bold</b> and <i>italic</i> and <code style="background:#3b4252;padding:0.1em 0.35em;border-radius:3px;color:#d8dee9;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.88em;">inline code</code> plus a <a style="color:#81a1c1;text-decoration:none;border-bottom:1px solid #81a1c1;">link</a>.</p>
+        <blockquote style="border-left:3px solid #88c0d0;background:#3b4252;color:#b8b8b8;margin:0 0 0.8em;padding:6px 12px;border-radius:5px;">A blockquote.</blockquote>
+        <ul style="color:#b8b8b8;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;">first item <span style="color:#88c0d0;font-weight:700;">●</span></li><li style="margin:0.1em 0;">second</li></ul>
+        <ol style="color:#b8b8b8;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;"><span style="color:#88c0d0;font-weight:700;">1.</span> numbered</li></ol>
+        <hr style="border:0;height:1px;background:#4c566a;margin:1em 0;">
+        <pre style="background:#3b4252;border-left:3px solid #88c0d0;color:#d8dee9;padding:10px 12px;border-radius:5px;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.85em;margin:0;overflow:hidden;"><code><span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;</code></pre>
+    </div>
+            </div>
+        </div>
+        <footer>
+            <code>accent #88c0d0</code>
+            <code>link #81a1c1</code>
+            <code>text #d8dee9</code>
+            <code>codeBg #3b4252</code>
+            <code>page #2e3440</code>
+        </footer>
+    </section>
+<section class="card">
+        <header>
+            <h2>Gruvbox Dark</h2>
+            <span class="theme dark">dark</span>
+            <div class="swatches">
+                <span style="background:#282828" title="page #282828"></span>
+                <span style="background:#ebdbb2" title="text #ebdbb2"></span>
+                <span style="background:#fabd2f" title="accent #fabd2f"></span>
+                <span style="background:#83a598" title="link #83a598"></span>
+                <span style="background:#3c3836" title="codeBg #3c3836"></span>
+            </div>
+        </header>
+        <div class="views">
+            <div class="view">
+                <p class="label">Source view</p>
+                <pre class="src" style="
+        background:#282828; color:#ebdbb2;
+        font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+        font-size: 12px; line-height: 1.55;
+        padding: 14px 16px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        "><span style="color:#504945;opacity:0.6">  1</span>   <span style="color:#fabd2f">#</span> Heading One
+<span style="color:#504945;opacity:0.6">  2</span>   <span style="color:#fabd2f">##</span> Heading Two
+<span style="color:#504945;opacity:0.6">  3</span>
+<span style="color:#504945;opacity:0.6">  4</span>   Body text with <span style="color:#fabd2f">**</span><b>bold</b><span style="color:#fabd2f">**</span> and <span style="color:#fabd2f">*</span><i>italic</i><span style="color:#fabd2f">*</span> and
+<span style="color:#504945;opacity:0.6">  5</span>   <span style="color:#fabd2f">`</span><span style="background:#3c3836;border-radius:3px;padding:0 3px">inline code</span><span style="color:#fabd2f">`</span> plus a <span style="color:#fabd2f">[</span>link<span style="color:#fabd2f">](</span><span style="color:#83a598">https://example.org</span><span style="color:#fabd2f">)</span>.
+<span style="color:#504945;opacity:0.6">  6</span>
+<span style="color:#504945;opacity:0.6">  7</span>   <span style="color:#fabd2f">&gt;</span> A blockquote.
+<span style="color:#504945;opacity:0.6">  8</span>
+<span style="color:#504945;opacity:0.6">  9</span>   <span style="color:#fabd2f">-</span> first item
+<span style="color:#504945;opacity:0.6"> 10</span>   <span style="color:#fabd2f">-</span> second
+<span style="color:#504945;opacity:0.6"> 11</span>   <span style="color:#fabd2f">1.</span> numbered
+<span style="color:#504945;opacity:0.6"> 12</span>
+<span style="color:#504945;opacity:0.6"> 13</span>   <span style="color:#fabd2f">---</span>
+<span style="color:#504945;opacity:0.6"> 14</span>
+<span style="color:#504945;opacity:0.6"> 15</span>   <span style="color:#fabd2f">```</span><span style="color:#504945">javascript</span>
+<span style="color:#504945;opacity:0.6"> 16</span>   <span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;
+<span style="color:#504945;opacity:0.6"> 17</span>   <span style="color:#fabd2f">```</span></pre>
+            </div>
+            <div class="view">
+                <p class="label">Live view</p>
+                <div class="live" style="
+        background:#282828; color:#ebdbb2;
+        font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+        font-size: 13px; line-height: 1.55;
+        padding: 16px 22px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        ">
+        <h1 style="color:#e96761;font-weight:600;font-size:1.6em;margin:0 0 0.5em;line-height:1.25;border-bottom:2px solid;border-image:linear-gradient(to right, #e96761 30%, transparent 70%) 1;padding-bottom:0.35em;">Heading One</h1>
+        <h2 style="color:#d65d0e;font-weight:600;font-size:1.25em;margin:1em 0 0.4em;line-height:1.25;border-bottom:2px solid;border-image:linear-gradient(to right, #d65d0e 30%, transparent 70%) 1;padding-bottom:0.3em;">Heading Two</h2>
+        <p style="color:#b8b8b8;margin:0 0 0.8em;">Body text with <b style="color:#ebdbb2">bold</b> and <i>italic</i> and <code style="background:#3c3836;padding:0.1em 0.35em;border-radius:3px;color:#ebdbb2;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.88em;">inline code</code> plus a <a style="color:#83a598;text-decoration:none;border-bottom:1px solid #83a598;">link</a>.</p>
+        <blockquote style="border-left:3px solid #fabd2f;background:#3c3836;color:#b8b8b8;margin:0 0 0.8em;padding:6px 12px;border-radius:5px;">A blockquote.</blockquote>
+        <ul style="color:#b8b8b8;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;">first item <span style="color:#fabd2f;font-weight:700;">●</span></li><li style="margin:0.1em 0;">second</li></ul>
+        <ol style="color:#b8b8b8;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;"><span style="color:#fabd2f;font-weight:700;">1.</span> numbered</li></ol>
+        <hr style="border:0;height:1px;background:#665c54;margin:1em 0;">
+        <pre style="background:#3c3836;border-left:3px solid #fabd2f;color:#ebdbb2;padding:10px 12px;border-radius:5px;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.85em;margin:0;overflow:hidden;"><code><span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;</code></pre>
+    </div>
+            </div>
+        </div>
+        <footer>
+            <code>accent #fabd2f</code>
+            <code>link #83a598</code>
+            <code>text #ebdbb2</code>
+            <code>codeBg #3c3836</code>
+            <code>page #282828</code>
+        </footer>
+    </section>
+<section class="card">
+        <header>
+            <h2>One Dark</h2>
+            <span class="theme dark">dark</span>
+            <div class="swatches">
+                <span style="background:#282c34" title="page #282c34"></span>
+                <span style="background:#abb2bf" title="text #abb2bf"></span>
+                <span style="background:#61afef" title="accent #61afef"></span>
+                <span style="background:#61afef" title="link #61afef"></span>
+                <span style="background:#21252b" title="codeBg #21252b"></span>
+            </div>
+        </header>
+        <div class="views">
+            <div class="view">
+                <p class="label">Source view</p>
+                <pre class="src" style="
+        background:#282c34; color:#abb2bf;
+        font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+        font-size: 12px; line-height: 1.55;
+        padding: 14px 16px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        "><span style="color:#3e4451;opacity:0.6">  1</span>   <span style="color:#61afef">#</span> Heading One
+<span style="color:#3e4451;opacity:0.6">  2</span>   <span style="color:#61afef">##</span> Heading Two
+<span style="color:#3e4451;opacity:0.6">  3</span>
+<span style="color:#3e4451;opacity:0.6">  4</span>   Body text with <span style="color:#61afef">**</span><b>bold</b><span style="color:#61afef">**</span> and <span style="color:#61afef">*</span><i>italic</i><span style="color:#61afef">*</span> and
+<span style="color:#3e4451;opacity:0.6">  5</span>   <span style="color:#61afef">`</span><span style="background:#21252b;border-radius:3px;padding:0 3px">inline code</span><span style="color:#61afef">`</span> plus a <span style="color:#61afef">[</span>link<span style="color:#61afef">](</span><span style="color:#61afef">https://example.org</span><span style="color:#61afef">)</span>.
+<span style="color:#3e4451;opacity:0.6">  6</span>
+<span style="color:#3e4451;opacity:0.6">  7</span>   <span style="color:#61afef">&gt;</span> A blockquote.
+<span style="color:#3e4451;opacity:0.6">  8</span>
+<span style="color:#3e4451;opacity:0.6">  9</span>   <span style="color:#61afef">-</span> first item
+<span style="color:#3e4451;opacity:0.6"> 10</span>   <span style="color:#61afef">-</span> second
+<span style="color:#3e4451;opacity:0.6"> 11</span>   <span style="color:#61afef">1.</span> numbered
+<span style="color:#3e4451;opacity:0.6"> 12</span>
+<span style="color:#3e4451;opacity:0.6"> 13</span>   <span style="color:#61afef">---</span>
+<span style="color:#3e4451;opacity:0.6"> 14</span>
+<span style="color:#3e4451;opacity:0.6"> 15</span>   <span style="color:#61afef">```</span><span style="color:#3e4451">javascript</span>
+<span style="color:#3e4451;opacity:0.6"> 16</span>   <span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;
+<span style="color:#3e4451;opacity:0.6"> 17</span>   <span style="color:#61afef">```</span></pre>
+            </div>
+            <div class="view">
+                <p class="label">Live view</p>
+                <div class="live" style="
+        background:#282c34; color:#abb2bf;
+        font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+        font-size: 13px; line-height: 1.55;
+        padding: 16px 22px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        ">
+        <h1 style="color:#e06c75;font-weight:600;font-size:1.6em;margin:0 0 0.5em;line-height:1.25;border-bottom:2px solid;border-image:linear-gradient(to right, #e06c75 30%, transparent 70%) 1;padding-bottom:0.35em;">Heading One</h1>
+        <h2 style="color:#d19a66;font-weight:600;font-size:1.25em;margin:1em 0 0.4em;line-height:1.25;border-bottom:2px solid;border-image:linear-gradient(to right, #d19a66 30%, transparent 70%) 1;padding-bottom:0.3em;">Heading Two</h2>
+        <p style="color:#b8b8b8;margin:0 0 0.8em;">Body text with <b style="color:#abb2bf">bold</b> and <i>italic</i> and <code style="background:#21252b;padding:0.1em 0.35em;border-radius:3px;color:#abb2bf;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.88em;">inline code</code> plus a <a style="color:#61afef;text-decoration:none;border-bottom:1px solid #61afef;">link</a>.</p>
+        <blockquote style="border-left:3px solid #61afef;background:#21252b;color:#b8b8b8;margin:0 0 0.8em;padding:6px 12px;border-radius:5px;">A blockquote.</blockquote>
+        <ul style="color:#b8b8b8;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;">first item <span style="color:#61afef;font-weight:700;">●</span></li><li style="margin:0.1em 0;">second</li></ul>
+        <ol style="color:#b8b8b8;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;"><span style="color:#61afef;font-weight:700;">1.</span> numbered</li></ol>
+        <hr style="border:0;height:1px;background:#5c6370;margin:1em 0;">
+        <pre style="background:#21252b;border-left:3px solid #61afef;color:#abb2bf;padding:10px 12px;border-radius:5px;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.85em;margin:0;overflow:hidden;"><code><span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;</code></pre>
+    </div>
+            </div>
+        </div>
+        <footer>
+            <code>accent #61afef</code>
+            <code>link #61afef</code>
+            <code>text #abb2bf</code>
+            <code>codeBg #21252b</code>
+            <code>page #282c34</code>
+        </footer>
+    </section>
+<section class="card">
+        <header>
+            <h2>Tokyo Night</h2>
+            <span class="theme dark">dark</span>
+            <div class="swatches">
+                <span style="background:#1a1b26" title="page #1a1b26"></span>
+                <span style="background:#c0caf5" title="text #c0caf5"></span>
+                <span style="background:#7aa2f7" title="accent #7aa2f7"></span>
+                <span style="background:#7aa2f7" title="link #7aa2f7"></span>
+                <span style="background:#24283b" title="codeBg #24283b"></span>
+            </div>
+        </header>
+        <div class="views">
+            <div class="view">
+                <p class="label">Source view</p>
+                <pre class="src" style="
+        background:#1a1b26; color:#c0caf5;
+        font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+        font-size: 12px; line-height: 1.55;
+        padding: 14px 16px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        "><span style="color:#292e42;opacity:0.6">  1</span>   <span style="color:#7aa2f7">#</span> Heading One
+<span style="color:#292e42;opacity:0.6">  2</span>   <span style="color:#7aa2f7">##</span> Heading Two
+<span style="color:#292e42;opacity:0.6">  3</span>
+<span style="color:#292e42;opacity:0.6">  4</span>   Body text with <span style="color:#7aa2f7">**</span><b>bold</b><span style="color:#7aa2f7">**</span> and <span style="color:#7aa2f7">*</span><i>italic</i><span style="color:#7aa2f7">*</span> and
+<span style="color:#292e42;opacity:0.6">  5</span>   <span style="color:#7aa2f7">`</span><span style="background:#24283b;border-radius:3px;padding:0 3px">inline code</span><span style="color:#7aa2f7">`</span> plus a <span style="color:#7aa2f7">[</span>link<span style="color:#7aa2f7">](</span><span style="color:#7aa2f7">https://example.org</span><span style="color:#7aa2f7">)</span>.
+<span style="color:#292e42;opacity:0.6">  6</span>
+<span style="color:#292e42;opacity:0.6">  7</span>   <span style="color:#7aa2f7">&gt;</span> A blockquote.
+<span style="color:#292e42;opacity:0.6">  8</span>
+<span style="color:#292e42;opacity:0.6">  9</span>   <span style="color:#7aa2f7">-</span> first item
+<span style="color:#292e42;opacity:0.6"> 10</span>   <span style="color:#7aa2f7">-</span> second
+<span style="color:#292e42;opacity:0.6"> 11</span>   <span style="color:#7aa2f7">1.</span> numbered
+<span style="color:#292e42;opacity:0.6"> 12</span>
+<span style="color:#292e42;opacity:0.6"> 13</span>   <span style="color:#7aa2f7">---</span>
+<span style="color:#292e42;opacity:0.6"> 14</span>
+<span style="color:#292e42;opacity:0.6"> 15</span>   <span style="color:#7aa2f7">```</span><span style="color:#292e42">javascript</span>
+<span style="color:#292e42;opacity:0.6"> 16</span>   <span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;
+<span style="color:#292e42;opacity:0.6"> 17</span>   <span style="color:#7aa2f7">```</span></pre>
+            </div>
+            <div class="view">
+                <p class="label">Live view</p>
+                <div class="live" style="
+        background:#1a1b26; color:#c0caf5;
+        font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+        font-size: 13px; line-height: 1.55;
+        padding: 16px 22px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        ">
+        <h1 style="color:#f7768e;font-weight:600;font-size:1.6em;margin:0 0 0.5em;line-height:1.25;border-bottom:2px solid;border-image:linear-gradient(to right, #f7768e 30%, transparent 70%) 1;padding-bottom:0.35em;">Heading One</h1>
+        <h2 style="color:#ff9e64;font-weight:600;font-size:1.25em;margin:1em 0 0.4em;line-height:1.25;border-bottom:2px solid;border-image:linear-gradient(to right, #ff9e64 30%, transparent 70%) 1;padding-bottom:0.3em;">Heading Two</h2>
+        <p style="color:#b8b8b8;margin:0 0 0.8em;">Body text with <b style="color:#c0caf5">bold</b> and <i>italic</i> and <code style="background:#24283b;padding:0.1em 0.35em;border-radius:3px;color:#c0caf5;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.88em;">inline code</code> plus a <a style="color:#7aa2f7;text-decoration:none;border-bottom:1px solid #7aa2f7;">link</a>.</p>
+        <blockquote style="border-left:3px solid #7aa2f7;background:#24283b;color:#b8b8b8;margin:0 0 0.8em;padding:6px 12px;border-radius:5px;">A blockquote.</blockquote>
+        <ul style="color:#b8b8b8;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;">first item <span style="color:#7aa2f7;font-weight:700;">●</span></li><li style="margin:0.1em 0;">second</li></ul>
+        <ol style="color:#b8b8b8;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;"><span style="color:#7aa2f7;font-weight:700;">1.</span> numbered</li></ol>
+        <hr style="border:0;height:1px;background:#292e42;margin:1em 0;">
+        <pre style="background:#24283b;border-left:3px solid #7aa2f7;color:#c0caf5;padding:10px 12px;border-radius:5px;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.85em;margin:0;overflow:hidden;"><code><span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;</code></pre>
+    </div>
+            </div>
+        </div>
+        <footer>
+            <code>accent #7aa2f7</code>
+            <code>link #7aa2f7</code>
+            <code>text #c0caf5</code>
+            <code>codeBg #24283b</code>
+            <code>page #1a1b26</code>
+        </footer>
+    </section>
+<section class="card">
+        <header>
+            <h2>Ayu Dark</h2>
+            <span class="theme dark">dark</span>
+            <div class="swatches">
+                <span style="background:#0a0e14" title="page #0a0e14"></span>
+                <span style="background:#b3b1ad" title="text #b3b1ad"></span>
+                <span style="background:#e6b450" title="accent #e6b450"></span>
+                <span style="background:#59c2ff" title="link #59c2ff"></span>
+                <span style="background:#01060e" title="codeBg #01060e"></span>
+            </div>
+        </header>
+        <div class="views">
+            <div class="view">
+                <p class="label">Source view</p>
+                <pre class="src" style="
+        background:#0a0e14; color:#b3b1ad;
+        font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+        font-size: 12px; line-height: 1.55;
+        padding: 14px 16px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        "><span style="color:#11151c;opacity:0.6">  1</span>   <span style="color:#e6b450">#</span> Heading One
+<span style="color:#11151c;opacity:0.6">  2</span>   <span style="color:#e6b450">##</span> Heading Two
+<span style="color:#11151c;opacity:0.6">  3</span>
+<span style="color:#11151c;opacity:0.6">  4</span>   Body text with <span style="color:#e6b450">**</span><b>bold</b><span style="color:#e6b450">**</span> and <span style="color:#e6b450">*</span><i>italic</i><span style="color:#e6b450">*</span> and
+<span style="color:#11151c;opacity:0.6">  5</span>   <span style="color:#e6b450">`</span><span style="background:#01060e;border-radius:3px;padding:0 3px">inline code</span><span style="color:#e6b450">`</span> plus a <span style="color:#e6b450">[</span>link<span style="color:#e6b450">](</span><span style="color:#59c2ff">https://example.org</span><span style="color:#e6b450">)</span>.
+<span style="color:#11151c;opacity:0.6">  6</span>
+<span style="color:#11151c;opacity:0.6">  7</span>   <span style="color:#e6b450">&gt;</span> A blockquote.
+<span style="color:#11151c;opacity:0.6">  8</span>
+<span style="color:#11151c;opacity:0.6">  9</span>   <span style="color:#e6b450">-</span> first item
+<span style="color:#11151c;opacity:0.6"> 10</span>   <span style="color:#e6b450">-</span> second
+<span style="color:#11151c;opacity:0.6"> 11</span>   <span style="color:#e6b450">1.</span> numbered
+<span style="color:#11151c;opacity:0.6"> 12</span>
+<span style="color:#11151c;opacity:0.6"> 13</span>   <span style="color:#e6b450">---</span>
+<span style="color:#11151c;opacity:0.6"> 14</span>
+<span style="color:#11151c;opacity:0.6"> 15</span>   <span style="color:#e6b450">```</span><span style="color:#11151c">javascript</span>
+<span style="color:#11151c;opacity:0.6"> 16</span>   <span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;
+<span style="color:#11151c;opacity:0.6"> 17</span>   <span style="color:#e6b450">```</span></pre>
+            </div>
+            <div class="view">
+                <p class="label">Live view</p>
+                <div class="live" style="
+        background:#0a0e14; color:#b3b1ad;
+        font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+        font-size: 13px; line-height: 1.55;
+        padding: 16px 22px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        ">
+        <h1 style="color:#ff8f40;font-weight:600;font-size:1.6em;margin:0 0 0.5em;line-height:1.25;border-bottom:2px solid;border-image:linear-gradient(to right, #ff8f40 30%, transparent 70%) 1;padding-bottom:0.35em;">Heading One</h1>
+        <h2 style="color:#ff8f40;font-weight:600;font-size:1.25em;margin:1em 0 0.4em;line-height:1.25;border-bottom:2px solid;border-image:linear-gradient(to right, #ff8f40 30%, transparent 70%) 1;padding-bottom:0.3em;">Heading Two</h2>
+        <p style="color:#b8b8b8;margin:0 0 0.8em;">Body text with <b style="color:#b3b1ad">bold</b> and <i>italic</i> and <code style="background:#01060e;padding:0.1em 0.35em;border-radius:3px;color:#b3b1ad;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.88em;">inline code</code> plus a <a style="color:#59c2ff;text-decoration:none;border-bottom:1px solid #59c2ff;">link</a>.</p>
+        <blockquote style="border-left:3px solid #e6b450;background:#01060e;color:#b8b8b8;margin:0 0 0.8em;padding:6px 12px;border-radius:5px;">A blockquote.</blockquote>
+        <ul style="color:#b8b8b8;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;">first item <span style="color:#e6b450;font-weight:700;">●</span></li><li style="margin:0.1em 0;">second</li></ul>
+        <ol style="color:#b8b8b8;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;"><span style="color:#e6b450;font-weight:700;">1.</span> numbered</li></ol>
+        <hr style="border:0;height:1px;background:#273747;margin:1em 0;">
+        <pre style="background:#01060e;border-left:3px solid #e6b450;color:#b3b1ad;padding:10px 12px;border-radius:5px;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.85em;margin:0;overflow:hidden;"><code><span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;</code></pre>
+    </div>
+            </div>
+        </div>
+        <footer>
+            <code>accent #e6b450</code>
+            <code>link #59c2ff</code>
+            <code>text #b3b1ad</code>
+            <code>codeBg #01060e</code>
+            <code>page #0a0e14</code>
+        </footer>
+    </section>
+<section class="card">
+        <header>
+            <h2>Catppuccin Mocha</h2>
+            <span class="theme dark">dark</span>
+            <div class="swatches">
+                <span style="background:#1e1e2e" title="page #1e1e2e"></span>
+                <span style="background:#cdd6f4" title="text #cdd6f4"></span>
+                <span style="background:#cba6f7" title="accent #cba6f7"></span>
+                <span style="background:#89b4fa" title="link #89b4fa"></span>
+                <span style="background:#181825" title="codeBg #181825"></span>
+            </div>
+        </header>
+        <div class="views">
+            <div class="view">
+                <p class="label">Source view</p>
+                <pre class="src" style="
+        background:#1e1e2e; color:#cdd6f4;
+        font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+        font-size: 12px; line-height: 1.55;
+        padding: 14px 16px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        "><span style="color:#313244;opacity:0.6">  1</span>   <span style="color:#cba6f7">#</span> Heading One
+<span style="color:#313244;opacity:0.6">  2</span>   <span style="color:#cba6f7">##</span> Heading Two
+<span style="color:#313244;opacity:0.6">  3</span>
+<span style="color:#313244;opacity:0.6">  4</span>   Body text with <span style="color:#cba6f7">**</span><b>bold</b><span style="color:#cba6f7">**</span> and <span style="color:#cba6f7">*</span><i>italic</i><span style="color:#cba6f7">*</span> and
+<span style="color:#313244;opacity:0.6">  5</span>   <span style="color:#cba6f7">`</span><span style="background:#181825;border-radius:3px;padding:0 3px">inline code</span><span style="color:#cba6f7">`</span> plus a <span style="color:#cba6f7">[</span>link<span style="color:#cba6f7">](</span><span style="color:#89b4fa">https://example.org</span><span style="color:#cba6f7">)</span>.
+<span style="color:#313244;opacity:0.6">  6</span>
+<span style="color:#313244;opacity:0.6">  7</span>   <span style="color:#cba6f7">&gt;</span> A blockquote.
+<span style="color:#313244;opacity:0.6">  8</span>
+<span style="color:#313244;opacity:0.6">  9</span>   <span style="color:#cba6f7">-</span> first item
+<span style="color:#313244;opacity:0.6"> 10</span>   <span style="color:#cba6f7">-</span> second
+<span style="color:#313244;opacity:0.6"> 11</span>   <span style="color:#cba6f7">1.</span> numbered
+<span style="color:#313244;opacity:0.6"> 12</span>
+<span style="color:#313244;opacity:0.6"> 13</span>   <span style="color:#cba6f7">---</span>
+<span style="color:#313244;opacity:0.6"> 14</span>
+<span style="color:#313244;opacity:0.6"> 15</span>   <span style="color:#cba6f7">```</span><span style="color:#313244">javascript</span>
+<span style="color:#313244;opacity:0.6"> 16</span>   <span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;
+<span style="color:#313244;opacity:0.6"> 17</span>   <span style="color:#cba6f7">```</span></pre>
+            </div>
+            <div class="view">
+                <p class="label">Live view</p>
+                <div class="live" style="
+        background:#1e1e2e; color:#cdd6f4;
+        font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+        font-size: 13px; line-height: 1.55;
+        padding: 16px 22px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        ">
+        <h1 style="color:#f38ba8;font-weight:600;font-size:1.6em;margin:0 0 0.5em;line-height:1.25;border-bottom:2px solid;border-image:linear-gradient(to right, #f38ba8 30%, transparent 70%) 1;padding-bottom:0.35em;">Heading One</h1>
+        <h2 style="color:#fab387;font-weight:600;font-size:1.25em;margin:1em 0 0.4em;line-height:1.25;border-bottom:2px solid;border-image:linear-gradient(to right, #fab387 30%, transparent 70%) 1;padding-bottom:0.3em;">Heading Two</h2>
+        <p style="color:#b8b8b8;margin:0 0 0.8em;">Body text with <b style="color:#cdd6f4">bold</b> and <i>italic</i> and <code style="background:#181825;padding:0.1em 0.35em;border-radius:3px;color:#cdd6f4;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.88em;">inline code</code> plus a <a style="color:#89b4fa;text-decoration:none;border-bottom:1px solid #89b4fa;">link</a>.</p>
+        <blockquote style="border-left:3px solid #cba6f7;background:#181825;color:#b8b8b8;margin:0 0 0.8em;padding:6px 12px;border-radius:5px;">A blockquote.</blockquote>
+        <ul style="color:#b8b8b8;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;">first item <span style="color:#cba6f7;font-weight:700;">●</span></li><li style="margin:0.1em 0;">second</li></ul>
+        <ol style="color:#b8b8b8;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;"><span style="color:#cba6f7;font-weight:700;">1.</span> numbered</li></ol>
+        <hr style="border:0;height:1px;background:#45475a;margin:1em 0;">
+        <pre style="background:#181825;border-left:3px solid #cba6f7;color:#cdd6f4;padding:10px 12px;border-radius:5px;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.85em;margin:0;overflow:hidden;"><code><span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;</code></pre>
+    </div>
+            </div>
+        </div>
+        <footer>
+            <code>accent #cba6f7</code>
+            <code>link #89b4fa</code>
+            <code>text #cdd6f4</code>
+            <code>codeBg #181825</code>
+            <code>page #1e1e2e</code>
+        </footer>
+    </section>
+<section class="card">
+        <header>
+            <h2>GitHub Dark</h2>
+            <span class="theme dark">dark</span>
+            <div class="swatches">
+                <span style="background:#0d1117" title="page #0d1117"></span>
+                <span style="background:#f0f6fc" title="text #f0f6fc"></span>
+                <span style="background:#4493f8" title="accent #4493f8"></span>
+                <span style="background:#4493f8" title="link #4493f8"></span>
+                <span style="background:#151b23" title="codeBg #151b23"></span>
+            </div>
+        </header>
+        <div class="views">
+            <div class="view">
+                <p class="label">Source view</p>
+                <pre class="src" style="
+        background:#0d1117; color:#f0f6fc;
+        font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+        font-size: 12px; line-height: 1.55;
+        padding: 14px 16px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        "><span style="color:#3d444d;opacity:0.6">  1</span>   <span style="color:#4493f8">#</span> Heading One
+<span style="color:#3d444d;opacity:0.6">  2</span>   <span style="color:#4493f8">##</span> Heading Two
+<span style="color:#3d444d;opacity:0.6">  3</span>
+<span style="color:#3d444d;opacity:0.6">  4</span>   Body text with <span style="color:#4493f8">**</span><b>bold</b><span style="color:#4493f8">**</span> and <span style="color:#4493f8">*</span><i>italic</i><span style="color:#4493f8">*</span> and
+<span style="color:#3d444d;opacity:0.6">  5</span>   <span style="color:#4493f8">`</span><span style="background:#151b23;border-radius:3px;padding:0 3px">inline code</span><span style="color:#4493f8">`</span> plus a <span style="color:#4493f8">[</span>link<span style="color:#4493f8">](</span><span style="color:#4493f8">https://example.org</span><span style="color:#4493f8">)</span>.
+<span style="color:#3d444d;opacity:0.6">  6</span>
+<span style="color:#3d444d;opacity:0.6">  7</span>   <span style="color:#4493f8">&gt;</span> A blockquote.
+<span style="color:#3d444d;opacity:0.6">  8</span>
+<span style="color:#3d444d;opacity:0.6">  9</span>   <span style="color:#4493f8">-</span> first item
+<span style="color:#3d444d;opacity:0.6"> 10</span>   <span style="color:#4493f8">-</span> second
+<span style="color:#3d444d;opacity:0.6"> 11</span>   <span style="color:#4493f8">1.</span> numbered
+<span style="color:#3d444d;opacity:0.6"> 12</span>
+<span style="color:#3d444d;opacity:0.6"> 13</span>   <span style="color:#4493f8">---</span>
+<span style="color:#3d444d;opacity:0.6"> 14</span>
+<span style="color:#3d444d;opacity:0.6"> 15</span>   <span style="color:#4493f8">```</span><span style="color:#3d444d">javascript</span>
+<span style="color:#3d444d;opacity:0.6"> 16</span>   <span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;
+<span style="color:#3d444d;opacity:0.6"> 17</span>   <span style="color:#4493f8">```</span></pre>
+            </div>
+            <div class="view">
+                <p class="label">Live view</p>
+                <div class="live" style="
+        background:#0d1117; color:#f0f6fc;
+        font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+        font-size: 13px; line-height: 1.55;
+        padding: 16px 22px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        ">
+        <h1 style="color:#f0f6fc;font-weight:600;font-size:1.6em;margin:0 0 0.5em;line-height:1.25;border-bottom:1px solid #3d444d;padding-bottom:0.3em;">Heading One</h1>
+        <h2 style="color:#f0f6fc;font-weight:600;font-size:1.25em;margin:1em 0 0.4em;line-height:1.25;border-bottom:1px solid #3d444d;padding-bottom:0.3em;">Heading Two</h2>
+        <p style="color:#b8b8b8;margin:0 0 0.8em;">Body text with <b style="color:#f0f6fc">bold</b> and <i>italic</i> and <code style="background:#151b23;padding:0.1em 0.35em;border-radius:3px;color:#f0f6fc;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.88em;">inline code</code> plus a <a style="color:#4493f8;text-decoration:none;border-bottom:1px solid #4493f8;">link</a>.</p>
+        <blockquote style="border-left:3px solid #4493f8;background:#151b23;color:#b8b8b8;margin:0 0 0.8em;padding:6px 12px;border-radius:5px;">A blockquote.</blockquote>
+        <ul style="color:#b8b8b8;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;">first item <span style="color:#4493f8;font-weight:700;">●</span></li><li style="margin:0.1em 0;">second</li></ul>
+        <ol style="color:#b8b8b8;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;"><span style="color:#4493f8;font-weight:700;">1.</span> numbered</li></ol>
+        <hr style="border:0;height:1px;background:#3d444d;margin:1em 0;">
+        <pre style="background:#151b23;border-left:3px solid #4493f8;color:#f0f6fc;padding:10px 12px;border-radius:5px;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.85em;margin:0;overflow:hidden;"><code><span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;</code></pre>
+    </div>
+            </div>
+        </div>
+        <footer>
+            <code>accent #4493f8</code>
+            <code>link #4493f8</code>
+            <code>text #f0f6fc</code>
+            <code>codeBg #151b23</code>
+            <code>page #0d1117</code>
+        </footer>
+    </section>
+<section class="card">
+        <header>
+            <h2>Obsidianite</h2>
+            <span class="theme dark">dark</span>
+            <div class="swatches">
+                <span style="background:#100e17" title="page #100e17"></span>
+                <span style="background:#bebebe" title="text #bebebe"></span>
+                <span style="background:#0fb6d6" title="accent #0fb6d6"></span>
+                <span style="background:#6bcafb" title="link #6bcafb"></span>
+                <span style="background:#191621" title="codeBg #191621"></span>
+            </div>
+        </header>
+        <div class="views">
+            <div class="view">
+                <p class="label">Source view</p>
+                <pre class="src" style="
+        background:#100e17; color:#bebebe;
+        font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+        font-size: 12px; line-height: 1.55;
+        padding: 14px 16px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        "><span style="color:#4aa8fb;opacity:0.6">  1</span>   <span style="color:#0fb6d6">#</span> Heading One
+<span style="color:#4aa8fb;opacity:0.6">  2</span>   <span style="color:#0fb6d6">##</span> Heading Two
+<span style="color:#4aa8fb;opacity:0.6">  3</span>
+<span style="color:#4aa8fb;opacity:0.6">  4</span>   Body text with <span style="color:#0fb6d6">**</span><b>bold</b><span style="color:#0fb6d6">**</span> and <span style="color:#0fb6d6">*</span><i>italic</i><span style="color:#0fb6d6">*</span> and
+<span style="color:#4aa8fb;opacity:0.6">  5</span>   <span style="color:#0fb6d6">`</span><span style="background:#191621;border-radius:3px;padding:0 3px">inline code</span><span style="color:#0fb6d6">`</span> plus a <span style="color:#0fb6d6">[</span>link<span style="color:#0fb6d6">](</span><span style="color:#6bcafb">https://example.org</span><span style="color:#0fb6d6">)</span>.
+<span style="color:#4aa8fb;opacity:0.6">  6</span>
+<span style="color:#4aa8fb;opacity:0.6">  7</span>   <span style="color:#0fb6d6">&gt;</span> A blockquote.
+<span style="color:#4aa8fb;opacity:0.6">  8</span>
+<span style="color:#4aa8fb;opacity:0.6">  9</span>   <span style="color:#0fb6d6">-</span> first item
+<span style="color:#4aa8fb;opacity:0.6"> 10</span>   <span style="color:#0fb6d6">-</span> second
+<span style="color:#4aa8fb;opacity:0.6"> 11</span>   <span style="color:#0fb6d6">1.</span> numbered
+<span style="color:#4aa8fb;opacity:0.6"> 12</span>
+<span style="color:#4aa8fb;opacity:0.6"> 13</span>   <span style="color:#0fb6d6">---</span>
+<span style="color:#4aa8fb;opacity:0.6"> 14</span>
+<span style="color:#4aa8fb;opacity:0.6"> 15</span>   <span style="color:#0fb6d6">```</span><span style="color:#4aa8fb">javascript</span>
+<span style="color:#4aa8fb;opacity:0.6"> 16</span>   <span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;
+<span style="color:#4aa8fb;opacity:0.6"> 17</span>   <span style="color:#0fb6d6">```</span></pre>
+            </div>
+            <div class="view">
+                <p class="label">Live view</p>
+                <div class="live" style="
+        background:#100e17; color:#bebebe;
+        font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+        font-size: 13px; line-height: 1.55;
+        padding: 16px 22px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        ">
+        <h1 style="color:#0fb6d6;font-weight:600;font-size:1.6em;margin:0 0 0.5em;line-height:1.25;border-bottom:2px solid;border-image:linear-gradient(to right, #0fb6d6 30%, transparent 70%) 1;padding-bottom:0.35em;">Heading One</h1>
+        <h2 style="color:#cbdbe5;font-weight:600;font-size:1.25em;margin:1em 0 0.4em;line-height:1.25;border-bottom:2px solid;border-image:linear-gradient(to right, #cbdbe5 30%, transparent 70%) 1;padding-bottom:0.3em;">Heading Two</h2>
+        <p style="color:#b8b8b8;margin:0 0 0.8em;">Body text with <b style="color:#bebebe">bold</b> and <i>italic</i> and <code style="background:#191621;padding:0.1em 0.35em;border-radius:3px;color:#bebebe;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.88em;">inline code</code> plus a <a style="color:#6bcafb;text-decoration:none;border-bottom:1px solid #6bcafb;">link</a>.</p>
+        <blockquote style="border-left:3px solid #0fb6d6;background:#191621;color:#b8b8b8;margin:0 0 0.8em;padding:6px 12px;border-radius:5px;">A blockquote.</blockquote>
+        <ul style="color:#b8b8b8;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;">first item <span style="color:#0fb6d6;font-weight:700;">●</span></li><li style="margin:0.1em 0;">second</li></ul>
+        <ol style="color:#b8b8b8;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;"><span style="color:#0fb6d6;font-weight:700;">1.</span> numbered</li></ol>
+        <hr style="border:0;height:1px;background:#0fb6d6;margin:1em 0;">
+        <pre style="background:#191621;border-left:3px solid #0fb6d6;color:#bebebe;padding:10px 12px;border-radius:5px;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.85em;margin:0;overflow:hidden;"><code><span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;</code></pre>
+    </div>
+            </div>
+        </div>
+        <footer>
+            <code>accent #0fb6d6</code>
+            <code>link #6bcafb</code>
+            <code>text #bebebe</code>
+            <code>codeBg #191621</code>
+            <code>page #100e17</code>
+        </footer>
+    </section>
+<section class="card">
+        <header>
+            <h2>PLN Dark</h2>
+            <span class="theme dark">dark</span>
+            <div class="swatches">
+                <span style="background:#3b4252" title="page #3b4252"></span>
+                <span style="background:#f5f7f9" title="text #f5f7f9"></span>
+                <span style="background:#c4a7bf" title="accent #c4a7bf"></span>
+                <span style="background:#c4a7bf" title="link #c4a7bf"></span>
+                <span style="background:#2e3440" title="codeBg #2e3440"></span>
+            </div>
+        </header>
+        <div class="views">
+            <div class="view">
+                <p class="label">Source view</p>
+                <pre class="src" style="
+        background:#3b4252; color:#f5f7f9;
+        font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+        font-size: 12px; line-height: 1.55;
+        padding: 14px 16px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        "><span style="color:#4c566a;opacity:0.6">  1</span>   <span style="color:#c4a7bf">#</span> Heading One
+<span style="color:#4c566a;opacity:0.6">  2</span>   <span style="color:#c4a7bf">##</span> Heading Two
+<span style="color:#4c566a;opacity:0.6">  3</span>
+<span style="color:#4c566a;opacity:0.6">  4</span>   Body text with <span style="color:#c4a7bf">**</span><b>bold</b><span style="color:#c4a7bf">**</span> and <span style="color:#c4a7bf">*</span><i>italic</i><span style="color:#c4a7bf">*</span> and
+<span style="color:#4c566a;opacity:0.6">  5</span>   <span style="color:#c4a7bf">`</span><span style="background:#2e3440;border-radius:3px;padding:0 3px">inline code</span><span style="color:#c4a7bf">`</span> plus a <span style="color:#c4a7bf">[</span>link<span style="color:#c4a7bf">](</span><span style="color:#c4a7bf">https://example.org</span><span style="color:#c4a7bf">)</span>.
+<span style="color:#4c566a;opacity:0.6">  6</span>
+<span style="color:#4c566a;opacity:0.6">  7</span>   <span style="color:#c4a7bf">&gt;</span> A blockquote.
+<span style="color:#4c566a;opacity:0.6">  8</span>
+<span style="color:#4c566a;opacity:0.6">  9</span>   <span style="color:#c4a7bf">-</span> first item
+<span style="color:#4c566a;opacity:0.6"> 10</span>   <span style="color:#c4a7bf">-</span> second
+<span style="color:#4c566a;opacity:0.6"> 11</span>   <span style="color:#c4a7bf">1.</span> numbered
+<span style="color:#4c566a;opacity:0.6"> 12</span>
+<span style="color:#4c566a;opacity:0.6"> 13</span>   <span style="color:#c4a7bf">---</span>
+<span style="color:#4c566a;opacity:0.6"> 14</span>
+<span style="color:#4c566a;opacity:0.6"> 15</span>   <span style="color:#c4a7bf">```</span><span style="color:#4c566a">javascript</span>
+<span style="color:#4c566a;opacity:0.6"> 16</span>   <span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;
+<span style="color:#4c566a;opacity:0.6"> 17</span>   <span style="color:#c4a7bf">```</span></pre>
+            </div>
+            <div class="view">
+                <p class="label">Live view</p>
+                <div class="live" style="
+        background:#3b4252; color:#f5f7f9;
+        font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+        font-size: 13px; line-height: 1.55;
+        padding: 16px 22px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        ">
+        <h1 style="color:#d89fa4;font-weight:600;font-size:1.6em;margin:0 0 0.5em;line-height:1.25;border-bottom:1px solid #4c566a;padding-bottom:0.3em;">Heading One</h1>
+        <h2 style="color:#d08770;font-weight:600;font-size:1.25em;margin:1em 0 0.4em;line-height:1.25;border-bottom:1px solid #4c566a;padding-bottom:0.3em;">Heading Two</h2>
+        <p style="color:#b8b8b8;margin:0 0 0.8em;">Body text with <b style="color:#f5f7f9">bold</b> and <i>italic</i> and <code style="background:#2e3440;padding:0.1em 0.35em;border-radius:3px;color:#f5f7f9;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.88em;">inline code</code> plus a <a style="color:#c4a7bf;text-decoration:none;border-bottom:1px solid #c4a7bf;">link</a>.</p>
+        <blockquote style="border-left:3px solid #c4a7bf;background:#2e3440;color:#b8b8b8;margin:0 0 0.8em;padding:6px 12px;border-radius:5px;">A blockquote.</blockquote>
+        <ul style="color:#b8b8b8;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;">first item <span style="color:#c4a7bf;font-weight:700;">●</span></li><li style="margin:0.1em 0;">second</li></ul>
+        <ol style="color:#b8b8b8;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;"><span style="color:#c4a7bf;font-weight:700;">1.</span> numbered</li></ol>
+        <hr style="border:0;height:1px;background:#4c566a;margin:1em 0;">
+        <pre style="background:#2e3440;border-left:3px solid #c4a7bf;color:#f5f7f9;padding:10px 12px;border-radius:5px;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.85em;margin:0;overflow:hidden;"><code><span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;</code></pre>
+    </div>
+            </div>
+        </div>
+        <footer>
+            <code>accent #c4a7bf</code>
+            <code>link #c4a7bf</code>
+            <code>text #f5f7f9</code>
+            <code>codeBg #2e3440</code>
+            <code>page #3b4252</code>
+        </footer>
+    </section>
+<section class="card">
+        <header>
+            <h2>PLN Light</h2>
+            <span class="theme light">light</span>
+            <div class="swatches">
+                <span style="background:#f5f7f9" title="page #f5f7f9"></span>
+                <span style="background:#2e3440" title="text #2e3440"></span>
+                <span style="background:#906088" title="accent #906088"></span>
+                <span style="background:#906088" title="link #906088"></span>
+                <span style="background:#eceff4" title="codeBg #eceff4"></span>
+            </div>
+        </header>
+        <div class="views">
+            <div class="view">
+                <p class="label">Source view</p>
+                <pre class="src" style="
+        background:#f5f7f9; color:#2e3440;
+        font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+        font-size: 12px; line-height: 1.55;
+        padding: 14px 16px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        "><span style="color:#d8dee9;opacity:0.6">  1</span>   <span style="color:#906088">#</span> Heading One
+<span style="color:#d8dee9;opacity:0.6">  2</span>   <span style="color:#906088">##</span> Heading Two
+<span style="color:#d8dee9;opacity:0.6">  3</span>
+<span style="color:#d8dee9;opacity:0.6">  4</span>   Body text with <span style="color:#906088">**</span><b>bold</b><span style="color:#906088">**</span> and <span style="color:#906088">*</span><i>italic</i><span style="color:#906088">*</span> and
+<span style="color:#d8dee9;opacity:0.6">  5</span>   <span style="color:#906088">`</span><span style="background:#eceff4;border-radius:3px;padding:0 3px">inline code</span><span style="color:#906088">`</span> plus a <span style="color:#906088">[</span>link<span style="color:#906088">](</span><span style="color:#906088">https://example.org</span><span style="color:#906088">)</span>.
+<span style="color:#d8dee9;opacity:0.6">  6</span>
+<span style="color:#d8dee9;opacity:0.6">  7</span>   <span style="color:#906088">&gt;</span> A blockquote.
+<span style="color:#d8dee9;opacity:0.6">  8</span>
+<span style="color:#d8dee9;opacity:0.6">  9</span>   <span style="color:#906088">-</span> first item
+<span style="color:#d8dee9;opacity:0.6"> 10</span>   <span style="color:#906088">-</span> second
+<span style="color:#d8dee9;opacity:0.6"> 11</span>   <span style="color:#906088">1.</span> numbered
+<span style="color:#d8dee9;opacity:0.6"> 12</span>
+<span style="color:#d8dee9;opacity:0.6"> 13</span>   <span style="color:#906088">---</span>
+<span style="color:#d8dee9;opacity:0.6"> 14</span>
+<span style="color:#d8dee9;opacity:0.6"> 15</span>   <span style="color:#906088">```</span><span style="color:#d8dee9">javascript</span>
+<span style="color:#d8dee9;opacity:0.6"> 16</span>   <span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;
+<span style="color:#d8dee9;opacity:0.6"> 17</span>   <span style="color:#906088">```</span></pre>
+            </div>
+            <div class="view">
+                <p class="label">Live view</p>
+                <div class="live" style="
+        background:#f5f7f9; color:#2e3440;
+        font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+        font-size: 13px; line-height: 1.55;
+        padding: 16px 22px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        ">
+        <h1 style="color:#b84f59;font-weight:600;font-size:1.6em;margin:0 0 0.5em;line-height:1.25;border-bottom:1px solid #d8dee9;padding-bottom:0.3em;">Heading One</h1>
+        <h2 style="color:#b0563a;font-weight:600;font-size:1.25em;margin:1em 0 0.4em;line-height:1.25;border-bottom:1px solid #d8dee9;padding-bottom:0.3em;">Heading Two</h2>
+        <p style="color:#5e5e5b;margin:0 0 0.8em;">Body text with <b style="color:#2e3440">bold</b> and <i>italic</i> and <code style="background:#eceff4;padding:0.1em 0.35em;border-radius:3px;color:#2e3440;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.88em;">inline code</code> plus a <a style="color:#906088;text-decoration:none;border-bottom:1px solid #906088;">link</a>.</p>
+        <blockquote style="border-left:3px solid #906088;background:#eceff4;color:#5e5e5b;margin:0 0 0.8em;padding:6px 12px;border-radius:5px;">A blockquote.</blockquote>
+        <ul style="color:#5e5e5b;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;">first item <span style="color:#906088;font-weight:700;">●</span></li><li style="margin:0.1em 0;">second</li></ul>
+        <ol style="color:#5e5e5b;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;"><span style="color:#906088;font-weight:700;">1.</span> numbered</li></ol>
+        <hr style="border:0;height:1px;background:#d8dee9;margin:1em 0;">
+        <pre style="background:#eceff4;border-left:3px solid #906088;color:#2e3440;padding:10px 12px;border-radius:5px;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.85em;margin:0;overflow:hidden;"><code><span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;</code></pre>
+    </div>
+            </div>
+        </div>
+        <footer>
+            <code>accent #906088</code>
+            <code>link #906088</code>
+            <code>text #2e3440</code>
+            <code>codeBg #eceff4</code>
+            <code>page #f5f7f9</code>
+        </footer>
+    </section>
+<section class="card">
+        <header>
+            <h2>AnuPpuccin Frappé</h2>
+            <span class="theme dark">dark</span>
+            <div class="swatches">
+                <span style="background:#303446" title="page #303446"></span>
+                <span style="background:#c6d0f5" title="text #c6d0f5"></span>
+                <span style="background:#ca9ee6" title="accent #ca9ee6"></span>
+                <span style="background:#ca9ee6" title="link #ca9ee6"></span>
+                <span style="background:#232634" title="codeBg #232634"></span>
+            </div>
+        </header>
+        <div class="views">
+            <div class="view">
+                <p class="label">Source view</p>
+                <pre class="src" style="
+        background:#303446; color:#c6d0f5;
+        font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+        font-size: 12px; line-height: 1.55;
+        padding: 14px 16px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        "><span style="color:#414559;opacity:0.6">  1</span>   <span style="color:#ca9ee6">#</span> Heading One
+<span style="color:#414559;opacity:0.6">  2</span>   <span style="color:#ca9ee6">##</span> Heading Two
+<span style="color:#414559;opacity:0.6">  3</span>
+<span style="color:#414559;opacity:0.6">  4</span>   Body text with <span style="color:#ca9ee6">**</span><b>bold</b><span style="color:#ca9ee6">**</span> and <span style="color:#ca9ee6">*</span><i>italic</i><span style="color:#ca9ee6">*</span> and
+<span style="color:#414559;opacity:0.6">  5</span>   <span style="color:#ca9ee6">`</span><span style="background:#232634;border-radius:3px;padding:0 3px">inline code</span><span style="color:#ca9ee6">`</span> plus a <span style="color:#ca9ee6">[</span>link<span style="color:#ca9ee6">](</span><span style="color:#ca9ee6">https://example.org</span><span style="color:#ca9ee6">)</span>.
+<span style="color:#414559;opacity:0.6">  6</span>
+<span style="color:#414559;opacity:0.6">  7</span>   <span style="color:#ca9ee6">&gt;</span> A blockquote.
+<span style="color:#414559;opacity:0.6">  8</span>
+<span style="color:#414559;opacity:0.6">  9</span>   <span style="color:#ca9ee6">-</span> first item
+<span style="color:#414559;opacity:0.6"> 10</span>   <span style="color:#ca9ee6">-</span> second
+<span style="color:#414559;opacity:0.6"> 11</span>   <span style="color:#ca9ee6">1.</span> numbered
+<span style="color:#414559;opacity:0.6"> 12</span>
+<span style="color:#414559;opacity:0.6"> 13</span>   <span style="color:#ca9ee6">---</span>
+<span style="color:#414559;opacity:0.6"> 14</span>
+<span style="color:#414559;opacity:0.6"> 15</span>   <span style="color:#ca9ee6">```</span><span style="color:#414559">javascript</span>
+<span style="color:#414559;opacity:0.6"> 16</span>   <span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;
+<span style="color:#414559;opacity:0.6"> 17</span>   <span style="color:#ca9ee6">```</span></pre>
+            </div>
+            <div class="view">
+                <p class="label">Live view</p>
+                <div class="live" style="
+        background:#303446; color:#c6d0f5;
+        font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+        font-size: 13px; line-height: 1.55;
+        padding: 16px 22px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        ">
+        <h1 style="color:null;font-weight:600;font-size:1.6em;margin:0 0 0.5em;line-height:1.25;border-bottom:2px solid;border-image:linear-gradient(to right, null 30%, transparent 70%) 1;padding-bottom:0.35em;">Heading One</h1>
+        <h2 style="color:null;font-weight:600;font-size:1.25em;margin:1em 0 0.4em;line-height:1.25;border-bottom:2px solid;border-image:linear-gradient(to right, null 30%, transparent 70%) 1;padding-bottom:0.3em;">Heading Two</h2>
+        <p style="color:#b8b8b8;margin:0 0 0.8em;">Body text with <b style="color:#c6d0f5">bold</b> and <i>italic</i> and <code style="background:#232634;padding:0.1em 0.35em;border-radius:3px;color:#c6d0f5;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.88em;">inline code</code> plus a <a style="color:#ca9ee6;text-decoration:none;border-bottom:1px solid #ca9ee6;">link</a>.</p>
+        <blockquote style="border-left:3px solid #ca9ee6;background:#232634;color:#b8b8b8;margin:0 0 0.8em;padding:6px 12px;border-radius:5px;">A blockquote.</blockquote>
+        <ul style="color:#b8b8b8;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;">first item <span style="color:#ca9ee6;font-weight:700;">●</span></li><li style="margin:0.1em 0;">second</li></ul>
+        <ol style="color:#b8b8b8;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;"><span style="color:#ca9ee6;font-weight:700;">1.</span> numbered</li></ol>
+        <hr style="border:0;height:1px;background:#414559;margin:1em 0;">
+        <pre style="background:#232634;border-left:3px solid #ca9ee6;color:#c6d0f5;padding:10px 12px;border-radius:5px;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.85em;margin:0;overflow:hidden;"><code><span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;</code></pre>
+    </div>
+            </div>
+        </div>
+        <footer>
+            <code>accent #ca9ee6</code>
+            <code>link #ca9ee6</code>
+            <code>text #c6d0f5</code>
+            <code>codeBg #232634</code>
+            <code>page #303446</code>
+        </footer>
+    </section>
+<section class="card">
+        <header>
+            <h2>Solarized Light</h2>
+            <span class="theme light">light</span>
+            <div class="swatches">
+                <span style="background:#fdf6e3" title="page #fdf6e3"></span>
+                <span style="background:#657b83" title="text #657b83"></span>
+                <span style="background:#8c6a00" title="accent #8c6a00"></span>
+                <span style="background:#2074af" title="link #2074af"></span>
+                <span style="background:#eee8d5" title="codeBg #eee8d5"></span>
+            </div>
+        </header>
+        <div class="views">
+            <div class="view">
+                <p class="label">Source view</p>
+                <pre class="src" style="
+        background:#fdf6e3; color:#657b83;
+        font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+        font-size: 12px; line-height: 1.55;
+        padding: 14px 16px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        "><span style="color:#93a1a1;opacity:0.6">  1</span>   <span style="color:#8c6a00">#</span> Heading One
+<span style="color:#93a1a1;opacity:0.6">  2</span>   <span style="color:#8c6a00">##</span> Heading Two
+<span style="color:#93a1a1;opacity:0.6">  3</span>
+<span style="color:#93a1a1;opacity:0.6">  4</span>   Body text with <span style="color:#8c6a00">**</span><b>bold</b><span style="color:#8c6a00">**</span> and <span style="color:#8c6a00">*</span><i>italic</i><span style="color:#8c6a00">*</span> and
+<span style="color:#93a1a1;opacity:0.6">  5</span>   <span style="color:#8c6a00">`</span><span style="background:#eee8d5;border-radius:3px;padding:0 3px">inline code</span><span style="color:#8c6a00">`</span> plus a <span style="color:#8c6a00">[</span>link<span style="color:#8c6a00">](</span><span style="color:#2074af">https://example.org</span><span style="color:#8c6a00">)</span>.
+<span style="color:#93a1a1;opacity:0.6">  6</span>
+<span style="color:#93a1a1;opacity:0.6">  7</span>   <span style="color:#8c6a00">&gt;</span> A blockquote.
+<span style="color:#93a1a1;opacity:0.6">  8</span>
+<span style="color:#93a1a1;opacity:0.6">  9</span>   <span style="color:#8c6a00">-</span> first item
+<span style="color:#93a1a1;opacity:0.6"> 10</span>   <span style="color:#8c6a00">-</span> second
+<span style="color:#93a1a1;opacity:0.6"> 11</span>   <span style="color:#8c6a00">1.</span> numbered
+<span style="color:#93a1a1;opacity:0.6"> 12</span>
+<span style="color:#93a1a1;opacity:0.6"> 13</span>   <span style="color:#8c6a00">---</span>
+<span style="color:#93a1a1;opacity:0.6"> 14</span>
+<span style="color:#93a1a1;opacity:0.6"> 15</span>   <span style="color:#8c6a00">```</span><span style="color:#93a1a1">javascript</span>
+<span style="color:#93a1a1;opacity:0.6"> 16</span>   <span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;
+<span style="color:#93a1a1;opacity:0.6"> 17</span>   <span style="color:#8c6a00">```</span></pre>
+            </div>
+            <div class="view">
+                <p class="label">Live view</p>
+                <div class="live" style="
+        background:#fdf6e3; color:#657b83;
+        font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+        font-size: 13px; line-height: 1.55;
+        padding: 16px 22px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        ">
+        <h1 style="color:#2074af;font-weight:600;font-size:1.6em;margin:0 0 0.5em;line-height:1.25;border-bottom:2px solid;border-image:linear-gradient(to right, #2074af 30%, transparent 70%) 1;padding-bottom:0.35em;">Heading One</h1>
+        <h2 style="color:#2074af;font-weight:600;font-size:1.25em;margin:1em 0 0.4em;line-height:1.25;border-bottom:2px solid;border-image:linear-gradient(to right, #2074af 30%, transparent 70%) 1;padding-bottom:0.3em;">Heading Two</h2>
+        <p style="color:#5e5e5b;margin:0 0 0.8em;">Body text with <b style="color:#657b83">bold</b> and <i>italic</i> and <code style="background:#eee8d5;padding:0.1em 0.35em;border-radius:3px;color:#657b83;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.88em;">inline code</code> plus a <a style="color:#2074af;text-decoration:none;border-bottom:1px solid #2074af;">link</a>.</p>
+        <blockquote style="border-left:3px solid #8c6a00;background:#eee8d5;color:#5e5e5b;margin:0 0 0.8em;padding:6px 12px;border-radius:5px;">A blockquote.</blockquote>
+        <ul style="color:#5e5e5b;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;">first item <span style="color:#8c6a00;font-weight:700;">●</span></li><li style="margin:0.1em 0;">second</li></ul>
+        <ol style="color:#5e5e5b;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;"><span style="color:#8c6a00;font-weight:700;">1.</span> numbered</li></ol>
+        <hr style="border:0;height:1px;background:#93a1a1;margin:1em 0;">
+        <pre style="background:#eee8d5;border-left:3px solid #8c6a00;color:#657b83;padding:10px 12px;border-radius:5px;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.85em;margin:0;overflow:hidden;"><code><span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;</code></pre>
+    </div>
+            </div>
+        </div>
+        <footer>
+            <code>accent #8c6a00</code>
+            <code>link #2074af</code>
+            <code>text #657b83</code>
+            <code>codeBg #eee8d5</code>
+            <code>page #fdf6e3</code>
+        </footer>
+    </section>
+<section class="card">
+        <header>
+            <h2>GitHub Light</h2>
+            <span class="theme light">light</span>
+            <div class="swatches">
+                <span style="background:#ffffff" title="page #ffffff"></span>
+                <span style="background:#1f2328" title="text #1f2328"></span>
+                <span style="background:#0969da" title="accent #0969da"></span>
+                <span style="background:#0969da" title="link #0969da"></span>
+                <span style="background:#f6f8fa" title="codeBg #f6f8fa"></span>
+            </div>
+        </header>
+        <div class="views">
+            <div class="view">
+                <p class="label">Source view</p>
+                <pre class="src" style="
+        background:#ffffff; color:#1f2328;
+        font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+        font-size: 12px; line-height: 1.55;
+        padding: 14px 16px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        "><span style="color:#d1d9e0;opacity:0.6">  1</span>   <span style="color:#0969da">#</span> Heading One
+<span style="color:#d1d9e0;opacity:0.6">  2</span>   <span style="color:#0969da">##</span> Heading Two
+<span style="color:#d1d9e0;opacity:0.6">  3</span>
+<span style="color:#d1d9e0;opacity:0.6">  4</span>   Body text with <span style="color:#0969da">**</span><b>bold</b><span style="color:#0969da">**</span> and <span style="color:#0969da">*</span><i>italic</i><span style="color:#0969da">*</span> and
+<span style="color:#d1d9e0;opacity:0.6">  5</span>   <span style="color:#0969da">`</span><span style="background:#f6f8fa;border-radius:3px;padding:0 3px">inline code</span><span style="color:#0969da">`</span> plus a <span style="color:#0969da">[</span>link<span style="color:#0969da">](</span><span style="color:#0969da">https://example.org</span><span style="color:#0969da">)</span>.
+<span style="color:#d1d9e0;opacity:0.6">  6</span>
+<span style="color:#d1d9e0;opacity:0.6">  7</span>   <span style="color:#0969da">&gt;</span> A blockquote.
+<span style="color:#d1d9e0;opacity:0.6">  8</span>
+<span style="color:#d1d9e0;opacity:0.6">  9</span>   <span style="color:#0969da">-</span> first item
+<span style="color:#d1d9e0;opacity:0.6"> 10</span>   <span style="color:#0969da">-</span> second
+<span style="color:#d1d9e0;opacity:0.6"> 11</span>   <span style="color:#0969da">1.</span> numbered
+<span style="color:#d1d9e0;opacity:0.6"> 12</span>
+<span style="color:#d1d9e0;opacity:0.6"> 13</span>   <span style="color:#0969da">---</span>
+<span style="color:#d1d9e0;opacity:0.6"> 14</span>
+<span style="color:#d1d9e0;opacity:0.6"> 15</span>   <span style="color:#0969da">```</span><span style="color:#d1d9e0">javascript</span>
+<span style="color:#d1d9e0;opacity:0.6"> 16</span>   <span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;
+<span style="color:#d1d9e0;opacity:0.6"> 17</span>   <span style="color:#0969da">```</span></pre>
+            </div>
+            <div class="view">
+                <p class="label">Live view</p>
+                <div class="live" style="
+        background:#ffffff; color:#1f2328;
+        font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+        font-size: 13px; line-height: 1.55;
+        padding: 16px 22px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        ">
+        <h1 style="color:#1f2328;font-weight:600;font-size:1.6em;margin:0 0 0.5em;line-height:1.25;border-bottom:1px solid #d1d9e0;padding-bottom:0.3em;">Heading One</h1>
+        <h2 style="color:#1f2328;font-weight:600;font-size:1.25em;margin:1em 0 0.4em;line-height:1.25;border-bottom:1px solid #d1d9e0;padding-bottom:0.3em;">Heading Two</h2>
+        <p style="color:#5e5e5b;margin:0 0 0.8em;">Body text with <b style="color:#1f2328">bold</b> and <i>italic</i> and <code style="background:#f6f8fa;padding:0.1em 0.35em;border-radius:3px;color:#1f2328;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.88em;">inline code</code> plus a <a style="color:#0969da;text-decoration:none;border-bottom:1px solid #0969da;">link</a>.</p>
+        <blockquote style="border-left:3px solid #0969da;background:#f6f8fa;color:#5e5e5b;margin:0 0 0.8em;padding:6px 12px;border-radius:5px;">A blockquote.</blockquote>
+        <ul style="color:#5e5e5b;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;">first item <span style="color:#0969da;font-weight:700;">●</span></li><li style="margin:0.1em 0;">second</li></ul>
+        <ol style="color:#5e5e5b;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;"><span style="color:#0969da;font-weight:700;">1.</span> numbered</li></ol>
+        <hr style="border:0;height:1px;background:#d1d9e0;margin:1em 0;">
+        <pre style="background:#f6f8fa;border-left:3px solid #0969da;color:#1f2328;padding:10px 12px;border-radius:5px;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.85em;margin:0;overflow:hidden;"><code><span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;</code></pre>
+    </div>
+            </div>
+        </div>
+        <footer>
+            <code>accent #0969da</code>
+            <code>link #0969da</code>
+            <code>text #1f2328</code>
+            <code>codeBg #f6f8fa</code>
+            <code>page #ffffff</code>
+        </footer>
+    </section>
+<section class="card">
+        <header>
+            <h2>Ayu Light</h2>
+            <span class="theme light">light</span>
+            <div class="swatches">
+                <span style="background:#fafafa" title="page #fafafa"></span>
+                <span style="background:#6c7680" title="text #6c7680"></span>
+                <span style="background:#ba5700" title="accent #ba5700"></span>
+                <span style="background:#1877bb" title="link #1877bb"></span>
+                <span style="background:#f3f4f5" title="codeBg #f3f4f5"></span>
+            </div>
+        </header>
+        <div class="views">
+            <div class="view">
+                <p class="label">Source view</p>
+                <pre class="src" style="
+        background:#fafafa; color:#6c7680;
+        font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+        font-size: 12px; line-height: 1.55;
+        padding: 14px 16px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        "><span style="color:#dadfe5;opacity:0.6">  1</span>   <span style="color:#ba5700">#</span> Heading One
+<span style="color:#dadfe5;opacity:0.6">  2</span>   <span style="color:#ba5700">##</span> Heading Two
+<span style="color:#dadfe5;opacity:0.6">  3</span>
+<span style="color:#dadfe5;opacity:0.6">  4</span>   Body text with <span style="color:#ba5700">**</span><b>bold</b><span style="color:#ba5700">**</span> and <span style="color:#ba5700">*</span><i>italic</i><span style="color:#ba5700">*</span> and
+<span style="color:#dadfe5;opacity:0.6">  5</span>   <span style="color:#ba5700">`</span><span style="background:#f3f4f5;border-radius:3px;padding:0 3px">inline code</span><span style="color:#ba5700">`</span> plus a <span style="color:#ba5700">[</span>link<span style="color:#ba5700">](</span><span style="color:#1877bb">https://example.org</span><span style="color:#ba5700">)</span>.
+<span style="color:#dadfe5;opacity:0.6">  6</span>
+<span style="color:#dadfe5;opacity:0.6">  7</span>   <span style="color:#ba5700">&gt;</span> A blockquote.
+<span style="color:#dadfe5;opacity:0.6">  8</span>
+<span style="color:#dadfe5;opacity:0.6">  9</span>   <span style="color:#ba5700">-</span> first item
+<span style="color:#dadfe5;opacity:0.6"> 10</span>   <span style="color:#ba5700">-</span> second
+<span style="color:#dadfe5;opacity:0.6"> 11</span>   <span style="color:#ba5700">1.</span> numbered
+<span style="color:#dadfe5;opacity:0.6"> 12</span>
+<span style="color:#dadfe5;opacity:0.6"> 13</span>   <span style="color:#ba5700">---</span>
+<span style="color:#dadfe5;opacity:0.6"> 14</span>
+<span style="color:#dadfe5;opacity:0.6"> 15</span>   <span style="color:#ba5700">```</span><span style="color:#dadfe5">javascript</span>
+<span style="color:#dadfe5;opacity:0.6"> 16</span>   <span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;
+<span style="color:#dadfe5;opacity:0.6"> 17</span>   <span style="color:#ba5700">```</span></pre>
+            </div>
+            <div class="view">
+                <p class="label">Live view</p>
+                <div class="live" style="
+        background:#fafafa; color:#6c7680;
+        font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+        font-size: 13px; line-height: 1.55;
+        padding: 16px 22px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        ">
+        <h1 style="color:#be5305;font-weight:600;font-size:1.6em;margin:0 0 0.5em;line-height:1.25;border-bottom:2px solid;border-image:linear-gradient(to right, #be5305 30%, transparent 70%) 1;padding-bottom:0.35em;">Heading One</h1>
+        <h2 style="color:#be5305;font-weight:600;font-size:1.25em;margin:1em 0 0.4em;line-height:1.25;border-bottom:2px solid;border-image:linear-gradient(to right, #be5305 30%, transparent 70%) 1;padding-bottom:0.3em;">Heading Two</h2>
+        <p style="color:#5e5e5b;margin:0 0 0.8em;">Body text with <b style="color:#6c7680">bold</b> and <i>italic</i> and <code style="background:#f3f4f5;padding:0.1em 0.35em;border-radius:3px;color:#6c7680;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.88em;">inline code</code> plus a <a style="color:#1877bb;text-decoration:none;border-bottom:1px solid #1877bb;">link</a>.</p>
+        <blockquote style="border-left:3px solid #ba5700;background:#f3f4f5;color:#5e5e5b;margin:0 0 0.8em;padding:6px 12px;border-radius:5px;">A blockquote.</blockquote>
+        <ul style="color:#5e5e5b;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;">first item <span style="color:#ba5700;font-weight:700;">●</span></li><li style="margin:0.1em 0;">second</li></ul>
+        <ol style="color:#5e5e5b;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;"><span style="color:#ba5700;font-weight:700;">1.</span> numbered</li></ol>
+        <hr style="border:0;height:1px;background:#dadfe5;margin:1em 0;">
+        <pre style="background:#f3f4f5;border-left:3px solid #ba5700;color:#6c7680;padding:10px 12px;border-radius:5px;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.85em;margin:0;overflow:hidden;"><code><span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;</code></pre>
+    </div>
+            </div>
+        </div>
+        <footer>
+            <code>accent #ba5700</code>
+            <code>link #1877bb</code>
+            <code>text #6c7680</code>
+            <code>codeBg #f3f4f5</code>
+            <code>page #fafafa</code>
+        </footer>
+    </section>
+<section class="card">
+        <header>
+            <h2>Gruvbox Light</h2>
+            <span class="theme light">light</span>
+            <div class="swatches">
+                <span style="background:#fbf1c7" title="page #fbf1c7"></span>
+                <span style="background:#3c3836" title="text #3c3836"></span>
+                <span style="background:#956110" title="accent #956110"></span>
+                <span style="background:#076678" title="link #076678"></span>
+                <span style="background:#ebdbb2" title="codeBg #ebdbb2"></span>
+            </div>
+        </header>
+        <div class="views">
+            <div class="view">
+                <p class="label">Source view</p>
+                <pre class="src" style="
+        background:#fbf1c7; color:#3c3836;
+        font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+        font-size: 12px; line-height: 1.55;
+        padding: 14px 16px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        "><span style="color:#d5c4a1;opacity:0.6">  1</span>   <span style="color:#956110">#</span> Heading One
+<span style="color:#d5c4a1;opacity:0.6">  2</span>   <span style="color:#956110">##</span> Heading Two
+<span style="color:#d5c4a1;opacity:0.6">  3</span>
+<span style="color:#d5c4a1;opacity:0.6">  4</span>   Body text with <span style="color:#956110">**</span><b>bold</b><span style="color:#956110">**</span> and <span style="color:#956110">*</span><i>italic</i><span style="color:#956110">*</span> and
+<span style="color:#d5c4a1;opacity:0.6">  5</span>   <span style="color:#956110">`</span><span style="background:#ebdbb2;border-radius:3px;padding:0 3px">inline code</span><span style="color:#956110">`</span> plus a <span style="color:#956110">[</span>link<span style="color:#956110">](</span><span style="color:#076678">https://example.org</span><span style="color:#956110">)</span>.
+<span style="color:#d5c4a1;opacity:0.6">  6</span>
+<span style="color:#d5c4a1;opacity:0.6">  7</span>   <span style="color:#956110">&gt;</span> A blockquote.
+<span style="color:#d5c4a1;opacity:0.6">  8</span>
+<span style="color:#d5c4a1;opacity:0.6">  9</span>   <span style="color:#956110">-</span> first item
+<span style="color:#d5c4a1;opacity:0.6"> 10</span>   <span style="color:#956110">-</span> second
+<span style="color:#d5c4a1;opacity:0.6"> 11</span>   <span style="color:#956110">1.</span> numbered
+<span style="color:#d5c4a1;opacity:0.6"> 12</span>
+<span style="color:#d5c4a1;opacity:0.6"> 13</span>   <span style="color:#956110">---</span>
+<span style="color:#d5c4a1;opacity:0.6"> 14</span>
+<span style="color:#d5c4a1;opacity:0.6"> 15</span>   <span style="color:#956110">```</span><span style="color:#d5c4a1">javascript</span>
+<span style="color:#d5c4a1;opacity:0.6"> 16</span>   <span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;
+<span style="color:#d5c4a1;opacity:0.6"> 17</span>   <span style="color:#956110">```</span></pre>
+            </div>
+            <div class="view">
+                <p class="label">Live view</p>
+                <div class="live" style="
+        background:#fbf1c7; color:#3c3836;
+        font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+        font-size: 13px; line-height: 1.55;
+        padding: 16px 22px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        ">
+        <h1 style="color:#9d0006;font-weight:600;font-size:1.6em;margin:0 0 0.5em;line-height:1.25;border-bottom:2px solid;border-image:linear-gradient(to right, #9d0006 30%, transparent 70%) 1;padding-bottom:0.35em;">Heading One</h1>
+        <h2 style="color:#af3a03;font-weight:600;font-size:1.25em;margin:1em 0 0.4em;line-height:1.25;border-bottom:2px solid;border-image:linear-gradient(to right, #af3a03 30%, transparent 70%) 1;padding-bottom:0.3em;">Heading Two</h2>
+        <p style="color:#5e5e5b;margin:0 0 0.8em;">Body text with <b style="color:#3c3836">bold</b> and <i>italic</i> and <code style="background:#ebdbb2;padding:0.1em 0.35em;border-radius:3px;color:#3c3836;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.88em;">inline code</code> plus a <a style="color:#076678;text-decoration:none;border-bottom:1px solid #076678;">link</a>.</p>
+        <blockquote style="border-left:3px solid #956110;background:#ebdbb2;color:#5e5e5b;margin:0 0 0.8em;padding:6px 12px;border-radius:5px;">A blockquote.</blockquote>
+        <ul style="color:#5e5e5b;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;">first item <span style="color:#956110;font-weight:700;">●</span></li><li style="margin:0.1em 0;">second</li></ul>
+        <ol style="color:#5e5e5b;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;"><span style="color:#956110;font-weight:700;">1.</span> numbered</li></ol>
+        <hr style="border:0;height:1px;background:#bdae93;margin:1em 0;">
+        <pre style="background:#ebdbb2;border-left:3px solid #956110;color:#3c3836;padding:10px 12px;border-radius:5px;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.85em;margin:0;overflow:hidden;"><code><span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;</code></pre>
+    </div>
+            </div>
+        </div>
+        <footer>
+            <code>accent #956110</code>
+            <code>link #076678</code>
+            <code>text #3c3836</code>
+            <code>codeBg #ebdbb2</code>
+            <code>page #fbf1c7</code>
+        </footer>
+    </section>
+<section class="card">
+        <header>
+            <h2>Catppuccin Latte</h2>
+            <span class="theme light">light</span>
+            <div class="swatches">
+                <span style="background:#eff1f5" title="page #eff1f5"></span>
+                <span style="background:#4c4f69" title="text #4c4f69"></span>
+                <span style="background:#8839ef" title="accent #8839ef"></span>
+                <span style="background:#145ff5" title="link #145ff5"></span>
+                <span style="background:#e6e9ef" title="codeBg #e6e9ef"></span>
+            </div>
+        </header>
+        <div class="views">
+            <div class="view">
+                <p class="label">Source view</p>
+                <pre class="src" style="
+        background:#eff1f5; color:#4c4f69;
+        font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+        font-size: 12px; line-height: 1.55;
+        padding: 14px 16px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        "><span style="color:#ccd0da;opacity:0.6">  1</span>   <span style="color:#8839ef">#</span> Heading One
+<span style="color:#ccd0da;opacity:0.6">  2</span>   <span style="color:#8839ef">##</span> Heading Two
+<span style="color:#ccd0da;opacity:0.6">  3</span>
+<span style="color:#ccd0da;opacity:0.6">  4</span>   Body text with <span style="color:#8839ef">**</span><b>bold</b><span style="color:#8839ef">**</span> and <span style="color:#8839ef">*</span><i>italic</i><span style="color:#8839ef">*</span> and
+<span style="color:#ccd0da;opacity:0.6">  5</span>   <span style="color:#8839ef">`</span><span style="background:#e6e9ef;border-radius:3px;padding:0 3px">inline code</span><span style="color:#8839ef">`</span> plus a <span style="color:#8839ef">[</span>link<span style="color:#8839ef">](</span><span style="color:#145ff5">https://example.org</span><span style="color:#8839ef">)</span>.
+<span style="color:#ccd0da;opacity:0.6">  6</span>
+<span style="color:#ccd0da;opacity:0.6">  7</span>   <span style="color:#8839ef">&gt;</span> A blockquote.
+<span style="color:#ccd0da;opacity:0.6">  8</span>
+<span style="color:#ccd0da;opacity:0.6">  9</span>   <span style="color:#8839ef">-</span> first item
+<span style="color:#ccd0da;opacity:0.6"> 10</span>   <span style="color:#8839ef">-</span> second
+<span style="color:#ccd0da;opacity:0.6"> 11</span>   <span style="color:#8839ef">1.</span> numbered
+<span style="color:#ccd0da;opacity:0.6"> 12</span>
+<span style="color:#ccd0da;opacity:0.6"> 13</span>   <span style="color:#8839ef">---</span>
+<span style="color:#ccd0da;opacity:0.6"> 14</span>
+<span style="color:#ccd0da;opacity:0.6"> 15</span>   <span style="color:#8839ef">```</span><span style="color:#ccd0da">javascript</span>
+<span style="color:#ccd0da;opacity:0.6"> 16</span>   <span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;
+<span style="color:#ccd0da;opacity:0.6"> 17</span>   <span style="color:#8839ef">```</span></pre>
+            </div>
+            <div class="view">
+                <p class="label">Live view</p>
+                <div class="live" style="
+        background:#eff1f5; color:#4c4f69;
+        font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+        font-size: 13px; line-height: 1.55;
+        padding: 16px 22px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        ">
+        <h1 style="color:#d20f39;font-weight:600;font-size:1.6em;margin:0 0 0.5em;line-height:1.25;border-bottom:2px solid;border-image:linear-gradient(to right, #d20f39 30%, transparent 70%) 1;padding-bottom:0.35em;">Heading One</h1>
+        <h2 style="color:#bc4501;font-weight:600;font-size:1.25em;margin:1em 0 0.4em;line-height:1.25;border-bottom:2px solid;border-image:linear-gradient(to right, #bc4501 30%, transparent 70%) 1;padding-bottom:0.3em;">Heading Two</h2>
+        <p style="color:#5e5e5b;margin:0 0 0.8em;">Body text with <b style="color:#4c4f69">bold</b> and <i>italic</i> and <code style="background:#e6e9ef;padding:0.1em 0.35em;border-radius:3px;color:#4c4f69;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.88em;">inline code</code> plus a <a style="color:#145ff5;text-decoration:none;border-bottom:1px solid #145ff5;">link</a>.</p>
+        <blockquote style="border-left:3px solid #8839ef;background:#e6e9ef;color:#5e5e5b;margin:0 0 0.8em;padding:6px 12px;border-radius:5px;">A blockquote.</blockquote>
+        <ul style="color:#5e5e5b;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;">first item <span style="color:#8839ef;font-weight:700;">●</span></li><li style="margin:0.1em 0;">second</li></ul>
+        <ol style="color:#5e5e5b;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;"><span style="color:#8839ef;font-weight:700;">1.</span> numbered</li></ol>
+        <hr style="border:0;height:1px;background:#bcc0cc;margin:1em 0;">
+        <pre style="background:#e6e9ef;border-left:3px solid #8839ef;color:#4c4f69;padding:10px 12px;border-radius:5px;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.85em;margin:0;overflow:hidden;"><code><span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;</code></pre>
+    </div>
+            </div>
+        </div>
+        <footer>
+            <code>accent #8839ef</code>
+            <code>link #145ff5</code>
+            <code>text #4c4f69</code>
+            <code>codeBg #e6e9ef</code>
+            <code>page #eff1f5</code>
+        </footer>
+    </section>
+<section class="card">
+        <header>
+            <h2>One Light</h2>
+            <span class="theme light">light</span>
+            <div class="swatches">
+                <span style="background:#fafafa" title="page #fafafa"></span>
+                <span style="background:#383a42" title="text #383a42"></span>
+                <span style="background:#a626a4" title="accent #a626a4"></span>
+                <span style="background:#2d6af1" title="link #2d6af1"></span>
+                <span style="background:#f0f0f0" title="codeBg #f0f0f0"></span>
+            </div>
+        </header>
+        <div class="views">
+            <div class="view">
+                <p class="label">Source view</p>
+                <pre class="src" style="
+        background:#fafafa; color:#383a42;
+        font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+        font-size: 12px; line-height: 1.55;
+        padding: 14px 16px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        "><span style="color:#e5e5e6;opacity:0.6">  1</span>   <span style="color:#a626a4">#</span> Heading One
+<span style="color:#e5e5e6;opacity:0.6">  2</span>   <span style="color:#a626a4">##</span> Heading Two
+<span style="color:#e5e5e6;opacity:0.6">  3</span>
+<span style="color:#e5e5e6;opacity:0.6">  4</span>   Body text with <span style="color:#a626a4">**</span><b>bold</b><span style="color:#a626a4">**</span> and <span style="color:#a626a4">*</span><i>italic</i><span style="color:#a626a4">*</span> and
+<span style="color:#e5e5e6;opacity:0.6">  5</span>   <span style="color:#a626a4">`</span><span style="background:#f0f0f0;border-radius:3px;padding:0 3px">inline code</span><span style="color:#a626a4">`</span> plus a <span style="color:#a626a4">[</span>link<span style="color:#a626a4">](</span><span style="color:#2d6af1">https://example.org</span><span style="color:#a626a4">)</span>.
+<span style="color:#e5e5e6;opacity:0.6">  6</span>
+<span style="color:#e5e5e6;opacity:0.6">  7</span>   <span style="color:#a626a4">&gt;</span> A blockquote.
+<span style="color:#e5e5e6;opacity:0.6">  8</span>
+<span style="color:#e5e5e6;opacity:0.6">  9</span>   <span style="color:#a626a4">-</span> first item
+<span style="color:#e5e5e6;opacity:0.6"> 10</span>   <span style="color:#a626a4">-</span> second
+<span style="color:#e5e5e6;opacity:0.6"> 11</span>   <span style="color:#a626a4">1.</span> numbered
+<span style="color:#e5e5e6;opacity:0.6"> 12</span>
+<span style="color:#e5e5e6;opacity:0.6"> 13</span>   <span style="color:#a626a4">---</span>
+<span style="color:#e5e5e6;opacity:0.6"> 14</span>
+<span style="color:#e5e5e6;opacity:0.6"> 15</span>   <span style="color:#a626a4">```</span><span style="color:#e5e5e6">javascript</span>
+<span style="color:#e5e5e6;opacity:0.6"> 16</span>   <span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;
+<span style="color:#e5e5e6;opacity:0.6"> 17</span>   <span style="color:#a626a4">```</span></pre>
+            </div>
+            <div class="view">
+                <p class="label">Live view</p>
+                <div class="live" style="
+        background:#fafafa; color:#383a42;
+        font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+        font-size: 13px; line-height: 1.55;
+        padding: 16px 22px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        ">
+        <h1 style="color:#da3020;font-weight:600;font-size:1.6em;margin:0 0 0.5em;line-height:1.25;border-bottom:2px solid;border-image:linear-gradient(to right, #da3020 30%, transparent 70%) 1;padding-bottom:0.35em;">Heading One</h1>
+        <h2 style="color:#da3020;font-weight:600;font-size:1.25em;margin:1em 0 0.4em;line-height:1.25;border-bottom:2px solid;border-image:linear-gradient(to right, #da3020 30%, transparent 70%) 1;padding-bottom:0.3em;">Heading Two</h2>
+        <p style="color:#5e5e5b;margin:0 0 0.8em;">Body text with <b style="color:#383a42">bold</b> and <i>italic</i> and <code style="background:#f0f0f0;padding:0.1em 0.35em;border-radius:3px;color:#383a42;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.88em;">inline code</code> plus a <a style="color:#2d6af1;text-decoration:none;border-bottom:1px solid #2d6af1;">link</a>.</p>
+        <blockquote style="border-left:3px solid #a626a4;background:#f0f0f0;color:#5e5e5b;margin:0 0 0.8em;padding:6px 12px;border-radius:5px;">A blockquote.</blockquote>
+        <ul style="color:#5e5e5b;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;">first item <span style="color:#a626a4;font-weight:700;">●</span></li><li style="margin:0.1em 0;">second</li></ul>
+        <ol style="color:#5e5e5b;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;"><span style="color:#a626a4;font-weight:700;">1.</span> numbered</li></ol>
+        <hr style="border:0;height:1px;background:#a0a1a7;margin:1em 0;">
+        <pre style="background:#f0f0f0;border-left:3px solid #a626a4;color:#383a42;padding:10px 12px;border-radius:5px;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.85em;margin:0;overflow:hidden;"><code><span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;</code></pre>
+    </div>
+            </div>
+        </div>
+        <footer>
+            <code>accent #a626a4</code>
+            <code>link #2d6af1</code>
+            <code>text #383a42</code>
+            <code>codeBg #f0f0f0</code>
+            <code>page #fafafa</code>
+        </footer>
+    </section>
+<section class="card">
+        <header>
+            <h2>Tokyo Night Day</h2>
+            <span class="theme light">light</span>
+            <div class="swatches">
+                <span style="background:#e1e2e7" title="page #e1e2e7"></span>
+                <span style="background:#3760bf" title="text #3760bf"></span>
+                <span style="background:#1561ca" title="accent #1561ca"></span>
+                <span style="background:#1561ca" title="link #1561ca"></span>
+                <span style="background:#d0d5e3" title="codeBg #d0d5e3"></span>
+            </div>
+        </header>
+        <div class="views">
+            <div class="view">
+                <p class="label">Source view</p>
+                <pre class="src" style="
+        background:#e1e2e7; color:#3760bf;
+        font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+        font-size: 12px; line-height: 1.55;
+        padding: 14px 16px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        "><span style="color:#c4c8da;opacity:0.6">  1</span>   <span style="color:#1561ca">#</span> Heading One
+<span style="color:#c4c8da;opacity:0.6">  2</span>   <span style="color:#1561ca">##</span> Heading Two
+<span style="color:#c4c8da;opacity:0.6">  3</span>
+<span style="color:#c4c8da;opacity:0.6">  4</span>   Body text with <span style="color:#1561ca">**</span><b>bold</b><span style="color:#1561ca">**</span> and <span style="color:#1561ca">*</span><i>italic</i><span style="color:#1561ca">*</span> and
+<span style="color:#c4c8da;opacity:0.6">  5</span>   <span style="color:#1561ca">`</span><span style="background:#d0d5e3;border-radius:3px;padding:0 3px">inline code</span><span style="color:#1561ca">`</span> plus a <span style="color:#1561ca">[</span>link<span style="color:#1561ca">](</span><span style="color:#1561ca">https://example.org</span><span style="color:#1561ca">)</span>.
+<span style="color:#c4c8da;opacity:0.6">  6</span>
+<span style="color:#c4c8da;opacity:0.6">  7</span>   <span style="color:#1561ca">&gt;</span> A blockquote.
+<span style="color:#c4c8da;opacity:0.6">  8</span>
+<span style="color:#c4c8da;opacity:0.6">  9</span>   <span style="color:#1561ca">-</span> first item
+<span style="color:#c4c8da;opacity:0.6"> 10</span>   <span style="color:#1561ca">-</span> second
+<span style="color:#c4c8da;opacity:0.6"> 11</span>   <span style="color:#1561ca">1.</span> numbered
+<span style="color:#c4c8da;opacity:0.6"> 12</span>
+<span style="color:#c4c8da;opacity:0.6"> 13</span>   <span style="color:#1561ca">---</span>
+<span style="color:#c4c8da;opacity:0.6"> 14</span>
+<span style="color:#c4c8da;opacity:0.6"> 15</span>   <span style="color:#1561ca">```</span><span style="color:#c4c8da">javascript</span>
+<span style="color:#c4c8da;opacity:0.6"> 16</span>   <span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;
+<span style="color:#c4c8da;opacity:0.6"> 17</span>   <span style="color:#1561ca">```</span></pre>
+            </div>
+            <div class="view">
+                <p class="label">Live view</p>
+                <div class="live" style="
+        background:#e1e2e7; color:#3760bf;
+        font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+        font-size: 13px; line-height: 1.55;
+        padding: 16px 22px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        ">
+        <h1 style="color:#f52a65;font-weight:600;font-size:1.6em;margin:0 0 0.5em;line-height:1.25;border-bottom:2px solid;border-image:linear-gradient(to right, #f52a65 30%, transparent 70%) 1;padding-bottom:0.35em;">Heading One</h1>
+        <h2 style="color:#b15c00;font-weight:600;font-size:1.25em;margin:1em 0 0.4em;line-height:1.25;border-bottom:2px solid;border-image:linear-gradient(to right, #b15c00 30%, transparent 70%) 1;padding-bottom:0.3em;">Heading Two</h2>
+        <p style="color:#5e5e5b;margin:0 0 0.8em;">Body text with <b style="color:#3760bf">bold</b> and <i>italic</i> and <code style="background:#d0d5e3;padding:0.1em 0.35em;border-radius:3px;color:#3760bf;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.88em;">inline code</code> plus a <a style="color:#1561ca;text-decoration:none;border-bottom:1px solid #1561ca;">link</a>.</p>
+        <blockquote style="border-left:3px solid #1561ca;background:#d0d5e3;color:#5e5e5b;margin:0 0 0.8em;padding:6px 12px;border-radius:5px;">A blockquote.</blockquote>
+        <ul style="color:#5e5e5b;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;">first item <span style="color:#1561ca;font-weight:700;">●</span></li><li style="margin:0.1em 0;">second</li></ul>
+        <ol style="color:#5e5e5b;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;"><span style="color:#1561ca;font-weight:700;">1.</span> numbered</li></ol>
+        <hr style="border:0;height:1px;background:#c4c8da;margin:1em 0;">
+        <pre style="background:#d0d5e3;border-left:3px solid #1561ca;color:#3760bf;padding:10px 12px;border-radius:5px;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.85em;margin:0;overflow:hidden;"><code><span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;</code></pre>
+    </div>
+            </div>
+        </div>
+        <footer>
+            <code>accent #1561ca</code>
+            <code>link #1561ca</code>
+            <code>text #3760bf</code>
+            <code>codeBg #d0d5e3</code>
+            <code>page #e1e2e7</code>
+        </footer>
+    </section>
+<section class="card">
+        <header>
+            <h2>Nord Light</h2>
+            <span class="theme light">light</span>
+            <div class="swatches">
+                <span style="background:#eceff4" title="page #eceff4"></span>
+                <span style="background:#2e3440" title="text #2e3440"></span>
+                <span style="background:#4d6d95" title="accent #4d6d95"></span>
+                <span style="background:#4d6d95" title="link #4d6d95"></span>
+                <span style="background:#e5e9f0" title="codeBg #e5e9f0"></span>
+            </div>
+        </header>
+        <div class="views">
+            <div class="view">
+                <p class="label">Source view</p>
+                <pre class="src" style="
+        background:#eceff4; color:#2e3440;
+        font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+        font-size: 12px; line-height: 1.55;
+        padding: 14px 16px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        "><span style="color:#d8dee9;opacity:0.6">  1</span>   <span style="color:#4d6d95">#</span> Heading One
+<span style="color:#d8dee9;opacity:0.6">  2</span>   <span style="color:#4d6d95">##</span> Heading Two
+<span style="color:#d8dee9;opacity:0.6">  3</span>
+<span style="color:#d8dee9;opacity:0.6">  4</span>   Body text with <span style="color:#4d6d95">**</span><b>bold</b><span style="color:#4d6d95">**</span> and <span style="color:#4d6d95">*</span><i>italic</i><span style="color:#4d6d95">*</span> and
+<span style="color:#d8dee9;opacity:0.6">  5</span>   <span style="color:#4d6d95">`</span><span style="background:#e5e9f0;border-radius:3px;padding:0 3px">inline code</span><span style="color:#4d6d95">`</span> plus a <span style="color:#4d6d95">[</span>link<span style="color:#4d6d95">](</span><span style="color:#4d6d95">https://example.org</span><span style="color:#4d6d95">)</span>.
+<span style="color:#d8dee9;opacity:0.6">  6</span>
+<span style="color:#d8dee9;opacity:0.6">  7</span>   <span style="color:#4d6d95">&gt;</span> A blockquote.
+<span style="color:#d8dee9;opacity:0.6">  8</span>
+<span style="color:#d8dee9;opacity:0.6">  9</span>   <span style="color:#4d6d95">-</span> first item
+<span style="color:#d8dee9;opacity:0.6"> 10</span>   <span style="color:#4d6d95">-</span> second
+<span style="color:#d8dee9;opacity:0.6"> 11</span>   <span style="color:#4d6d95">1.</span> numbered
+<span style="color:#d8dee9;opacity:0.6"> 12</span>
+<span style="color:#d8dee9;opacity:0.6"> 13</span>   <span style="color:#4d6d95">---</span>
+<span style="color:#d8dee9;opacity:0.6"> 14</span>
+<span style="color:#d8dee9;opacity:0.6"> 15</span>   <span style="color:#4d6d95">```</span><span style="color:#d8dee9">javascript</span>
+<span style="color:#d8dee9;opacity:0.6"> 16</span>   <span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;
+<span style="color:#d8dee9;opacity:0.6"> 17</span>   <span style="color:#4d6d95">```</span></pre>
+            </div>
+            <div class="view">
+                <p class="label">Live view</p>
+                <div class="live" style="
+        background:#eceff4; color:#2e3440;
+        font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+        font-size: 13px; line-height: 1.55;
+        padding: 16px 22px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        ">
+        <h1 style="color:#b44953;font-weight:600;font-size:1.6em;margin:0 0 0.5em;line-height:1.25;border-bottom:1px solid #d8dee9;padding-bottom:0.3em;">Heading One</h1>
+        <h2 style="color:#a85237;font-weight:600;font-size:1.25em;margin:1em 0 0.4em;line-height:1.25;border-bottom:1px solid #d8dee9;padding-bottom:0.3em;">Heading Two</h2>
+        <p style="color:#5e5e5b;margin:0 0 0.8em;">Body text with <b style="color:#2e3440">bold</b> and <i>italic</i> and <code style="background:#e5e9f0;padding:0.1em 0.35em;border-radius:3px;color:#2e3440;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.88em;">inline code</code> plus a <a style="color:#4d6d95;text-decoration:none;border-bottom:1px solid #4d6d95;">link</a>.</p>
+        <blockquote style="border-left:3px solid #4d6d95;background:#e5e9f0;color:#5e5e5b;margin:0 0 0.8em;padding:6px 12px;border-radius:5px;">A blockquote.</blockquote>
+        <ul style="color:#5e5e5b;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;">first item <span style="color:#4d6d95;font-weight:700;">●</span></li><li style="margin:0.1em 0;">second</li></ul>
+        <ol style="color:#5e5e5b;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;"><span style="color:#4d6d95;font-weight:700;">1.</span> numbered</li></ol>
+        <hr style="border:0;height:1px;background:#d8dee9;margin:1em 0;">
+        <pre style="background:#e5e9f0;border-left:3px solid #4d6d95;color:#2e3440;padding:10px 12px;border-radius:5px;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.85em;margin:0;overflow:hidden;"><code><span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;</code></pre>
+    </div>
+            </div>
+        </div>
+        <footer>
+            <code>accent #4d6d95</code>
+            <code>link #4d6d95</code>
+            <code>text #2e3440</code>
+            <code>codeBg #e5e9f0</code>
+            <code>page #eceff4</code>
+        </footer>
+    </section>
+<section class="card">
+        <header>
+            <h2>Alucard</h2>
+            <span class="theme light">light</span>
+            <div class="swatches">
+                <span style="background:#fffbeb" title="page #fffbeb"></span>
+                <span style="background:#1f1f1f" title="text #1f1f1f"></span>
+                <span style="background:#644ac9" title="accent #644ac9"></span>
+                <span style="background:#036a96" title="link #036a96"></span>
+                <span style="background:#eeeed8" title="codeBg #eeeed8"></span>
+            </div>
+        </header>
+        <div class="views">
+            <div class="view">
+                <p class="label">Source view</p>
+                <pre class="src" style="
+        background:#fffbeb; color:#1f1f1f;
+        font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+        font-size: 12px; line-height: 1.55;
+        padding: 14px 16px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        "><span style="color:#cfcfde;opacity:0.6">  1</span>   <span style="color:#644ac9">#</span> Heading One
+<span style="color:#cfcfde;opacity:0.6">  2</span>   <span style="color:#644ac9">##</span> Heading Two
+<span style="color:#cfcfde;opacity:0.6">  3</span>
+<span style="color:#cfcfde;opacity:0.6">  4</span>   Body text with <span style="color:#644ac9">**</span><b>bold</b><span style="color:#644ac9">**</span> and <span style="color:#644ac9">*</span><i>italic</i><span style="color:#644ac9">*</span> and
+<span style="color:#cfcfde;opacity:0.6">  5</span>   <span style="color:#644ac9">`</span><span style="background:#eeeed8;border-radius:3px;padding:0 3px">inline code</span><span style="color:#644ac9">`</span> plus a <span style="color:#644ac9">[</span>link<span style="color:#644ac9">](</span><span style="color:#036a96">https://example.org</span><span style="color:#644ac9">)</span>.
+<span style="color:#cfcfde;opacity:0.6">  6</span>
+<span style="color:#cfcfde;opacity:0.6">  7</span>   <span style="color:#644ac9">&gt;</span> A blockquote.
+<span style="color:#cfcfde;opacity:0.6">  8</span>
+<span style="color:#cfcfde;opacity:0.6">  9</span>   <span style="color:#644ac9">-</span> first item
+<span style="color:#cfcfde;opacity:0.6"> 10</span>   <span style="color:#644ac9">-</span> second
+<span style="color:#cfcfde;opacity:0.6"> 11</span>   <span style="color:#644ac9">1.</span> numbered
+<span style="color:#cfcfde;opacity:0.6"> 12</span>
+<span style="color:#cfcfde;opacity:0.6"> 13</span>   <span style="color:#644ac9">---</span>
+<span style="color:#cfcfde;opacity:0.6"> 14</span>
+<span style="color:#cfcfde;opacity:0.6"> 15</span>   <span style="color:#644ac9">```</span><span style="color:#cfcfde">javascript</span>
+<span style="color:#cfcfde;opacity:0.6"> 16</span>   <span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;
+<span style="color:#cfcfde;opacity:0.6"> 17</span>   <span style="color:#644ac9">```</span></pre>
+            </div>
+            <div class="view">
+                <p class="label">Live view</p>
+                <div class="live" style="
+        background:#fffbeb; color:#1f1f1f;
+        font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+        font-size: 13px; line-height: 1.55;
+        padding: 16px 22px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        ">
+        <h1 style="color:#644ac9;font-weight:600;font-size:1.6em;margin:0 0 0.5em;line-height:1.25;border-bottom:1px solid #6c664b;padding-bottom:0.3em;">Heading One</h1>
+        <h2 style="color:#644ac9;font-weight:600;font-size:1.25em;margin:1em 0 0.4em;line-height:1.25;border-bottom:1px solid #6c664b;padding-bottom:0.3em;">Heading Two</h2>
+        <p style="color:#5e5e5b;margin:0 0 0.8em;">Body text with <b style="color:#1f1f1f">bold</b> and <i>italic</i> and <code style="background:#eeeed8;padding:0.1em 0.35em;border-radius:3px;color:#1f1f1f;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.88em;">inline code</code> plus a <a style="color:#036a96;text-decoration:none;border-bottom:1px solid #036a96;">link</a>.</p>
+        <blockquote style="border-left:3px solid #644ac9;background:#eeeed8;color:#5e5e5b;margin:0 0 0.8em;padding:6px 12px;border-radius:5px;">A blockquote.</blockquote>
+        <ul style="color:#5e5e5b;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;">first item <span style="color:#644ac9;font-weight:700;">●</span></li><li style="margin:0.1em 0;">second</li></ul>
+        <ol style="color:#5e5e5b;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;"><span style="color:#644ac9;font-weight:700;">1.</span> numbered</li></ol>
+        <hr style="border:0;height:1px;background:#6c664b;margin:1em 0;">
+        <pre style="background:#eeeed8;border-left:3px solid #644ac9;color:#1f1f1f;padding:10px 12px;border-radius:5px;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.85em;margin:0;overflow:hidden;"><code><span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;</code></pre>
+    </div>
+            </div>
+        </div>
+        <footer>
+            <code>accent #644ac9</code>
+            <code>link #036a96</code>
+            <code>text #1f1f1f</code>
+            <code>codeBg #eeeed8</code>
+            <code>page #fffbeb</code>
+        </footer>
+    </section>
+<section class="card">
+        <header>
+            <h2>Obsidianite Light</h2>
+            <span class="theme light">light</span>
+            <div class="swatches">
+                <span style="background:#fbfbfb" title="page #fbfbfb"></span>
+                <span style="background:#333333" title="text #333333"></span>
+                <span style="background:#0a7d93" title="accent #0a7d93"></span>
+                <span style="background:#667676" title="link #667676"></span>
+                <span style="background:#f0f0f0" title="codeBg #f0f0f0"></span>
+            </div>
+        </header>
+        <div class="views">
+            <div class="view">
+                <p class="label">Source view</p>
+                <pre class="src" style="
+        background:#fbfbfb; color:#333333;
+        font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+        font-size: 12px; line-height: 1.55;
+        padding: 14px 16px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        "><span style="color:#92a1a17a;opacity:0.6">  1</span>   <span style="color:#0a7d93">#</span> Heading One
+<span style="color:#92a1a17a;opacity:0.6">  2</span>   <span style="color:#0a7d93">##</span> Heading Two
+<span style="color:#92a1a17a;opacity:0.6">  3</span>
+<span style="color:#92a1a17a;opacity:0.6">  4</span>   Body text with <span style="color:#0a7d93">**</span><b>bold</b><span style="color:#0a7d93">**</span> and <span style="color:#0a7d93">*</span><i>italic</i><span style="color:#0a7d93">*</span> and
+<span style="color:#92a1a17a;opacity:0.6">  5</span>   <span style="color:#0a7d93">`</span><span style="background:#f0f0f0;border-radius:3px;padding:0 3px">inline code</span><span style="color:#0a7d93">`</span> plus a <span style="color:#0a7d93">[</span>link<span style="color:#0a7d93">](</span><span style="color:#667676">https://example.org</span><span style="color:#0a7d93">)</span>.
+<span style="color:#92a1a17a;opacity:0.6">  6</span>
+<span style="color:#92a1a17a;opacity:0.6">  7</span>   <span style="color:#0a7d93">&gt;</span> A blockquote.
+<span style="color:#92a1a17a;opacity:0.6">  8</span>
+<span style="color:#92a1a17a;opacity:0.6">  9</span>   <span style="color:#0a7d93">-</span> first item
+<span style="color:#92a1a17a;opacity:0.6"> 10</span>   <span style="color:#0a7d93">-</span> second
+<span style="color:#92a1a17a;opacity:0.6"> 11</span>   <span style="color:#0a7d93">1.</span> numbered
+<span style="color:#92a1a17a;opacity:0.6"> 12</span>
+<span style="color:#92a1a17a;opacity:0.6"> 13</span>   <span style="color:#0a7d93">---</span>
+<span style="color:#92a1a17a;opacity:0.6"> 14</span>
+<span style="color:#92a1a17a;opacity:0.6"> 15</span>   <span style="color:#0a7d93">```</span><span style="color:#92a1a17a">javascript</span>
+<span style="color:#92a1a17a;opacity:0.6"> 16</span>   <span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;
+<span style="color:#92a1a17a;opacity:0.6"> 17</span>   <span style="color:#0a7d93">```</span></pre>
+            </div>
+            <div class="view">
+                <p class="label">Live view</p>
+                <div class="live" style="
+        background:#fbfbfb; color:#333333;
+        font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+        font-size: 13px; line-height: 1.55;
+        padding: 16px 22px; margin: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        ">
+        <h1 style="color:#0a7d93;font-weight:600;font-size:1.6em;margin:0 0 0.5em;line-height:1.25;border-bottom:2px solid;border-image:linear-gradient(to right, #0a7d93 30%, transparent 70%) 1;padding-bottom:0.35em;">Heading One</h1>
+        <h2 style="color:#666666;font-weight:600;font-size:1.25em;margin:1em 0 0.4em;line-height:1.25;border-bottom:2px solid;border-image:linear-gradient(to right, #666666 30%, transparent 70%) 1;padding-bottom:0.3em;">Heading Two</h2>
+        <p style="color:#5e5e5b;margin:0 0 0.8em;">Body text with <b style="color:#333333">bold</b> and <i>italic</i> and <code style="background:#f0f0f0;padding:0.1em 0.35em;border-radius:3px;color:#333333;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.88em;">inline code</code> plus a <a style="color:#667676;text-decoration:none;border-bottom:1px solid #667676;">link</a>.</p>
+        <blockquote style="border-left:3px solid #0a7d93;background:#f0f0f0;color:#5e5e5b;margin:0 0 0.8em;padding:6px 12px;border-radius:5px;">A blockquote.</blockquote>
+        <ul style="color:#5e5e5b;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;">first item <span style="color:#0a7d93;font-weight:700;">●</span></li><li style="margin:0.1em 0;">second</li></ul>
+        <ol style="color:#5e5e5b;margin:0 0 0.5em;padding-left:1.6em;"><li style="margin:0.1em 0;"><span style="color:#0a7d93;font-weight:700;">1.</span> numbered</li></ol>
+        <hr style="border:0;height:1px;background:#92a1a1;margin:1em 0;">
+        <pre style="background:#f0f0f0;border-left:3px solid #0a7d93;color:#333333;padding:10px 12px;border-radius:5px;font-family:'JetBrains Mono',Consolas,monospace;font-size:0.85em;margin:0;overflow:hidden;"><code><span style="color:#708">const</span> x <span style="color:#708">=</span> <span style="color:#164">42</span>;</code></pre>
+    </div>
+            </div>
+        </div>
+        <footer>
+            <code>accent #0a7d93</code>
+            <code>link #667676</code>
+            <code>text #333333</code>
+            <code>codeBg #f0f0f0</code>
+            <code>page #fbfbfb</code>
+        </footer>
+    </section>
+</body>
+</html>
