@@ -156,7 +156,7 @@ function buildEditorTheme(livePreview) {
         '.cm-content': {
             padding: 'var(--page-pad-override, 32px 40px)',
             caretColor: 'var(--ink-override, var(--ink))',
-            lineHeight: 'var(--line-height-code-override, 1.55)',
+            lineHeight: 'var(--line-height-code-override, var(--line-height-override, 1.55))',
         },
         '.cm-line': { padding: '0' },
         '&.cm-focused .cm-cursor': {
