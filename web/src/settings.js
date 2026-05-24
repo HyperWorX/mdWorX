@@ -28,8 +28,8 @@ const palettes = {
     // All palettes below ported field-by-field from each theme's canonical
     // source (project palette spec or theme.css). Heading colour rainbows
     // chosen to match the theme's own accent set; underline styles match
-    // each theme's visual character (gradient/gradient-text for vibrant
-    // themes, solid for minimalist ones).
+    // each theme's visual character (gradient for vibrant themes, solid
+    // for minimalist ones).
     'Dracula': {
         theme: 'dark',
         pageColor: '#282a36',
@@ -254,7 +254,7 @@ const palettes = {
         ruleColor: '#4aa8fb',           // --blockquote-border
         hrColor: '#0fb6d6',
         headingUnderlineColor: '#f4569d', // sub-accent pink for the underline accent
-        headingUnderlineStyle: 'gradient-text',
+        headingUnderlineStyle: 'gradient',
         h1Color: '#0fb6d6',             // --text-title-h1 = --text-accent
         h2Color: '#cbdbe5',             // --text-title-h2..h5 all same in source
         h3Color: '#cbdbe5',
@@ -528,7 +528,7 @@ const palettes = {
         ruleColor: '#92a1a17a',
         hrColor: '#92a1a1',
         headingUnderlineColor: '#f4569d',
-        headingUnderlineStyle: 'gradient-text',
+        headingUnderlineStyle: 'gradient',
         h1Color: '#0fb6d6',
         h2Color: '#666666',
         h3Color: '#666666',
@@ -613,8 +613,8 @@ const schema = [
     { key: 'headingUnderlineColor', label: 'Heading underline (H1 / H2)', type: 'colour',
       help: 'Colour of the line under H1 and H2 headings. Ignored when underline style is "gradient" (gradient uses each heading\'s own colour).' },
     { key: 'headingUnderlineStyle', label: 'Heading underline style', type: 'select',
-      options: ['solid', 'gradient', 'gradient-text', 'none'],
-      help: '"solid" = flat line. "gradient" = fading line (line only). "gradient-text" = fading line AND heading text fades from solid colour to transparent across its width (Obsidian style). "none" = no underline.' },
+      options: ['solid', 'gradient', 'none'],
+      help: '"solid" = flat line under H1 and H2. "gradient" = fading line. "none" = no underline. Colour and thickness are controlled by the Heading underline + HR thickness fields above.' },
     { key: 'ruleColor',             label: 'Table / image / footnote borders', type: 'colour' },
 
     // ---- Body typography (the main prose) ------------------------------

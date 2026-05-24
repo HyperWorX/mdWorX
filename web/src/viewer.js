@@ -578,13 +578,12 @@ function applySettings(s) {
     }
 
     // Heading underline style: side-effect body class controlling H1-H6
-    // underline + (gradient-text) text fade.
+    // underline. Three options: solid, gradient, none.
     const us = s.headingUnderlineStyle;
     const underlineClass =
-        us === 'gradient'      ? 'heading-underline-gradient' :
-        us === 'gradient-text' ? 'heading-underline-gradient heading-text-gradient' :
-        us === 'none'          ? 'heading-underline-none'     :
-                                 'heading-underline-solid';
+        us === 'gradient' ? 'heading-underline-gradient' :
+        us === 'none'     ? 'heading-underline-none'     :
+                            'heading-underline-solid';
 
     // Preserve runtime classes (mode-*, etc.); rewrite only theme + underline
     // classes. Wholesale className overwrite here previously stripped mode-live

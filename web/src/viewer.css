@@ -516,6 +516,18 @@ body.mode-reading .editor { display: none; }
  * reads as accent-coloured at rest, matching Reading.
  */
 .cm-md-heading-line { font-weight: 600; line-height: 1.25; letter-spacing: 0.01em; }
+/* defaultHighlightStyle (re-registered in editor.js so the fenced-code
+ * widget's spans get coloured CSS) sets `text-decoration: underline` on
+ * tags.heading. In Live mode that lands on the span inside
+ * .cm-md-heading-line, on top of the existing border-bottom rule under
+ * H1/H2 headings, producing a visible double-underline. Strip text-
+ * decoration from heading-line spans in Live mode. Reading mode is
+ * unaffected because the rendered HTML doesn't go through the syntax
+ * highlighter. */
+body.mode-live .cm-md-heading-line,
+body.mode-live .cm-md-heading-line * {
+    text-decoration: none;
+}
 body.mode-live .cm-md-heading-1 {
     font-size: 1.71em;
     color: var(--h1-color-override, var(--h1-override, var(--h1)));
@@ -1064,72 +1076,6 @@ body.heading-underline-gradient.mode-live .cm-md-heading-6 {
         var(--h6-color-override, var(--ink-soft)) 30%,
         transparent 70%) 1;
     padding-bottom: 0.2em;
-}
-
-/* Gradient TEXT: heading text itself fades from its colour at the left
- * toward transparent at the right (using -webkit-background-clip: text
- * to mask the background gradient into the glyph shapes). The text
- * stays fully visible for the first 60% of its width, then fades.
- * Combined with the gradient underline above. */
-body.heading-text-gradient :is(#content, .cm-md-rendered-block) h1,
-body.heading-text-gradient :is(#content, .cm-md-rendered-block) h2,
-body.heading-text-gradient :is(#content, .cm-md-rendered-block) h3,
-body.heading-text-gradient :is(#content, .cm-md-rendered-block) h4,
-body.heading-text-gradient :is(#content, .cm-md-rendered-block) h5,
-body.heading-text-gradient :is(#content, .cm-md-rendered-block) h6,
-body.heading-text-gradient.mode-live .cm-md-heading-1,
-body.heading-text-gradient.mode-live .cm-md-heading-2,
-body.heading-text-gradient.mode-live .cm-md-heading-3,
-body.heading-text-gradient.mode-live .cm-md-heading-4,
-body.heading-text-gradient.mode-live .cm-md-heading-5,
-body.heading-text-gradient.mode-live .cm-md-heading-6 {
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    color: transparent;
-    background-repeat: no-repeat;
-}
-body.heading-text-gradient :is(#content, .cm-md-rendered-block) h1,
-body.heading-text-gradient.mode-live .cm-md-heading-1 {
-    background-image: linear-gradient(to right,
-        var(--h1-color-override, var(--h1-override, var(--h1))) 0%,
-        var(--h1-color-override, var(--h1-override, var(--h1))) 60%,
-        transparent 100%);
-}
-body.heading-text-gradient :is(#content, .cm-md-rendered-block) h2,
-body.heading-text-gradient.mode-live .cm-md-heading-2 {
-    background-image: linear-gradient(to right,
-        var(--h2-color-override, var(--ink-override, var(--ink))) 0%,
-        var(--h2-color-override, var(--ink-override, var(--ink))) 60%,
-        transparent 100%);
-}
-body.heading-text-gradient :is(#content, .cm-md-rendered-block) h3,
-body.heading-text-gradient.mode-live .cm-md-heading-3 {
-    background-image: linear-gradient(to right,
-        var(--h3-color-override, var(--accent-override, var(--accent))) 0%,
-        var(--h3-color-override, var(--accent-override, var(--accent))) 60%,
-        transparent 100%);
-}
-body.heading-text-gradient :is(#content, .cm-md-rendered-block) h4,
-body.heading-text-gradient.mode-live .cm-md-heading-4 {
-    background-image: linear-gradient(to right,
-        var(--h4-color-override, var(--ink-override, var(--ink))) 0%,
-        var(--h4-color-override, var(--ink-override, var(--ink))) 60%,
-        transparent 100%);
-}
-body.heading-text-gradient :is(#content, .cm-md-rendered-block) h5,
-body.heading-text-gradient.mode-live .cm-md-heading-5 {
-    background-image: linear-gradient(to right,
-        var(--h5-color-override, var(--ink-soft)) 0%,
-        var(--h5-color-override, var(--ink-soft)) 60%,
-        transparent 100%);
-}
-body.heading-text-gradient :is(#content, .cm-md-rendered-block) h6,
-body.heading-text-gradient.mode-live .cm-md-heading-6 {
-    background-image: linear-gradient(to right,
-        var(--h6-color-override, var(--ink-soft)) 0%,
-        var(--h6-color-override, var(--ink-soft)) 60%,
-        transparent 100%);
 }
 
 :is(#content, .cm-md-rendered-block) p {
