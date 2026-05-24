@@ -1,0 +1,50 @@
+# Build outputs
+build-out/
+*.obj
+*.lib
+*.exp
+*.pdb
+*.ilk
+*.idb
+*.dll
+*.exe
+
+# Visual Studio
+.vs/
+*.vcxproj.user
+*.suo
+*.sdf
+*.opensdf
+*.aps
+*.user
+Debug/
+Release/
+x64/
+x86/
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CMakeUserPresets.json
+
+# Node / web layer
+node_modules/
+web/dist/
+web/.cache/
+package-lock.json.bak
+
+# Vendored SDK (download per docs/dev-setup.md; not redistributable)
+sdk-vendored/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/launch.json
+
+# Temp / logs
+*.log
+*.tmp

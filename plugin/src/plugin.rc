@@ -1,0 +1,39 @@
+#include <winres.h>
+
+#define MDWORX_VER_MAJOR  0
+#define MDWORX_VER_MINOR  1
+#define MDWORX_VER_PATCH  0
+#define MDWORX_VER_BUILD  0
+
+VS_VERSION_INFO VERSIONINFO
+    FILEVERSION    MDWORX_VER_MAJOR,MDWORX_VER_MINOR,MDWORX_VER_PATCH,MDWORX_VER_BUILD
+    PRODUCTVERSION MDWORX_VER_MAJOR,MDWORX_VER_MINOR,MDWORX_VER_PATCH,MDWORX_VER_BUILD
+    FILEFLAGSMASK  VS_FFI_FILEFLAGSMASK
+#ifdef _DEBUG
+    FILEFLAGS      VS_FF_DEBUG
+#else
+    FILEFLAGS      0
+#endif
+    FILEOS         VOS_NT_WINDOWS32
+    FILETYPE       VFT_DLL
+    FILESUBTYPE    VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "CompanyName",      "HyperWorX"
+            VALUE "FileDescription",  "mdWorX - Directory Opus markdown viewer/editor plugin"
+            VALUE "FileVersion",      "0.1.0.0"
+            VALUE "InternalName",     "mdWorX"
+            VALUE "LegalCopyright",   "(c) 2026 HyperWorX. MIT licensed."
+            VALUE "OriginalFilename", "mdWorX.dll"
+            VALUE "ProductName",      "mdWorX"
+            VALUE "ProductVersion",   "0.1.0.0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END

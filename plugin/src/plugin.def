@@ -1,0 +1,9 @@
+LIBRARY
+EXPORTS
+    DVP_InitEx
+    DVP_Uninit
+    DVP_USBSafe
+    DVP_IdentifyW
+    DVP_IdentifyFileW
+    DVP_CreateViewer
+    DVP_Configure

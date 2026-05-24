@@ -1,0 +1,1489 @@
+/* mdWorX - stylesheet.
+ *
+ * Theme palette is defined on body.theme-light / body.theme-dark (flat
+ * variables, no indirection — :root can't read body-scoped vars, so the
+ * cascade only resolves cleanly when the theme lives on body).
+ *
+ * Settings overrides are read inline at each use site as
+ *   property: var(--<name>-override, var(--<name>));
+ * The override variables are set on :root by the native side (via the
+ * bridge); when absent, the theme default wins.
+ *
+ * The native side also sets --pane-bg on :root from DOpus's lister pane
+ * background colour, so the body chrome matches the host.
+ */
+
+:root {
+    color-scheme: light dark;
+}
+
+body.theme-light {
+    --pane:     #ecebe6;
+    --page:     #f0f0f0;                       /* neutral light grey */
+    --ink:      #1c1c1a;
+    --ink-soft: #5e5e5b;                       /* 10% darker than #686865 */
+    --rule:     #d9d6cd;
+    --code:     rgba(0, 0, 0, 0.045);
+    --code-inline: rgba(0, 0, 0, 0.07);         /* inline-only, slightly darker than pre/quote */
+    --link:     #2a5fb8;
+    --accent:   #6b4e7d;                       /* muted purple */
+    --accent-faded: rgba(107, 78, 125, 0.35);
+    --h1:       #1a1a1a;                       /* black on light page */
+    --check-bg: #4caf50;
+    --check-fg: #ffffff;
+    --mark-fg:  #ffffff;
+    --shadow:   0 1px 2px rgba(0,0,0,0.05), 0 2px 12px rgba(0,0,0,0.04);
+}
+
+body.theme-dark {
+    --pane:     #1b1b1d;
+    --page:     #26262a;
+    --ink:      #ececec;
+    --ink-soft: #b8b8b8;
+    --rule:     #38383c;
+    --code:     rgba(255, 255, 255, 0.07);
+    --code-inline: rgba(255, 255, 255, 0.10);   /* inline-only, slightly brighter than pre/quote */
+    --link:     #7ab7ff;
+    --accent:   #f4a261;
+    --accent-faded: rgba(244, 162, 97, 0.35);
+    --h1:       #ffffff;                       /* white on dark page */
+    --check-bg: #4caf50;
+    --check-fg: #ffffff;
+    --mark-fg:  #1a1a1a;
+    --shadow:   0 1px 2px rgba(0,0,0,0.2), 0 2px 12px rgba(0,0,0,0.25);
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    -webkit-font-smoothing: antialiased;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    /* Clip any rogue horizontal overflow at the document level so .page's
+     * margin: 0 auto centres within the VIEWPORT, not within a wider
+     * document. Without this, a child widget with intrinsic content width
+     * (e.g. a fenced code block with long lines) stretches the document
+     * past the viewport, and the centred .page visually shifts right,
+     * leaving more pane background on the left than the right. Individual
+     * wide elements (pre, table, codeblock widgets) have their own
+     * overflow-x: auto so they self-scroll inside their box. */
+    overflow-x: clip;
+}
+
+/* Block layout (NOT flex). Body provides the pane chrome and the surrounding
+ * padding; .page is a centred block child that grows naturally with content.
+ *
+ * Why not flex with align-items:stretch: stretch sets .page's cross-axis
+ * size to the container's height (= viewport), so when content overflows it
+ * spills past .page rather than extending it. The user-visible symptom is
+ * the page background ending at the initial viewport height and the pane
+ * background showing through after scrolling.
+ */
+body {
+    font-family: var(--font-prose-override,
+        'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif);
+    font-size: var(--font-size-override, 14px);
+    font-weight: var(--font-weight-prose-override, 400);
+    line-height: var(--line-height-override, 1.55);
+    color: var(--ink-override, var(--ink-soft));   /* body text in the lighter ink */
+    background: var(--pane-bg, var(--pane));
+    /* Uniform padding so top/bottom gaps between pane edge and page edge match. */
+    padding: 20px;
+    box-sizing: border-box;
+    min-height: 100vh;
+}
+
+.page {
+    background: var(--page-override, var(--page));
+    max-width: var(--page-max-override, 760px);
+    margin: 0 auto;
+    /* Tightened horizontal padding so prose sits closer to the page card
+     * edges (was 40px 64px). Same value used for both Reading and Live
+     * because both modes render inside this container. */
+    padding: var(--page-pad-override, 36px 36px);
+    border: 1px solid var(--rule-override, var(--rule));
+    box-shadow: var(--shadow);
+    border-radius: 12px;
+    box-sizing: border-box;
+    /* min-height matches body padding (20 top + 20 bottom = 40) so page fills
+     * the viewport when content is short, and grows naturally when longer. */
+    min-height: calc(100vh - 40px);
+}
+
+/* ---------- Toolbar + editor / mode layouts ------------------------------ */
+/*
+ * Three view modes live on the body class:
+ *   mode-live    — CodeMirror with live-preview decorations (default).
+ *   mode-source  — CodeMirror without decorations (raw text editing).
+ *   mode-reading — Pure rendered HTML, no editor (read-only).
+ *
+ * The top toolbar floats top-right over the pane. The editing toolbar sits
+ * just below it and is hidden in mode-reading. The editor pane (#editor) is
+ * shown in live/source and hidden in reading; :is(#content, .cm-md-rendered-block) is the opposite.
+ */
+
+/* Outer toolbar: full-width fixed shell with two independent pills.
+ * Mode toggle (live/source/reading) sits centred; save/saveAs/status pin
+ * to the right. The shell itself has no visual chrome and lets pointer
+ * events through except where a child pill captures them. */
+.toolbar {
+    position: fixed;
+    top: 8px;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    pointer-events: none;
+}
+.toolbar-group {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 3px;
+    padding: 5px 8px;
+    /* Vibrant accent-tinted background. 35% accent over page colour gives a
+     * clearly coloured pill that picks up whatever palette is active. */
+    background: color-mix(in srgb, var(--accent-override, var(--accent)) 35%, var(--page-override, var(--page)));
+    border: 1px solid color-mix(in srgb, var(--accent-override, var(--accent)) 70%, var(--rule-override, var(--rule)));
+    border-radius: 10px;
+    box-shadow: 0 2px 10px color-mix(in srgb, var(--accent-override, var(--accent)) 18%, transparent),
+                var(--shadow);
+    font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-size: 11px;
+    opacity: 0.92;
+    transition: opacity 0.15s ease;
+    pointer-events: auto;
+    /* On thin viewports the pill would extend past the screen and clip.
+     * Cap to viewport width and allow horizontal scroll if buttons don't fit. */
+    max-width: calc(100vw - 24px);
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;          /* Firefox */
+    -ms-overflow-style: none;       /* IE/old Edge */
+}
+.toolbar-group::-webkit-scrollbar { display: none; }            /* WebView2 / Chromium */
+.toolbar-group > * { flex-shrink: 0; }                          /* don't squish individual buttons */
+.toolbar-group:hover, .toolbar-group:focus-within { opacity: 1; }
+
+/* Inline separator between mode buttons and save icons inside the centred pill. */
+.tbm-sep {
+    width: 1px;
+    height: 18px;
+    background: color-mix(in srgb, var(--accent-override, var(--accent)) 60%, var(--rule-override, var(--rule)));
+    opacity: 0.6;
+    margin: 0 5px;
+}
+
+/* Save / Save As icon buttons inside the top centred pill. Match the size
+ * and feel of the editing-toolbar icon buttons. */
+.toolbar .tbm-icon {
+    width: 26px;
+    height: 24px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.toolbar .tbm-icon .etb-icon {
+    width: 14px;
+    height: 14px;
+    stroke-width: 1.75;
+}
+.toolbar button {
+    appearance: none;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--ink-override, var(--ink));
+    padding: 3px 8px;
+    border-radius: 5px;
+    font: inherit;
+    cursor: pointer;
+}
+.toolbar button:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent-override, var(--accent)) 22%, transparent);
+}
+.toolbar button.active {
+    /* Derived from the active accent (override or palette default) so the
+     * active state tracks the user's palette instead of the theme-default
+     * orange/purple stored in --accent-faded. */
+    background: color-mix(in srgb, var(--accent-override, var(--accent)) 30%, transparent);
+    border-color: var(--accent-override, var(--accent));
+    color: var(--ink-override, var(--ink));
+}
+.toolbar button:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+.status {
+    font-size: 10.5px;
+    color: var(--ink-soft);
+    padding: 0 4px;
+    min-width: 0;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.status-error { color: #d33; }
+.status-ok    { color: var(--accent-override, var(--accent)); }
+
+/* Editing toolbar (formatting buttons). Pinned to bottom-centre of the
+ * viewport so it doesn't fight the view-mode toolbar at top-right. Hidden
+ * in reading mode (set via the `hidden` attribute by JS). */
+/* Editing toolbar (bottom-centre, source/live modes only).
+ *
+ * Pill matches the top mode toolbar's vibrancy: same accent-tinted bg,
+ * same border treatment, slightly larger radius. Buttons are square
+ * icon targets that show a translucent accent wash on hover and a
+ * fuller wash plus accent border when active. Icons are inline SVG
+ * (stroked, currentColor) so they re-tint with palette changes. */
+.editing-toolbar {
+    position: fixed;
+    bottom: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 49;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0;
+    padding: 5px 8px;
+    background: color-mix(in srgb, var(--accent-override, var(--accent)) 25%, var(--page-override, var(--page)));
+    border: 1px solid color-mix(in srgb, var(--accent-override, var(--accent)) 55%, var(--rule-override, var(--rule)));
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    opacity: 0.88;
+    transition: opacity 0.15s ease;
+    /* Thin-viewport scroll: cap to viewport width, allow horizontal scroll
+     * for overflow, hide the scrollbar. */
+    max-width: calc(100vw - 24px);
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+.editing-toolbar::-webkit-scrollbar { display: none; }
+.editing-toolbar > * { flex-shrink: 0; }
+.editing-toolbar:hover, .editing-toolbar:focus-within { opacity: 1; }
+.editing-toolbar[hidden] { display: none; }
+
+.etb-group {
+    display: flex;
+    align-items: center;
+    gap: 1px;
+}
+
+.editing-toolbar button {
+    appearance: none;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--ink-override, var(--ink));
+    width: 30px;
+    height: 28px;
+    padding: 0;
+    border-radius: 6px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.12s ease, border-color 0.12s ease, transform 0.06s ease;
+}
+.editing-toolbar button:hover {
+    background: color-mix(in srgb, var(--accent-override, var(--accent)) 20%, transparent);
+}
+.editing-toolbar button:active {
+    background: color-mix(in srgb, var(--accent-override, var(--accent)) 35%, transparent);
+    transform: scale(0.96);
+}
+.editing-toolbar button.active {
+    background: color-mix(in srgb, var(--accent-override, var(--accent)) 30%, transparent);
+    border-color: var(--accent-override, var(--accent));
+}
+
+.etb-icon {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.75;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    display: block;
+}
+
+.etb-glyph {
+    font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1;
+    display: inline-block;
+}
+.etb-glyph-bold   { font-weight: 800; letter-spacing: -0.5px; }
+.etb-glyph-italic { font-style: italic; font-weight: 600; font-family: 'Cambria', 'Georgia', serif; }
+.etb-glyph-strike { text-decoration: line-through; text-decoration-thickness: 1.75px; font-weight: 600; }
+
+.etb-sep {
+    width: 1px;
+    height: 20px;
+    background: color-mix(in srgb, var(--accent-override, var(--accent)) 45%, var(--rule-override, var(--rule)));
+    margin: 0 6px;
+    opacity: 0.7;
+}
+
+/* Editor mount. CodeMirror manages internal layout. We give it a flex item
+ * that grows; padding lives inside CM via the editor theme. */
+.editor {
+    display: none;
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    background: var(--page-override, var(--page));
+}
+
+/* mode-reading keeps the default block layout (centred .page).
+ *
+ * mode-live uses the SAME centred .page container so live preview is
+ * visually identical to reading at rest. The editor mounts inside .page
+ * as a normal block with its own padding (managed via the CM editorTheme).
+ *
+ * mode-source NON-SPLIT also uses the centred .page card so a single-pane
+ * source view has matching framing to reading/live. cm-content (editor.js
+ * source theme) supplies its own padding — .page padding is set to 0 to
+ * avoid doubling. .editor is a normal block so cm-editor fills its width.
+ *
+ * mode-source SPLIT goes full-width flex for side-by-side source + preview.
+ * The full-pane flex layout is required so #content and #editor can each
+ * take 50% via `flex: 1 1 50%`. */
+body.mode-source :is(#content, .cm-md-rendered-block) { display: none; }
+
+body.mode-source:not(.split) .page   { padding: 0; }
+body.mode-source:not(.split) .editor { display: block; min-height: calc(100vh - 120px); }
+
+body.mode-source.split .page {
+    display: flex;
+    flex-direction: row;
+    max-width: none;
+    padding: 0;
+    min-height: calc(100vh - 40px);
+    height: calc(100vh - 40px);
+    overflow: hidden;
+}
+body.mode-source.split .editor { display: flex; }
+
+/* Split view: source on the LEFT, rendered preview on the RIGHT.
+ *
+ * DOM order is #content, #split-handle, #editor. Visual order is achieved
+ * with flex-direction: row-reverse so the last child (#editor) appears on
+ * the left and the first child (#content) appears on the right. The handle
+ * sits between them.
+ *
+ * Selector specificity (1,2,1) beats the mode-source #content hide rule
+ * above (1,1,1) so #content reappears as a flex item alongside .editor. */
+body.mode-source.split .page    { flex-direction: row-reverse; }
+body.mode-source.split #content {
+    display: block;
+    flex: 1 1 50%;
+    min-width: 0;
+    overflow: auto;
+    padding: 40px 48px;
+    background: var(--page-override, var(--page));
+}
+body.mode-source.split .editor       { flex: 1 1 50%; }
+
+/* Drag handle: hidden outside split, narrow vertical bar with col-resize
+ * cursor in split. Hosts a centred circular link/unlink toggle button. */
+.split-handle { display: none; }
+body.mode-source.split .split-handle {
+    display: block;
+    flex: 0 0 6px;
+    cursor: col-resize;
+    background: var(--rule-override, var(--rule));
+    position: relative;
+}
+body.mode-source.split .split-handle:hover {
+    background: color-mix(in srgb, var(--accent-override, var(--accent)) 35%, transparent);
+}
+
+/* Link/unlink toggle: small circular button centred on the handle.
+ * Hidden outside split. Visually overrides the drag affordance in its
+ * own area (cursor: pointer) and mousedown stops propagating in JS so
+ * the click doesn't start a resize drag. */
+.split-link-toggle { display: none; }
+body.mode-source.split .split-link-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 2;
+    color: var(--accent-override, var(--accent));
+    background: color-mix(in srgb, var(--accent-override, var(--accent)) 28%, var(--page-override, var(--page)));
+    border: 1px solid color-mix(in srgb, var(--accent-override, var(--accent)) 65%, var(--rule-override, var(--rule)));
+    box-shadow: 0 1px 6px rgba(0,0,0,0.18);
+    transition: background-color 0.12s ease, color 0.12s ease, transform 0.08s ease;
+}
+.split-link-toggle:hover {
+    background: color-mix(in srgb, var(--accent-override, var(--accent)) 45%, var(--page-override, var(--page)));
+}
+.split-link-toggle:active { transform: translate(-50%, -50%) scale(0.92); }
+.split-link-icon { width: 13px; height: 13px; display: block; }
+.split-link-icon-off { display: none; }
+.split-link-toggle.off .split-link-icon-on  { display: none; }
+.split-link-toggle.off .split-link-icon-off { display: block; }
+.split-link-toggle.off {
+    color: var(--ink-soft);
+    background: var(--page-override, var(--page));
+    border-color: var(--rule-override, var(--rule));
+}
+
+/* Source button shows a small split glyph after the label when split is on. */
+.toolbar button.split-on::after {
+    content: '⫾';
+    display: inline-block;
+    margin-left: 4px;
+    opacity: 0.75;
+    font-weight: 700;
+}
+
+body.mode-live #content { display: none; }
+body.mode-live .editor  {
+    display: block;
+    height: auto;
+    min-height: calc(100vh - 120px);
+    overflow: visible;
+    background: transparent;
+}
+
+body.mode-reading .editor { display: none; }
+
+/* ---------- Live-preview decorations (inside CodeMirror) ----------------- */
+/*
+ * Classes added by editor-livepreview.js via Decoration.mark / .line. They
+ * style the editor pane to approximate the rendered preview while keeping
+ * source text intact. The .cm-md-hidden span is what Decoration.replace
+ * inserts in place of hidden marker tokens. */
+
+.cm-md-hidden { display: none; }
+.cm-md-bold   { font-weight: 600; color: var(--ink-override, var(--ink)); }
+.cm-md-italic { font-style: italic; }
+.cm-md-strike { text-decoration: line-through; color: var(--ink-soft); }
+.cm-md-inline-code {
+    font-family: var(--font-mono-override, ui-monospace, Consolas, monospace);
+    font-size: var(--font-size-code-override, 0.92em);
+    font-weight: var(--font-weight-mono-override, 400);
+    background: var(--code-inline);
+    padding: 0.15em 0.35em;
+    border-radius: 3px;
+    color: var(--ink-override, var(--ink));
+}
+.cm-md-link {
+    color: var(--link-override, var(--link));
+    text-decoration: none;
+    border-bottom: 1px solid currentColor;
+    transition: opacity 100ms ease;
+}
+.cm-md-link:hover { opacity: 0.75; }
+/* Blockquote line decoration in Live. Each line gets the per-line bg +
+ * accent border-left, matching the reading-mode <blockquote> visual
+ * (accent colour, code-coloured bg, vertical padding). Border-radius is
+ * applied per line; a multi-line blockquote will show banded segments
+ * rather than a single rounded box. Wrapper-widget for single-box look
+ * is deferred to follow-up. */
+/* Blockquote per-line styling — DEPRECATED. Blockquote uses a block widget
+ * again (single <blockquote> via markdown-it). These classes are kept in
+ * case any code still emits them but are not currently used by blockquote.js. */
+.cm-md-quote-line {
+    color: var(--ink-soft);
+    border-left: 3px solid var(--accent-override, var(--accent));
+    background: var(--code-override, var(--code));
+    padding: 4px 14px;
+}
+
+/* Headings: line-level decoration in Live mirrors Reading prose sizing.
+ * Per-level colour overrides match the same fallback chain Reading uses
+ * (see :is(#content, .cm-md-rendered-block) hN rules below); H3 inherits the accent fallback so it
+ * reads as accent-coloured at rest, matching Reading.
+ */
+.cm-md-heading-line { font-weight: 600; line-height: 1.25; letter-spacing: 0.01em; }
+body.mode-live .cm-md-heading-1 {
+    font-size: 1.71em;
+    color: var(--h1-color-override, var(--h1-override, var(--h1)));
+}
+body.mode-live .cm-md-heading-2 {
+    font-size: 1.29em;
+    color: var(--h2-color-override, var(--ink-override, var(--ink)));
+}
+body.mode-live .cm-md-heading-3 {
+    font-size: 1.11em;
+    color: var(--h3-color-override, var(--accent-override, var(--accent)));
+}
+body.mode-live .cm-md-heading-4 {
+    font-size: 1.04em;
+    color: var(--h4-color-override, var(--ink-override, var(--ink)));
+}
+body.mode-live .cm-md-heading-5 {
+    font-size: 0.86em;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--h5-color-override, var(--ink-soft));
+}
+body.mode-live .cm-md-heading-6 {
+    font-size: 0.86em;
+    color: var(--h6-color-override, var(--ink-soft));
+}
+
+/* Bullet replacement widget. Sized to match Reading's native ::marker disc
+ * visually (font-size bumped because the text BULLET char renders smaller
+ * than the browser's marker disc at the same em). */
+/* Bullet widget sized to match Reading's native ::marker disc. The text
+ * BULLET char renders smaller than the browser's marker at the same em, so
+ * we bump the font-size enough to visually match. line-height: 0 prevents
+ * the bigger font from stretching the line vertically. */
+.cm-md-bullet {
+    display: inline-block;
+    color: var(--accent-override, var(--accent));
+    font-weight: 700;
+    width: 1ch;
+    text-align: center;
+    margin-right: 0.5em;
+    font-size: 1.45em;
+    line-height: 0;
+    vertical-align: -0.06em;
+}
+
+/* Per-line list-item styling for Live mode (per-line decorator architecture).
+ * Each line of a ListItem gets the .cm-md-list-item class; nesting depth is
+ * encoded in -L0..-L3 for indent levels.
+ *
+ * Indent values are compensated by the bullet's in-line width + margin
+ * (~0.8em) so the TEXT after the bullet ends up at the same x-position as
+ * Reading's `:is(#content, .cm-md-rendered-block) li` content (which has
+ * padding-left 1.6em with the marker outside that padding box). Each
+ * subsequent level steps by 1.6em to match Reading's nested-ul cascade.
+ *
+ * `!important` required: the `body.mode-live .cm-line { padding: 0 }` rule
+ * (later in source order) has identical specificity (0,0,2,1) and the
+ * shorthand padding: 0 zeros our padding-left without !important. */
+body.mode-live .cm-md-list-item    {
+    color: var(--ink-soft);
+    /* Match Reading's `li { margin: 0.15em 0 }` — pull successive list
+     * lines closer together so multi-item lists don't look airier than
+     * Reading. line-height stays inherited from cm-content so wrapped
+     * lines within a single item still look right. */
+    line-height: 1.4;
+}
+body.mode-live .cm-md-list-item-L0 { padding-left: 0.8em !important; }
+body.mode-live .cm-md-list-item-L1 { padding-left: 2.4em !important; }
+body.mode-live .cm-md-list-item-L2 { padding-left: 4.0em !important; }
+body.mode-live .cm-md-list-item-L3 { padding-left: 5.6em !important; }
+.cm-md-list-number                 { color: var(--accent-override, var(--accent)); }
+
+/* Definition-list line styling. Lezer-markdown doesn't ship a deflist
+ * grammar so the decorator (deflist.js) detects via regex. The term line
+ * gets bold ink colour and a top gap; the description line is indented
+ * with soft ink colour, matching Reading's <dl><dt><dd>. */
+/* !important on padding-left for the same shorthand-override reason as
+ * the list-item rules above. */
+body.mode-live .cm-md-deflist-term {
+    color: var(--ink-override, var(--ink));
+    font-weight: 600;
+    /* NO margin/padding-top: CM6 hit-tests via .cm-line bounding rects. */
+}
+body.mode-live .cm-md-deflist-desc {
+    padding-left: 1.6em !important;
+    color: var(--ink-soft);
+}
+
+/* Footnote ref — Decoration.replace + FootnoteRefWidget renders single
+ * <a> shown as a small accent superscript [N]. display:inline-block lets
+ * the link be raised via vertical-align:super; line-height:1 ensures the
+ * inner [N] text has visible height (sup wrapper line-height:0 trick
+ * would collapse the inner content). Matches Reading's footnote-ref. */
+.cm-md-footnote-ref-link {
+    display: inline-block;
+    vertical-align: super;
+    line-height: 1;
+    margin: 0 0 0 0.1em;
+    font-size: 0.72em;
+    font-weight: 600;
+    color: var(--accent-override, var(--accent));
+    text-decoration: none;
+    border-bottom: none;
+    cursor: pointer;
+    font-family: var(--font-prose-override,
+        'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif);
+}
+.cm-md-footnote-ref-link:hover { opacity: 0.75; }
+
+/* Backref link (↩) inside each <li> in the rendered footnotes section.
+ * Reading-mode CSS already styles .footnote-backref with border-bottom:none.
+ * Add explicit colour + spacing + hover so it reads as a clickable affordance. */
+body.mode-live .cm-md-footnotes-section .footnote-backref {
+    margin-left: 0.5em;
+    color: var(--accent-override, var(--accent));
+    text-decoration: none;
+    border-bottom: none;
+    cursor: pointer;
+    font-size: 1.05em;
+}
+body.mode-live .cm-md-footnotes-section .footnote-backref:hover { opacity: 0.75; }
+
+/* Brief highlight pulse when a link target scrolls into view. */
+.cm-md-footnote-flash {
+    animation: cm-md-footnote-flash-anim 1.2s ease-out;
+}
+@keyframes cm-md-footnote-flash-anim {
+    0%   { background: var(--accent-faded); }
+    100% { background: transparent; }
+}
+body.mode-live .cm-md-footnote-def {
+    font-size: 0.9em;
+    color: var(--ink-soft);
+    padding-left: 1.6em !important;
+    /* NO margin-top: see heading-line note. */
+}
+
+/* Def line hide: display:none zero-renders the cm-line but keeps the
+ * source positions addressable by cursor dispatch (NOT atomic — unlike
+ * Decoration.replace({block:true}) which clips dispatched cursors to
+ * BEFORE the range). When cursor is dispatched onto a hidden line, the
+ * decorator's next pass sees cursor-in-range and skips the hide, making
+ * the line visible for editing. */
+body.mode-live .cm-md-footnote-def-hidden {
+    display: none !important;
+}
+
+/* Footnotes section rendered at doc end (Obsidian-style). The wrapper
+ * is .cm-md-rendered-block .cm-md-footnotes-section; the inner section
+ * gets Reading CSS via :is(...) .footnotes but the > * { margin: 0
+ * !important } override (above) zeros its margin-top. Re-add explicitly
+ * here so the visual gap and border-top separator render correctly. */
+body.mode-live .cm-md-footnotes-section > .footnotes {
+    margin-top: 2em !important;
+}
+
+/* <li> body is click-to-edit: clicking turns the rendered <p> into a
+ * contenteditable element with the raw source body text. Typing edits
+ * inline; on blur or Enter the source is updated. */
+body.mode-live .cm-md-footnotes-section li {
+    padding: 0.1em 0.3em;
+    border-radius: 3px;
+    transition: background 100ms ease;
+}
+body.mode-live .cm-md-footnotes-section li:hover {
+    background: var(--accent-faded);
+}
+body.mode-live .cm-md-footnotes-section .cm-md-fn-body {
+    cursor: text;
+    display: inline;
+}
+body.mode-live .cm-md-footnotes-section .cm-md-fn-body-editing {
+    display: inline-block;
+    background: var(--page-override, var(--page));
+    outline: 2px solid var(--accent-override, var(--accent));
+    outline-offset: 2px;
+    border-radius: 2px;
+    padding: 0 0.3em;
+    white-space: pre-wrap;
+    min-width: 4em;
+}
+body.mode-live .cm-md-footnotes-section .footnote-backref {
+    cursor: pointer;
+    user-select: none;
+}
+
+/* HR widget needs visible breathing room. We can't put margin on the
+ * inner hr (Reading rule provides it but the > * override zeros it) and
+ * adding margin to the wrapper would create dead zones. Padding inside
+ * the wrapper extends the widget bounding rect (no dead zone) and gives
+ * the same visual gap as Reading. */
+body.mode-live .cm-md-rendered-hr {
+    padding: 1em 0;
+}
+
+/* Task checkbox widget — appearance:none custom checkbox matching the
+ * Reading-mode .task-list-item-checkbox (accent border, page bg, white tick
+ * on green fill when checked). Native checkbox styling deviates per
+ * platform/theme; the custom box gives identical visuals everywhere. */
+.cm-md-task-checkbox {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 13px;
+    height: 13px;
+    border: 1.5px solid var(--accent-override, var(--accent));
+    background: var(--page-override, var(--page));
+    border-radius: 3px;
+    margin: 0 0.5em 0 0;
+    vertical-align: middle;
+    cursor: pointer;
+    position: relative;
+    transform: translateY(-0.05em);
+    box-sizing: border-box;
+}
+.cm-md-task-checkbox:checked {
+    background: var(--check-bg);
+    border-color: var(--check-bg);
+}
+.cm-md-task-checkbox:checked::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 3px;
+    height: 7px;
+    border: solid var(--check-fg);
+    border-width: 0 2px 2px 0;
+    transform: translate(-50%, -60%) rotate(45deg);
+}
+
+/* Inline image widget — match Reading's <img> visual (centered, 1px rule border). */
+.cm-md-inline-image {
+    display: block;
+    max-width: 100%;
+    text-align: center;
+}
+.cm-md-inline-image img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+    margin: 0.5em auto;
+    border: 1px solid var(--rule-override, var(--rule));
+}
+.cm-md-image-placeholder {
+    display: inline-block;
+    padding: 4px 10px;
+    background: var(--code-inline);
+    color: var(--ink-soft);
+    border: 1px dashed var(--rule-override, var(--rule));
+    border-radius: 4px;
+    font-size: 0.85em;
+}
+
+/* Fenced code block widget. Matches Reading-mode <pre><code> exactly.
+ * The accent border-left is the visual signature shared with blockquote;
+ * both share the same accent rule pattern in Reading. NO MARGIN — CM6
+ * widgets measure via getBoundingClientRect (margin is dead zone for
+ * click hit-testing). Visual spacing comes from neighbouring lines. */
+.cm-md-codeblock {
+    /* Small top-only margin gives breathing room from the preceding heading
+     * + underline rule. Margin-bottom stays 0 (dead-zone avoidance — the
+     * line after a widget must remain hit-testable). 0.7em ≈ 10px which
+     * is small enough that an accidental click in the gap is unlikely. */
+    margin: 0.7em 0 0;
+    padding: 12px 14px;
+    background: var(--code-override, var(--code));
+    border-radius: 5px;
+    max-width: 100%;
+    overflow-x: auto;
+    line-height: var(--line-height-code-override, 1.5);
+    border-left: 3px solid var(--accent-override, var(--accent));
+    font-family: var(--font-mono-override, ui-monospace, Consolas, monospace);
+    font-size: var(--font-size-code-override, 0.92em);
+}
+.cm-md-codeblock code {
+    display: block;
+    white-space: pre;
+    background: none;
+    padding: 0;
+    border-radius: 0;
+    color: var(--ink-override, var(--ink));
+}
+
+/* GFM table widget. Matches Reading :is(#content, .cm-md-rendered-block) table styling exactly.
+ * Header background and th accent colour mirror Reading; no zebra
+ * striping (Reading does not have it). NO MARGIN — CM6 widget hit-test
+ * dead-zone (same rationale as .cm-md-codeblock). */
+.cm-md-table {
+    border-collapse: collapse;
+    /* Top-only margin, same rationale as .cm-md-codeblock above. */
+    margin: 0.7em 0 0;
+    width: auto;
+    max-width: 100%;
+    display: block;
+    overflow-x: auto;
+    font-size: 13px;
+}
+.cm-md-table thead { background: var(--code-override, var(--code)); }
+.cm-md-table th,
+.cm-md-table td {
+    border: 1px solid var(--rule-override, var(--rule));
+    padding: 0.35em 0.7em;
+    text-align: left;
+    color: var(--ink-override, var(--ink));
+}
+.cm-md-table th {
+    font-weight: 600;
+    color: var(--accent-override, var(--accent));
+}
+
+/* Editor sits inside .page in mode-live — make CodeMirror inherit the
+ * prose look (same font, size, weight, line-height, colour as Reading).
+ * Padding lives on .page, not on .cm-content, so the wrapping width
+ * matches the rendered prose width exactly.
+ *
+ * The default editorTheme in editor.js sets height: 100% + monospace
+ * font for Source mode. These overrides are scoped to mode-live so
+ * Source is unaffected. */
+body.mode-live .cm-editor {
+    background: transparent;
+    height: auto;
+    min-height: calc(100vh - 80px);
+    color: var(--ink-override, var(--ink));
+    font-family: var(--font-prose-override,
+        'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif);
+    font-size: var(--font-size-override, 14px);
+    font-weight: var(--font-weight-prose-override, 400);
+    line-height: var(--line-height-override, 1.55);
+    outline: none;
+}
+body.mode-live .cm-scroller   { font-family: inherit; overflow: visible; }
+body.mode-live .cm-content    { padding: 0; }
+body.mode-live .cm-line       { padding: 0; line-height: inherit; }
+body.mode-live .cm-focused    { outline: none; }
+body.mode-live .cm-gutters    { display: none; }
+body.mode-live .cm-activeLine { background: transparent; }
+
+/* Heading line spacing in Live mode.
+ *
+ * CRITICAL: do NOT set margin-top, margin-bottom, OR padding-top on
+ * .cm-line decorations. Both margin and padding-top create dead zones
+ * or distort CM6's per-line click-to-position mapping ("cursor enters
+ * much lower than point of click"). Accept tighter visual spacing than
+ * Reading in exchange for correct cursor positioning. */
+
+/* Initial / loading state */
+.initial .chip {
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent-override, var(--accent));
+    font-weight: 600;
+    margin-bottom: 16px;
+}
+.initial h1 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 600;
+    color: white;
+    border: none;
+    padding: 0;
+}
+
+/* ---------- Prose ----------------------------------------------------- */
+
+/* Collapse first/last child outer margins so the page padding controls the
+ * top/bottom gap, not the content. Covers all top-level children including
+ * h1/h2 when they're the first element. */
+:is(#content, .cm-md-rendered-block) > :first-child { margin-top: 0; }
+:is(#content, .cm-md-rendered-block) > :last-child  { margin-bottom: 0; }
+
+:is(#content, .cm-md-rendered-block) h1, :is(#content, .cm-md-rendered-block) h2, :is(#content, .cm-md-rendered-block) h3,
+:is(#content, .cm-md-rendered-block) h4, :is(#content, .cm-md-rendered-block) h5, :is(#content, .cm-md-rendered-block) h6 {
+    color: var(--ink-override, var(--ink));
+    line-height: 1.25;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    margin: 2em 0 0.6em;
+}
+
+/* Heading font sizes use em (relative to body's 14px) so they scale
+ * consistently with the body font; margins/paddings on headings are also
+ * em so spacing tracks heading size.
+ *
+ * Underline on H1 and H2 matches the HR style (faded accent line) so
+ * headings and HRs share visual language. */
+/* Per-heading colour overrides. Each h1-h6 has its own -override var
+ * so themes can colour-code heading levels (Obsidian Tokyo Night does
+ * this — red/yellow/green/cyan/blue/magenta). Defaults preserve our
+ * original behaviour. */
+:is(#content, .cm-md-rendered-block) h1 {
+    font-size: 1.71em;              /* ~24px at 14px body */
+    margin: 0 0 0.75em;             /* ~18px at H1's font-size */
+    padding-bottom: 0.35em;
+    color: var(--h1-color-override, var(--h1-override, var(--h1)));
+}
+:is(#content, .cm-md-rendered-block) h2 {
+    font-size: 1.29em;              /* ~18px */
+    margin-top: 1.8em;
+    padding-bottom: 0.3em;
+    color: var(--h2-color-override, var(--ink-override, var(--ink)));
+}
+:is(#content, .cm-md-rendered-block) h3 {
+    font-size: 1.11em;              /* ~15.5px */
+    margin-top: 1.8em;
+    color: var(--h3-color-override, var(--accent-override, var(--accent)));
+}
+:is(#content, .cm-md-rendered-block) h4 {
+    font-size: 1.04em;              /* ~14.5px */
+    color: var(--h4-color-override, var(--ink-override, var(--ink)));
+}
+:is(#content, .cm-md-rendered-block) h5 {
+    font-size: 0.86em;              /* ~12px */
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--h5-color-override, var(--ink-soft));
+}
+:is(#content, .cm-md-rendered-block) h6 {
+    font-size: 0.86em;              /* ~12px */
+    color: var(--h6-color-override, var(--ink-soft));
+}
+
+/* Heading underline style. Toggled via body class (set from settings):
+ *   .heading-underline-solid    (default) — flat line under H1/H2 only
+ *   .heading-underline-gradient           — fading line under H1-H6,
+ *                                           each using its own colour
+ *   .heading-underline-none               — no line anywhere
+ *
+ * Gradient uses `border-image` with a linear-gradient slice (the
+ * Obsidian Tokyo Night approach) rather than a background-image hack.
+ * border-image always spans the full element width and respects
+ * border-bottom-width, so the line position is predictable across
+ * every theme. Each heading level gets the gradient in its own
+ * --hN-color-override colour. */
+
+/* Default (no body class) and explicit solid: H1/H2 get an Obsidian-style
+ * fading rule — accent on the left, fading to transparent on the right.
+ * The fade colour is derived from the active palette accent via color-mix
+ * (palette-aware, unlike the hardcoded --accent-faded). 1px instead of
+ * Obsidian's 2px so it reads as a refined hairline rather than a chunky
+ * bar. A user-set --heading-underline-override is honoured as the starting
+ * colour of the fade; otherwise the accent is used. */
+:is(#content, .cm-md-rendered-block) h1, :is(#content, .cm-md-rendered-block) h2,
+body.mode-live .cm-md-heading-1, body.mode-live .cm-md-heading-2 {
+    border-bottom: 2px solid transparent;
+    border-image: linear-gradient(to right,
+        var(--heading-underline-override,
+            color-mix(in srgb, var(--accent-override, var(--accent)) 60%, transparent)) 0%,
+        var(--heading-underline-override,
+            color-mix(in srgb, var(--accent-override, var(--accent)) 35%, transparent)) 45%,
+        transparent 100%) 1;
+    padding-bottom: 0.3em;
+}
+body.heading-underline-none :is(#content, .cm-md-rendered-block) h1,
+body.heading-underline-none :is(#content, .cm-md-rendered-block) h2,
+body.heading-underline-none.mode-live .cm-md-heading-1,
+body.heading-underline-none.mode-live .cm-md-heading-2 {
+    border-bottom: none;
+}
+
+/* Gradient style: every heading gets its own coloured fading underline. */
+body.heading-underline-gradient :is(#content, .cm-md-rendered-block) h1,
+body.heading-underline-gradient.mode-live .cm-md-heading-1 {
+    border-bottom: 2px solid;
+    border-image: linear-gradient(to right,
+        var(--h1-color-override, var(--h1-override, var(--h1))) 30%,
+        transparent 70%) 1;
+    padding-bottom: 0.35em;
+}
+body.heading-underline-gradient :is(#content, .cm-md-rendered-block) h2,
+body.heading-underline-gradient.mode-live .cm-md-heading-2 {
+    border-bottom: 2px solid;
+    border-image: linear-gradient(to right,
+        var(--h2-color-override, var(--ink-override, var(--ink))) 30%,
+        transparent 70%) 1;
+    padding-bottom: 0.3em;
+}
+body.heading-underline-gradient :is(#content, .cm-md-rendered-block) h3,
+body.heading-underline-gradient.mode-live .cm-md-heading-3 {
+    border-bottom: 2px solid;
+    border-image: linear-gradient(to right,
+        var(--h3-color-override, var(--accent-override, var(--accent))) 30%,
+        transparent 70%) 1;
+    padding-bottom: 0.25em;
+}
+body.heading-underline-gradient :is(#content, .cm-md-rendered-block) h4,
+body.heading-underline-gradient.mode-live .cm-md-heading-4 {
+    border-bottom: 1px solid;
+    border-image: linear-gradient(to right,
+        var(--h4-color-override, var(--ink-override, var(--ink))) 30%,
+        transparent 70%) 1;
+    padding-bottom: 0.2em;
+}
+body.heading-underline-gradient :is(#content, .cm-md-rendered-block) h5,
+body.heading-underline-gradient.mode-live .cm-md-heading-5 {
+    border-bottom: 1px solid;
+    border-image: linear-gradient(to right,
+        var(--h5-color-override, var(--ink-soft)) 30%,
+        transparent 70%) 1;
+    padding-bottom: 0.2em;
+}
+body.heading-underline-gradient :is(#content, .cm-md-rendered-block) h6,
+body.heading-underline-gradient.mode-live .cm-md-heading-6 {
+    border-bottom: 1px solid;
+    border-image: linear-gradient(to right,
+        var(--h6-color-override, var(--ink-soft)) 30%,
+        transparent 70%) 1;
+    padding-bottom: 0.2em;
+}
+
+/* Gradient TEXT: heading text itself fades from its colour at the left
+ * toward transparent at the right (using -webkit-background-clip: text
+ * to mask the background gradient into the glyph shapes). The text
+ * stays fully visible for the first 60% of its width, then fades.
+ * Combined with the gradient underline above. */
+body.heading-text-gradient :is(#content, .cm-md-rendered-block) h1,
+body.heading-text-gradient :is(#content, .cm-md-rendered-block) h2,
+body.heading-text-gradient :is(#content, .cm-md-rendered-block) h3,
+body.heading-text-gradient :is(#content, .cm-md-rendered-block) h4,
+body.heading-text-gradient :is(#content, .cm-md-rendered-block) h5,
+body.heading-text-gradient :is(#content, .cm-md-rendered-block) h6,
+body.heading-text-gradient.mode-live .cm-md-heading-1,
+body.heading-text-gradient.mode-live .cm-md-heading-2,
+body.heading-text-gradient.mode-live .cm-md-heading-3,
+body.heading-text-gradient.mode-live .cm-md-heading-4,
+body.heading-text-gradient.mode-live .cm-md-heading-5,
+body.heading-text-gradient.mode-live .cm-md-heading-6 {
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    background-repeat: no-repeat;
+}
+body.heading-text-gradient :is(#content, .cm-md-rendered-block) h1,
+body.heading-text-gradient.mode-live .cm-md-heading-1 {
+    background-image: linear-gradient(to right,
+        var(--h1-color-override, var(--h1-override, var(--h1))) 0%,
+        var(--h1-color-override, var(--h1-override, var(--h1))) 60%,
+        transparent 100%);
+}
+body.heading-text-gradient :is(#content, .cm-md-rendered-block) h2,
+body.heading-text-gradient.mode-live .cm-md-heading-2 {
+    background-image: linear-gradient(to right,
+        var(--h2-color-override, var(--ink-override, var(--ink))) 0%,
+        var(--h2-color-override, var(--ink-override, var(--ink))) 60%,
+        transparent 100%);
+}
+body.heading-text-gradient :is(#content, .cm-md-rendered-block) h3,
+body.heading-text-gradient.mode-live .cm-md-heading-3 {
+    background-image: linear-gradient(to right,
+        var(--h3-color-override, var(--accent-override, var(--accent))) 0%,
+        var(--h3-color-override, var(--accent-override, var(--accent))) 60%,
+        transparent 100%);
+}
+body.heading-text-gradient :is(#content, .cm-md-rendered-block) h4,
+body.heading-text-gradient.mode-live .cm-md-heading-4 {
+    background-image: linear-gradient(to right,
+        var(--h4-color-override, var(--ink-override, var(--ink))) 0%,
+        var(--h4-color-override, var(--ink-override, var(--ink))) 60%,
+        transparent 100%);
+}
+body.heading-text-gradient :is(#content, .cm-md-rendered-block) h5,
+body.heading-text-gradient.mode-live .cm-md-heading-5 {
+    background-image: linear-gradient(to right,
+        var(--h5-color-override, var(--ink-soft)) 0%,
+        var(--h5-color-override, var(--ink-soft)) 60%,
+        transparent 100%);
+}
+body.heading-text-gradient :is(#content, .cm-md-rendered-block) h6,
+body.heading-text-gradient.mode-live .cm-md-heading-6 {
+    background-image: linear-gradient(to right,
+        var(--h6-color-override, var(--ink-soft)) 0%,
+        var(--h6-color-override, var(--ink-soft)) 60%,
+        transparent 100%);
+}
+
+:is(#content, .cm-md-rendered-block) p {
+    margin: 0 0 12px;
+    color: var(--ink-soft);
+    line-height: 1.7;       /* a touch more open than the body default */
+}
+
+:is(#content, .cm-md-rendered-block) a {
+    color: var(--link-override, var(--link));
+    text-decoration: none;
+    border-bottom: 1px solid currentColor;
+    transition: opacity 100ms ease;
+}
+:is(#content, .cm-md-rendered-block) a:hover { opacity: 0.75; }
+
+:is(#content, .cm-md-rendered-block) strong { font-weight: 600; color: var(--ink-override, var(--ink)); }
+:is(#content, .cm-md-rendered-block) em     { font-style: italic; }
+
+:is(#content, .cm-md-rendered-block) mark,
+body.mode-live .cm-md-highlight {
+    /* Highlight (<mark>, GFM '==text==') has its own colour pair so it can
+     * read as a highlighter swipe instead of inheriting the accent. The
+     * opacity setting mixes the bg toward transparent via color-mix; the
+     * text colour stays opaque. */
+    background: color-mix(
+        in srgb,
+        var(--highlight-bg-override, var(--accent-override, var(--accent)))
+        calc(var(--highlight-opacity-override, 0.9) * 100%),
+        transparent
+    );
+    color: var(--highlight-fg-override, var(--mark-fg));
+    padding: 0 0.25em;
+    border-radius: 2px;
+    font-weight: var(--font-weight-highlight-override, 500);
+}
+
+:is(#content, .cm-md-rendered-block) del { color: var(--ink-soft); }
+
+:is(#content, .cm-md-rendered-block) sub, :is(#content, .cm-md-rendered-block) sup,
+body.mode-live .cm-md-subscript, body.mode-live .cm-md-superscript {
+    font-size: 0.75em;
+    line-height: 0;
+}
+body.mode-live .cm-md-subscript   { vertical-align: sub; }
+body.mode-live .cm-md-superscript { vertical-align: super; }
+
+:is(#content, .cm-md-rendered-block) ul, :is(#content, .cm-md-rendered-block) ol {
+    margin: 0 0 18px;       /* more breathing room after a list */
+    padding-left: 1.6em;
+    color: var(--ink-soft);
+}
+/* Pull top-level lists slightly closer to the element immediately before
+ * them (paragraph, heading, etc.) so the gap above the list reads tighter
+ * than the gap below. Nested lists keep their own margin via the
+ * higher-specificity rule below. */
+:is(#content, .cm-md-rendered-block) * + ul,
+:is(#content, .cm-md-rendered-block) * + ol {
+    margin-top: -4px;
+}
+:is(#content, .cm-md-rendered-block) li { margin: 0.15em 0; }
+:is(#content, .cm-md-rendered-block) li > p { margin: 0.25em 0; }
+:is(#content, .cm-md-rendered-block) ul ul, :is(#content, .cm-md-rendered-block) ul ol, :is(#content, .cm-md-rendered-block) ol ul, :is(#content, .cm-md-rendered-block) ol ol {
+    margin: 0.15em 0;
+}
+
+/* List markers (bullets and numbers) in the accent colour. Weight is
+ * NOT set explicitly so markers inherit the body font-weight — if the
+ * user bumps body weight to 700, markers follow. */
+:is(#content, .cm-md-rendered-block) ul > li::marker,
+:is(#content, .cm-md-rendered-block) ol > li::marker,
+:is(#content, .cm-md-rendered-block) ul ul li::marker,
+:is(#content, .cm-md-rendered-block) ol ul li::marker {
+    color: var(--accent-override, var(--accent));
+}
+
+/* Task list (GFM) — custom checkbox so we control bg + tick colour
+ * explicitly (accent-color alone doesn't guarantee a white tick on every
+ * browser/theme combination). */
+:is(#content, .cm-md-rendered-block) ul.contains-task-list {
+    list-style: none;
+    padding-left: 1.2em;
+}
+:is(#content, .cm-md-rendered-block) ul.contains-task-list .task-list-item { text-indent: -1.4em; }
+:is(#content, .cm-md-rendered-block) ul.contains-task-list .task-list-item-checkbox {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 13px;
+    height: 13px;
+    border: 1.5px solid var(--accent-override, var(--accent));
+    background: var(--page-override, var(--page));
+    border-radius: 3px;
+    margin-right: 0.5em;
+    vertical-align: middle;
+    cursor: default;
+    position: relative;
+    transform: translateY(-0.05em);
+    box-sizing: border-box;
+}
+:is(#content, .cm-md-rendered-block) ul.contains-task-list .task-list-item-checkbox:checked {
+    background: var(--check-bg);
+    border-color: var(--check-bg);
+}
+:is(#content, .cm-md-rendered-block) ul.contains-task-list .task-list-item-checkbox:checked::after {
+    /* Centre the rotated check inside the box regardless of border width.
+     * Translate to 50/50, rotate, then nudge up slightly because the
+     * rotated rectangle's optical centre sits below its geometric centre. */
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 3px;
+    height: 7px;
+    border: solid var(--check-fg);
+    border-width: 0 2px 2px 0;
+    transform: translate(-50%, -60%) rotate(45deg);
+}
+
+:is(#content, .cm-md-rendered-block) code {
+    font-family: var(--font-mono-override,
+        'Cascadia Code', 'Consolas', ui-monospace, monospace);
+    font-size: var(--font-size-code-override, 0.92em);
+    font-weight: var(--font-weight-mono-override, 400);
+    background: var(--code-inline);
+    padding: 0.15em 0.35em;
+    border-radius: 3px;
+    color: var(--ink-override, var(--ink));
+}
+:is(#content, .cm-md-rendered-block) pre {
+    margin: 1.2em 0 14px;
+    padding: 12px 14px;
+    background: var(--code-override, var(--code));
+    border-radius: 5px;
+    overflow-x: auto;
+    line-height: var(--line-height-code-override, 1.5);
+    border-left: 3px solid var(--accent-override, var(--accent));
+}
+:is(#content, .cm-md-rendered-block) pre code {
+    background: none;
+    padding: 0;
+    font-size: var(--font-size-code-override, 12px);
+    border-radius: 0;
+    color: var(--ink-override, var(--ink));
+}
+
+:is(#content, .cm-md-rendered-block) blockquote {
+    margin: 1.2em 2px 12px;
+    padding: 8px 14px;
+    border-left: 3px solid var(--accent-override, var(--accent));
+    background: var(--code-override, var(--code));
+    color: var(--ink-soft);
+    border-radius: 5px;       /* rounded all corners, matching code block */
+}
+:is(#content, .cm-md-rendered-block) blockquote > :first-child { margin-top: 0; }
+:is(#content, .cm-md-rendered-block) blockquote > :last-child  { margin-bottom: 0; }
+
+:is(#content, .cm-md-rendered-block) table {
+    border-collapse: collapse;
+    margin: 1.2em 2px 12px;   /* match blockquote */
+    width: auto;
+    max-width: 100%;
+    display: block;
+    overflow-x: auto;
+    font-size: 13px;
+}
+:is(#content, .cm-md-rendered-block) thead { background: var(--code-override, var(--code)); }
+:is(#content, .cm-md-rendered-block) th, :is(#content, .cm-md-rendered-block) td {
+    border: 1px solid var(--rule-override, var(--rule));
+    padding: 0.35em 0.7em;
+    text-align: left;
+    color: var(--ink-override, var(--ink));
+}
+:is(#content, .cm-md-rendered-block) th { font-weight: 600; color: var(--accent-override, var(--accent)); }
+
+:is(#content, .cm-md-rendered-block) hr {
+    border: 0;
+    height: var(--hr-thickness-override, 1px);
+    background: var(--hr-color-override, var(--accent-faded));
+    margin: 1.8em 0;
+}
+
+:is(#content, .cm-md-rendered-block) img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+    display: block;
+    margin: 0.5em auto;
+    border: 1px solid var(--rule-override, var(--rule));
+}
+:is(#content, .cm-md-rendered-block) figure { margin: 1em 0; text-align: center; }
+:is(#content, .cm-md-rendered-block) figure img { margin: 0 auto; }
+:is(#content, .cm-md-rendered-block) figcaption {
+    font-size: 12px;
+    color: var(--ink-soft);
+    margin-top: 0.4em;
+}
+
+:is(#content, .cm-md-rendered-block) .footnotes {
+    margin-top: 2em;
+    padding-top: 1em;
+    border-top: 1px solid var(--rule-override, var(--rule));
+    font-size: 0.9em;
+    color: var(--ink-soft);
+}
+:is(#content, .cm-md-rendered-block) .footnotes ol { padding-left: 1.6em; }
+:is(#content, .cm-md-rendered-block) .footnotes-sep { display: none; }
+:is(#content, .cm-md-rendered-block) .footnote-ref a { border-bottom: none; color: var(--accent-override, var(--accent)); }
+:is(#content, .cm-md-rendered-block) .footnote-backref { border-bottom: none; }
+
+:is(#content, .cm-md-rendered-block) dl { margin: 0 0 16px; color: var(--ink-soft); }
+:is(#content, .cm-md-rendered-block) dt {
+    font-weight: 600;
+    margin-top: 1.2em;     /* generous gap between consecutive terms */
+    color: var(--ink-override, var(--ink));
+}
+:is(#content, .cm-md-rendered-block) dt:first-child { margin-top: 0; }
+:is(#content, .cm-md-rendered-block) dd {
+    margin: 0.5em 0 0 1.6em;    /* extra space between term and description */
+}
+:is(#content, .cm-md-rendered-block) dd > p:first-child { margin-top: 0; }
+:is(#content, .cm-md-rendered-block) dd > p:last-child  { margin-bottom: 0; }
+
+:is(#content, .cm-md-rendered-block) abbr[title] {
+    border-bottom: 1px dotted var(--rule-override, var(--rule));
+    cursor: help;
+}
+
+/* Text-selection wash: translucent accent tint so the underlying text
+ * stays legible. Derived from the active accent so it tracks custom
+ * palettes (not hardcoded --accent-faded). Text colour inherits. */
+::selection {
+    background: color-mix(in srgb, var(--accent-override, var(--accent)) 22%, transparent);
+}
+
+/* Code-block copy button.
+ *
+ * Each <pre> is wrapped in .code-block-wrap (a position:relative div) by
+ * attachCodeCopyButtons() so the button can sit outside the pre's
+ * overflow:auto clip and still anchor to the corner. */
+.code-block-wrap {
+    position: relative;
+    overflow: visible;
+}
+
+.code-copy-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--accent-override, var(--accent)) 28%, var(--page-override, var(--page)));
+    border: 1px solid color-mix(in srgb, var(--accent-override, var(--accent)) 65%, var(--rule-override, var(--rule)));
+    color: var(--ink-override, var(--ink));
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.12s ease, background-color 0.12s ease, transform 0.08s ease;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.18);
+    z-index: 5;
+}
+.code-block-wrap:hover .code-copy-btn,
+.code-copy-btn:focus-visible {
+    opacity: 1;
+}
+.code-copy-btn:hover {
+    background: color-mix(in srgb, var(--accent-override, var(--accent)) 45%, var(--page-override, var(--page)));
+}
+.code-copy-btn:active { transform: scale(0.92); }
+
+.code-copy-icon {
+    width: 13px;
+    height: 13px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    display: block;
+}
+.code-copy-icon-ok { display: none; }
+.code-copy-btn.copied .code-copy-icon-default { display: none; }
+.code-copy-btn.copied .code-copy-icon-ok      { display: block; }
+.code-copy-btn.copied {
+    background: color-mix(in srgb, #2bb673 25%, var(--page-override, var(--page)));
+    border-color: #2bb673;
+    color: #2bb673;
+    opacity: 1;
+}
+
+/* Word-wrap toggle (top toolbar): when body.wrap-on is set, rendered code
+ * blocks and inline code wrap instead of horizontal-scrolling. Covers both
+ * the Reading-mode #content pane and every Live-mode widget class. */
+body.wrap-on :is(#content, .cm-md-rendered-block) pre,
+body.wrap-on :is(#content, .cm-md-rendered-block) pre code,
+body.wrap-on pre.cm-md-codeblock,
+body.wrap-on pre.cm-md-codeblock code {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+body.wrap-on :is(#content, .cm-md-rendered-block, .cm-md-codeblock, .cm-md-table) code,
+body.wrap-on :is(#content, .cm-md-rendered-block, .cm-md-codeblock, .cm-md-table) a {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+/* Live mode always wraps rendered content (no toggle). When the DOpus pane
+ * is thin, footnotes / code blocks / tables / long URLs would otherwise run
+ * off the right edge because Live-mode widgets are atomic HTML islands
+ * that don't inherit CodeMirror's lineWrapping behaviour.
+ *
+ * Each widget uses a different wrapper class (cm-md-rendered-block for
+ * blockquote / hr / footnotes; cm-md-codeblock for fenced code; cm-md-table
+ * for tables). All three need wrap rules. */
+body.mode-live :is(.cm-md-rendered-block, .cm-md-codeblock, .cm-md-table),
+body.mode-live :is(.cm-md-rendered-block, .cm-md-codeblock, .cm-md-table) * {
+    max-width: 100%;
+    box-sizing: border-box;
+}
+body.mode-live pre.cm-md-codeblock,
+body.mode-live pre.cm-md-codeblock code,
+body.mode-live .cm-md-rendered-block pre,
+body.mode-live .cm-md-rendered-block pre code {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+body.mode-live :is(.cm-md-rendered-block, .cm-md-codeblock, .cm-md-table) :is(p, li, dd, dt, blockquote, td, th, a, code) {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+/* Table widgets get wrapped in .cm-md-table-wrap by table.js so the table
+ * itself stays display:table (otherwise tr/td lose table-row context and
+ * the widget's measured height drifts from its actual height — that gap
+ * confuses CodeMirror's click-to-cursor math for lines below the table). */
+body.mode-live .cm-md-table-wrap,
+.cm-md-table-wrap {
+    overflow-x: auto;
+    max-width: 100%;
+}
+/* Footnote section at the bottom of the doc (rendered as widget in Live mode). */
+body.mode-live .cm-md-footnotes-section,
+body.mode-live .cm-md-footnotes-section * {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+/* ---------- Live-mode widget container ----------------------------------- */
+/*
+ * Widgets (heading, list, blockquote, code block, table, image) render real
+ * HTML inside a .cm-md-rendered-block container. The container makes the
+ * widget DOM behave as a block-level element in the editor flow. All
+ * :is(#content, .cm-md-rendered-block) X rules above apply natively so the
+ * widget DOM gets full Reading-mode styling without duplication.
+ *
+ * The container itself is transparent — it has no padding, no border, no
+ * background. Children (h1, p, ul, blockquote, etc.) carry the visual
+ * styling via the shared selectors above.
+ */
+.cm-md-rendered-block {
+    display: block;
+    background: transparent;
+}
+/* Collapse ALL margins on direct children inside Live widgets. The
+ * `:is(#content, .cm-md-rendered-block) X { margin: ... }` Reading rules
+ * have ID specificity (from #content) that beats class-selector overrides
+ * via normal cascade. !important is the only reliable override.
+ *
+ * Why this matters: CM6 measures widget heights via getBoundingClientRect,
+ * which excludes margin. Inner-element margins create dead zones above/
+ * below the widget's visible bounding rect, routing clicks to wrong lines
+ * ("cursor enters much lower than point of click"). Zeroing the margins
+ * removes the dead zones; visual spacing comes from CodeMirror's natural
+ * line spacing around the widget. */
+body.mode-live .cm-md-rendered-block > * { margin: 0 !important; }
+
+/* Slim scrollbars: 7px instead of 10px, with a slightly transparent thumb
+ * that picks up the palette accent on hover. */
+::-webkit-scrollbar         { width: 7px; height: 7px; }
+::-webkit-scrollbar-track   { background: transparent; }
+::-webkit-scrollbar-thumb   {
+    background: color-mix(in srgb, var(--rule-override, var(--rule)) 70%, transparent);
+    border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--accent-override, var(--accent)) 70%, transparent);
+}
+::-webkit-scrollbar-corner  { background: transparent; }
+/* Firefox / non-webkit fallback */
+* { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--rule-override, var(--rule)) 70%, transparent) transparent; }
