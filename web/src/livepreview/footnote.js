@@ -346,12 +346,46 @@ function computeFootnotes(state) {
     }
     flushCur();
 
+    // First pass over body: assign numbers in REFERENCE order (matches how
+    // markdown-it-footnote numbers in Reading mode — the first time a [^id]
+    // appears in body, that id becomes #1, and so on). Doing it this way
+    // keeps Live and Reading sections in identical order, even when a new
+    // footnote ref is inserted above an existing one but its def lands at
+    // the end of the doc.
     const defNumberById = new Map();
-    defs.forEach((d, idx) => {
-        d.num = idx + 1;
+    {
+        let inDef = false;
+        for (let i = 1; i <= doc.lines; i++) {
+            const line = doc.line(i);
+            const text = line.text;
+            if (/^\[\^[^\]]+\]:/.test(text)) { inDef = true; continue; }
+            if (inDef && /^ {4}/.test(text)) continue;
+            if (text.trim() === '') { inDef = false; continue; }
+            inDef = false;
+            const refScan = /\[\^([^\]]+)\](?!:)/g;
+            let m;
+            while ((m = refScan.exec(text)) !== null) {
+                const id = m[1];
+                if (!defNumberById.has(id)) {
+                    defNumberById.set(id, defNumberById.size + 1);
+                }
+            }
+        }
+        // Any def that's never referenced still gets a number, after the
+        // referenced ones (otherwise unreferenced defs would have no number).
+        defs.forEach(d => {
+            if (!defNumberById.has(d.id)) {
+                defNumberById.set(d.id, defNumberById.size + 1);
+            }
+        });
+    }
+    // Stamp num + sourceFrom onto defs, then sort defs into the section
+    // order (which equals the ref-order numbering).
+    defs.forEach(d => {
+        d.num = defNumberById.get(d.id);
         d.sourceFrom = doc.line(d.firstLine).from;
-        defNumberById.set(d.id, d.num);
     });
+    defs.sort((a, b) => a.num - b.num);
 
     if (typeof window !== 'undefined') window.__fnRefs = [];
 

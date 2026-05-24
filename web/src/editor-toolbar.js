@@ -182,32 +182,53 @@ export function insertFootnote(view) {
         return;
     }
 
-    // Normal path: cursor is in body. Insert ref at cursor, def at end,
-    // and JUMP cursor to the NEW def's body position so the user can type
-    // the description directly. The previous "keep cursor in body" approach
-    // made users type the description into body prose by mistake.
+    // Normal path: cursor is in body. Insert ref at cursor, def at end.
     //
-    // Safety against double-click contamination: if user clicks button
-    // again without moving cursor, the onDefLine check at top of this
-    // function catches it and re-routes to a safe body position.
+    // Live mode: keep cursor where the new ref was inserted (in body) and
+    // auto-open the rendered footnote section's inline-edit box so the user
+    // types the description there. Source mode: jump cursor to the new def's
+    // body position in source (the only edit surface available there).
     const refText = `[^${id}]`;
     const defText = `\n\n[^${id}]: `;
     const docLen = state.doc.length;
-    // Where the new def's BODY starts (after refText insert shifts everything,
-    // after defText insert at original docLen, after the def's prefix length):
-    //   newDocLen = docLen + refText.length + defText.length
-    //   bodyStart = newDocLen (since defText ends with the space; cursor
-    //              there is at the body position, ready to type).
     const bodyStartAfter = docLen + refText.length + defText.length;
+
+    const isLiveMode = (typeof document !== 'undefined') &&
+        document.body && document.body.classList.contains('mode-live');
+    const cursorTarget = isLiveMode
+        ? (r.from + refText.length)   // right after the new ref in body
+        : bodyStartAfter;             // at the new def body in source
+
     view.dispatch({
         changes: [
             { from: r.from, to: r.to, insert: refText },
             { from: docLen, to: docLen, insert: defText },
         ],
-        selection: EditorSelection.cursor(bodyStartAfter),
+        selection: EditorSelection.cursor(cursorTarget),
         scrollIntoView: true,
         userEvent: 'input.footnote',
     });
+
+    // Live mode: after the decoration pass rebuilds the footnotes section
+    // widget, find the new <li>'s body <p> and synthesise a mousedown to
+    // enter inline-edit mode. Poll for up to ~600ms because the widget
+    // rebuild + DOM swap isn't synchronous with the dispatch.
+    if (isLiveMode) {
+        const targetId = id;
+        const escapedId = (typeof CSS !== 'undefined' && CSS.escape) ? CSS.escape(targetId) : targetId;
+        let attempts = 0;
+        const tryOpen = () => {
+            const li = document.querySelector(`li#fn-${escapedId}`);
+            const p = li && li.querySelector('p.cm-md-fn-body');
+            if (p) {
+                p.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                p.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+                return;
+            }
+            if (++attempts < 12) setTimeout(tryOpen, 50);
+        };
+        setTimeout(tryOpen, 50);
+    }
     view.focus();
 }
 

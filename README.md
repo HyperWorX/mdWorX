@@ -6,13 +6,13 @@
 
 ## Why this exists
 
-Markdown support inside Directory Opus has historically meant a passive shell-preview-handler bolted on from elsewhere (PowerToys, MarkDown Preview, etc.). They render HTML and that's it: no editing, no embedded images, and often broken on high-DPI displays. mdWorX is a small native DOpus viewer plugin that lets you actually edit `.md` files in the viewer pane without bouncing out to another app for every small change. It's not trying to replace Obsidian or Typora, just to fill the gap where DOpus had nothing usable.
+Markdown support inside Directory Opus has historically meant a passive shell-preview-handler bolted on from elsewhere (PowerToys, MarkDown Preview, etc.). They render HTML and that's it: no editing, no embedded images, and often broken on high-DPI displays. mdWorX is a small native DOpus viewer plugin that lets you actually edit `.md` files in the viewer pane without bouncing out to another app for every small change. It's not trying to replace a dedicated Markdown editor, just to fill the gap where DOpus had nothing usable.
 
 ---
 
 ## What's in it
 
-- **Three view modes** — Reading, Live (Obsidian-style WYSIWYG), and Source.
+- **Three view modes** — Reading, Live (WYSIWYG with per-line marker reveal), and Source.
 - **Split-screen editing** in Source mode, with draggable resize and a toggleable scroll-link.
 - **Inline and pop-out** — works in the DOpus viewer pane or in its own window.
 - **A handful of themes** with a custom accent setting that re-tints the whole UI.
@@ -31,7 +31,7 @@ Markdown support inside Directory Opus has historically meant a passive shell-pr
 
 mdWorX is a thin native C++ viewer plugin (Win32 + WebView2) wrapping a self-contained web layer:
 
-- **CodeMirror 6 editor** with custom per-line decorator extensions that mimic Obsidian's "Live Preview" behaviour. Block formatting (headings, lists, blockquotes) renders unconditionally via `Decoration.line`; syntax markers (`#`, `>`, `-`, `*`) hide via `Decoration.replace({})` and reveal only on the active line. Architecturally a port of the atomic-editor pattern, with per-block decorators living in `web/src/livepreview/`.
+- **CodeMirror 6 editor** with custom per-line decorator extensions that hide markdown syntax on lines you're not editing and reveal them on the active line. Block formatting (headings, lists, blockquotes) renders unconditionally via `Decoration.line`; syntax markers (`#`, `>`, `-`, `*`) hide via `Decoration.replace({})` and reveal only on the active line. Architecturally a port of the atomic-editor pattern, with per-block decorators living in `web/src/livepreview/`.
 - **markdown-it + DOMPurify** render pipeline for the Reading and split-preview panes, with `markdown-it-task-lists`, `-footnote`, `-deflist`, `-abbr`, `-mark`, `-sub`, `-sup` extensions wired in.
 - **WebView2 host** via native COM (not the WinForms wrapper) to side-step the `ScaleHelper.EnterDpiAwarenessScope` crash that breaks PowerToys' preview handler on third-party file managers.
 - **Palette-aware theming** using CSS `color-mix()` so any custom accent the user sets re-tints toolbar chrome, selection wash, syntax highlights, and scrollbar thumbs without per-palette CSS.
@@ -49,7 +49,7 @@ The architecture combination — DOpus viewer plugin + WebView2 + CodeMirror 6 +
 Switch between **Reading**, **Live**, and **Source** from the top toolbar.
 
 - **Reading** — clean rendered HTML for reading.
-- **Live** — Obsidian-style editing. Formatting stays visible until your cursor enters a line, at which point the raw markdown markers reveal themselves for that line only. Click somewhere else and they hide again.
+- **Live** — WYSIWYG editing. Formatting stays visible until your cursor enters a line, at which point the raw markdown markers reveal themselves for that line only. Click somewhere else and they hide again.
 - **Source** — raw Markdown with syntax highlighting.
 
 ### Split-screen editing
@@ -86,17 +86,18 @@ GitHub Flavored Markdown plus a useful collection of extras — code blocks (wit
 
 ![Rendered code block, table, and blockquote](img/features.png)
 
-### Encoding support
+### Reads files in any language
 
-mdWorX detects file encoding properly instead of assuming UTF-8:
+Most Markdown viewers assume your file is UTF-8 and silently produce garbage when it isn't. mdWorX figures out what your file actually is and renders it properly, whether that's Simplified Chinese, Traditional Chinese, Japanese, Korean, Arabic, Hebrew, Hindi, Thai, Greek, or several of those mixed together on the same line.
 
-- **Auto-detect** via byte-order-mark sniffing for UTF-8 BOM, UTF-16 LE, and UTF-16 BE.
-- **Strict UTF-8 validation** so a CP1252 file masquerading as UTF-8 doesn't silently render as garbage.
-- **Configurable fallback codepage** when content isn't valid UTF-8 — system ANSI, **CP1252** (Western European), **Shift-JIS / CP932** (Japanese), **GBK / CP936** (Simplified Chinese), **Big5 / CP950** (Traditional Chinese), **EUC-KR / CP949** (Korean), or an explicit choice via the settings UI.
-- **Full script rendering** for Arabic, Hebrew (with proper RTL bidi), Simplified and Traditional Chinese, Japanese, Korean, Devanagari (Hindi etc.), Thai, Greek, plus mixed bidirectional content. The Unicode heavy-lifting lives in WebView2 / Chromium so complex script shaping just works.
-- **Save support** is currently UTF-8 and UTF-8-BOM only. Files in legacy codepages or UTF-16 are decoded and rendered correctly, but the save path will refuse to overwrite them in their original encoding for now. (Edit them and use Save As to write a UTF-8 copy.)
+How it works in practice:
 
-The repo ships with [test fixtures](tests/encodings/) covering each of these scripts and encodings so behaviour is verifiable.
+- **Modern files just open.** UTF-8 (with or without BOM) and UTF-16 are detected automatically from the file's header bytes.
+- **Older files get the right fallback.** When a file isn't UTF-8, mdWorX decodes it using a legacy codepage you pick in the settings: Shift-JIS for Japanese, GBK for Simplified Chinese, Big5 for Traditional Chinese, EUC-KR for Korean, CP1252 for Western European, or your system default.
+- **Complex scripts render correctly.** Right-to-left languages flow the right direction, scripts whose letters join together (Arabic, Devanagari) shape properly, and mixing scripts on one line doesn't break the layout. The actual font and shaping work happens in WebView2, so anything modern Chrome can render, mdWorX renders.
+- **One caveat on saving:** edits save back as UTF-8 or UTF-8 with BOM. If you opened a Shift-JIS or UTF-16 file the original is left untouched, so use Save As to write a UTF-8 copy.
+
+The repo ships with [test fixtures](tests/encodings/) covering each script and encoding so the behaviour is verifiable.
 
 ### Other niceties
 

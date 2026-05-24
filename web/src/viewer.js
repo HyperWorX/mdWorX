@@ -3,7 +3,7 @@
 // Hosted inside WebView2 by the native plugin. Communicates with the native
 // host via window.chrome.webview.postMessage / .addEventListener('message').
 // Renders markdown using markdown-it + DOMPurify. Images with relative paths
-// are rewritten to the local.mdworx.test virtual host the native side
+// are rewritten to the local.dopus-md.test virtual host the native side
 // maps to the current file's parent directory.
 
 import MarkdownIt from 'markdown-it';
@@ -189,7 +189,7 @@ let dirty = false;
 let splitMode = false;          // source-mode side-by-side reading preview
 let splitRenderTimer = null;
 let linkedScroll = true;        // sync split-view scrolling between panes
-let wordWrap    = false;        // wrap long lines in rendered <pre>/<code>
+let wordWrap    = true;         // wrap long lines in rendered <pre>/<code> by default
 
 function renderSplitPreview() {
     render(dirty ? editorBuffer : loadedBuffer);
@@ -210,6 +210,11 @@ function setWordWrap(on) {
     document.body.classList.toggle('wrap-on', wordWrap);
     syncToolbar();
 }
+
+// Apply the initial wrap state on first script load so default-on actually
+// shows wrapped content (without this the body lacks the class until the
+// user clicks the toggle once).
+document.body.classList.toggle('wrap-on', wordWrap);
 
 function fileBaseName() {
     return loadedPath ? loadedPath.split(/[\\/]/).pop() : 'mdWorX';
@@ -499,7 +504,7 @@ document.addEventListener('keydown', (e) => {
 // Two-source resolution:
 //   1. settings-defaults.json   — shipped in the bundle, fetched at startup.
 //      All keys present, mostly null. Defines the schema.
-//   2. user settings file       — %APPDATA%\HyperWorX\mdWorX\settings.json,
+//   2. user settings file       — %APPDATA%\Mogwai\DOpusMarkdownViewer\settings.json,
 //      passed in by native as {type:'userSettings', json:'<rawtext>'}.
 //
 // User keys win over defaults via shallow merge. Each resolved setting
