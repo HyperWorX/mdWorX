@@ -82,6 +82,34 @@
           <path d="M3 16h2.5c.8 0 1.5.7 1.5 1.5S6.3 19 5.5 19H4M5.5 19c.8 0 1.5.7 1.5 1.5S6.3 22 5.5 22H3"/>
         </svg>
       </button>
+      <button type="button" data-cmd="taskList" title="Task list ([ ])" aria-label="Task list">
+        <svg viewBox="0 0 24 24" class="etb-icon">
+          <rect x="3" y="4" width="7" height="7" rx="1.5"/>
+          <polyline points="4.5 7.5 6 9 9 6" stroke-width="2"/>
+          <rect x="3" y="14" width="7" height="7" rx="1.5"/>
+          <line x1="13" y1="7.5" x2="21" y2="7.5"/>
+          <line x1="13" y1="17.5" x2="21" y2="17.5"/>
+        </svg>
+      </button>
+    </div>
+    <span class="etb-sep"></span>
+    <div class="etb-group">
+      <button type="button" data-cmd="outdent" title="Decrease indent (outdent)" aria-label="Outdent">
+        <svg viewBox="0 0 24 24" class="etb-icon">
+          <line x1="3" y1="6" x2="21" y2="6"/>
+          <line x1="3" y1="18" x2="21" y2="18"/>
+          <line x1="11" y1="12" x2="21" y2="12"/>
+          <polyline points="7 8 3 12 7 16"/>
+        </svg>
+      </button>
+      <button type="button" data-cmd="indent" title="Increase indent" aria-label="Indent">
+        <svg viewBox="0 0 24 24" class="etb-icon">
+          <line x1="3" y1="6" x2="21" y2="6"/>
+          <line x1="3" y1="18" x2="21" y2="18"/>
+          <line x1="11" y1="12" x2="21" y2="12"/>
+          <polyline points="3 8 7 12 3 16"/>
+        </svg>
+      </button>
     </div>
     <span class="etb-sep"></span>
     <div class="etb-group">
@@ -96,6 +124,13 @@
           <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
         </svg>
       </button>
+      <button type="button" data-cmd="image" title="Insert image (pick from disk, set size and alignment)" aria-label="Insert image" id="etb-image-btn">
+        <svg viewBox="0 0 24 24" class="etb-icon">
+          <rect x="3" y="4" width="18" height="16" rx="2"/>
+          <circle cx="9" cy="10" r="1.6" fill="currentColor" stroke="none"/>
+          <path d="M21 17l-5-5-8 8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
       <button type="button" data-cmd="footnote" title="Insert footnote [^N] + def stub at doc end" aria-label="Insert footnote">
         <svg viewBox="0 0 24 24" class="etb-icon">
           <path d="M4 6h11"/>
@@ -103,6 +138,41 @@
           <text x="17" y="11" font-size="9" font-weight="700" fill="currentColor" stroke="none" font-family="system-ui, sans-serif">1</text>
         </svg>
       </button>
+    </div>
+  </div>
+
+  <!-- Image insert popup. Anchored to the image toolbar button.
+       Source can be a local file (Browse picks one and fills the input)
+       or a URL (paste/type directly). Dimensions are optional px values;
+       alignment defaults to None (no wrapper). -->
+  <div id="image-popup" class="image-popup" hidden role="dialog" aria-label="Insert image">
+    <div class="img-pop-row">
+      <label for="img-pop-src">Source</label>
+      <input type="text" id="img-pop-src" placeholder="https://... or relative path, or click Browse" autocomplete="off" spellcheck="false">
+      <button type="button" id="img-pop-browse" class="btn">Browse...</button>
+    </div>
+    <div class="img-pop-row">
+      <label for="img-pop-alt">Alt text</label>
+      <input type="text" id="img-pop-alt" placeholder="Description for screen readers (optional)" autocomplete="off">
+    </div>
+    <div class="img-pop-row img-pop-row-dims">
+      <label for="img-pop-width">Width</label>
+      <input type="number" id="img-pop-width" min="1" max="10000" step="1" placeholder="auto"><span class="img-pop-unit">px</span>
+      <label for="img-pop-height">Height</label>
+      <input type="number" id="img-pop-height" min="1" max="10000" step="1" placeholder="auto"><span class="img-pop-unit">px</span>
+    </div>
+    <div class="img-pop-row">
+      <label>Alignment</label>
+      <div class="img-pop-align" role="radiogroup" aria-label="Image alignment">
+        <label><input type="radio" name="img-pop-align" value="none" checked> None</label>
+        <label><input type="radio" name="img-pop-align" value="left"> Left</label>
+        <label><input type="radio" name="img-pop-align" value="center"> Center</label>
+        <label><input type="radio" name="img-pop-align" value="right"> Right</label>
+      </div>
+    </div>
+    <div class="img-pop-row img-pop-row-actions">
+      <button type="button" id="img-pop-cancel" class="btn">Cancel</button>
+      <button type="button" id="img-pop-insert" class="btn btn-primary" disabled>Insert</button>
     </div>
   </div>
 

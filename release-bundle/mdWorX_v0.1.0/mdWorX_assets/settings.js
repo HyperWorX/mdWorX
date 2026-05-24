@@ -68,7 +68,7 @@ const palettes = {
         h1Color: '#268bd2', h2Color: '#268bd2', h3Color: '#268bd2',
         h4Color: '#268bd2', h5Color: '#268bd2', h6Color: '#268bd2',
         highlightBg: '#b58900',
-        highlightFg: '#fdf6e3',
+        highlightFg: '#002b36',
         highlightOpacity: 0.85,
     },
     'Nord': {
@@ -233,7 +233,7 @@ const palettes = {
         // which is too subtle for a viewer. Kept yellow.3 #d29922 with high opacity
         // for visible highlighter behaviour - still a canonical Primer yellow token.
         highlightBg: '#d29922',
-        highlightFg: '#f0f6fc',
+        highlightFg: '#0d1117',
         highlightOpacity: 0.85,
     },
 
@@ -262,7 +262,7 @@ const palettes = {
         h5Color: '#cbdbe5',
         h6Color: '#cbdbe5',
         highlightBg: '#f4569d',         // sub-accent pink (--bg-sub-accent-55)
-        highlightFg: '#ffffff',         // theme self-overrides text to white at use site
+        highlightFg: '#100e17',         // theme self-overrides text to white at use site
         highlightOpacity: 0.55,         // matches source --bg-sub-accent-55 (more visible)
     },
     // pipeittodevnull/PLN — Nord-derived palette, ships an opt-in
@@ -285,7 +285,7 @@ const palettes = {
         h5Color: '#8fbcbb',             // Nord frost cyan
         h6Color: '#88c0d0',             // Nord frost light cyan
         highlightBg: '#b48ead',         // text-highlight-bg
-        highlightFg: '#2e3440',
+        highlightFg: '#1a1d24',
         highlightOpacity: 1.0,
     },
     'PLN Light': {
@@ -305,7 +305,7 @@ const palettes = {
         h5Color: '#487978',
         h6Color: '#387a8d',
         highlightBg: '#b48ead',
-        highlightFg: '#f5f7f9',
+        highlightFg: '#1a1d24',
         highlightOpacity: 1.0,
     },
     // AnubisNekhet/AnuPpuccin — Catppuccin port. The bare .theme-dark
@@ -381,7 +381,7 @@ const palettes = {
         h4Color: '#be5305', h5Color: '#be5305', h6Color: '#be5305',
         // Highlight: yellow (--func) - stands clear of the orange headings.
         highlightBg: '#f2ae49',
-        highlightFg: '#fafafa',         // common.bg (was #0f1419, the dark-variant bg)
+        highlightFg: '#0f1419',         // common.bg (was #0f1419, the dark-variant bg)
         highlightOpacity: 0.55,
     },
     'Gruvbox Light': {
@@ -426,7 +426,7 @@ const palettes = {
         h5Color: '#187585',             // sapphire
         h6Color: '#3b58fc',             // lavender
         highlightBg: '#df8e1d',         // canonical Latte yellow
-        highlightFg: '#4c4f69',
+        highlightFg: '#1e1e2e',
         highlightOpacity: 0.40,         // dropped from 0.95 since solid yellow is much stronger than the previous pastel
     },
     'One Light': {
@@ -469,7 +469,7 @@ const palettes = {
         h5Color: '#1561ca',             // blue
         h6Color: '#9854f1',             // magenta
         highlightBg: '#8c6c3e',         // yellow - distinct from orange h2
-        highlightFg: '#e1e2e7',         // page bg (mirror of dark variant's choice)
+        highlightFg: '#ffffff',         // page bg (mirror of dark variant's choice)
         highlightOpacity: 0.40,
     },
     'Nord Light': {
@@ -536,7 +536,7 @@ const palettes = {
         h5Color: '#666666',
         h6Color: '#666666',
         highlightBg: '#f4569d',
-        highlightFg: '#ffffff',
+        highlightFg: '#100e17',
         highlightOpacity: 0.55,
     },
 };
@@ -569,7 +569,12 @@ const schema = [
 
     // ---- Page surface --------------------------------------------------
     { section: 'Page surface' },
-    { key: 'pageColor',   label: 'Page background',    type: 'colour' },
+    { key: 'pageColor',           label: 'Page background',    type: 'colour' },
+    { key: 'pageBorderColor',     label: 'Page border',        type: 'colour',
+      help: 'Colour of the 1px border around the centred page card. Defaults to the rule colour when unset.' },
+    { key: 'pageBorderThickness', label: 'Page border thickness', type: 'range',
+      min: 0, max: 10, step: 1, emptyDisplay: 1,
+      help: 'Pixel thickness of the page card border. 0 hides the border, 10 is a thick frame. Default 1px.' },
     { key: 'textColor',   label: 'Body text',          type: 'colour' },
     { key: 'accentColor', label: 'Accent',             type: 'colour',
       help: 'Used for bullet markers, list numbers, H3, ::marker, blockquote left bar, code-block left bar, ::selection.' },
@@ -660,6 +665,19 @@ let userSettings    = {};
 let panePaletteMode = null;   // 'dark' | 'light' set by native via paneTheme
 let panePaneBg      = null;   // raw '#rrggbb' from DOpus
 let systemFonts     = [];     // string list set by native via 'fonts' message
+
+// Custom theme state. customThemes is the sorted name list from native;
+// currentCustomTheme is the active custom (if any); appliedSnapshot is the
+// THEMABLE_KEYS map of the most recently applied custom theme's file
+// contents, used to detect form divergence for the asterisk indicator.
+let customThemes        = [];
+let currentCustomTheme  = null;
+let appliedSnapshot     = null;
+// When loading a custom theme, the reply handler needs to know whether
+// to apply the values to the form (user picked it from the picker) or
+// just store the snapshot for comparison (dialog open with an already-
+// active theme).
+let pendingLoadMode     = null;  // 'apply' | 'compare' | null
 
 const form = document.getElementById('settings-form');
 const statusEl = document.getElementById('status');
@@ -939,18 +957,24 @@ const PRESET_KEYS = ['theme', 'pageColor', 'textColor', 'accentColor',
     'h1Color','h2Color','h3Color','h4Color','h5Color','h6Color',
     'highlightBg', 'highlightFg', 'highlightOpacity'];
 
-function makePresetRow() {
-    const row = document.createElement('div');
-    row.className = 'row';
-    row.dataset.special = 'preset';
+// Keys a CUSTOM (user-defined) theme snapshots. Per user decision: every
+// form field except file encoding settings. The 'theme' key is included
+// too (managed via getThemeValue/setThemeValue, not the schema). Built
+// from the schema at startup so adding a new visual setting auto-includes
+// it in custom themes without touching this constant.
+function buildThemableKeys() {
+    const out = ['theme'];
+    for (const e of schema) {
+        if (e.section) continue;
+        if (e.key === 'encoding' || e.key === 'fallbackEncoding') continue;
+        out.push(e.key);
+    }
+    return out;
+}
+const THEMABLE_KEYS = buildThemableKeys();
 
-    const label = document.createElement('label');
-    label.textContent = 'Load preset palette';
-    label.htmlFor = 'preset-picker';
-    row.appendChild(label);
-
-    const select = document.createElement('select');
-    select.id = 'preset-picker';
+function buildPresetOptions(select) {
+    select.innerHTML = '';
 
     // Three "Default" options — all clear every palette override; differ
     // only in the theme value they set.
@@ -981,9 +1005,45 @@ function makePresetRow() {
     select.appendChild(darkGroup);
     select.appendChild(lightGroup);
 
+    if (customThemes.length > 0) {
+        const customGroup = document.createElement('optgroup');
+        customGroup.label = 'Your themes';
+        for (const name of customThemes) {
+            const opt = document.createElement('option');
+            opt.value = 'custom:' + name;
+            opt.textContent = name;
+            customGroup.appendChild(opt);
+        }
+        select.appendChild(customGroup);
+    }
+}
+
+function makePresetRow() {
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.dataset.special = 'preset';
+
+    const label = document.createElement('label');
+    label.textContent = 'Load preset palette';
+    label.htmlFor = 'preset-picker';
+    row.appendChild(label);
+
+    const select = document.createElement('select');
+    select.id = 'preset-picker';
+    buildPresetOptions(select);
+
     select.addEventListener('change', () => {
         const name = select.value;
         if (!name) return;
+        if (name.startsWith('custom:')) {
+            const themeName = name.substring(7);
+            pendingLoadMode = 'apply';
+            send({ type: 'loadCustomTheme', name: themeName });
+            return;
+        }
+        // Built-in selection clears any custom-theme active state.
+        currentCustomTheme = null;
+        appliedSnapshot = null;
         if (name === 'Default Auto')  applyDefault('auto');
         else if (name === 'Default Light') applyDefault('light');
         else if (name === 'Default Dark')  applyDefault('dark');
@@ -992,6 +1052,10 @@ function makePresetRow() {
             if (!p) return;
             applyPreset(p);
         }
+        // syncPresetPicker resets stale asterisks on any custom options
+        // and updates the Delete button visibility for the new state.
+        syncPresetPicker();
+        updateThemeActionsVisibility();
         setStatus(`Loaded "${name}". Click Apply to save, or tweak any field first.`, '');
     });
 
@@ -999,6 +1063,220 @@ function makePresetRow() {
     row.appendChild(document.createElement('span'));  // grid spacer for "reset" col
 
     return row;
+}
+
+// "Your themes" row: Save current as... + Delete + inline name entry.
+// Sits below the preset picker. Save reveals the name input; Delete
+// only enables when a custom theme is selected.
+function makeCustomThemeActionsRow() {
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.dataset.special = 'custom-theme-actions';
+
+    const label = document.createElement('label');
+    label.textContent = 'Your themes';
+    row.appendChild(label);
+
+    const actions = document.createElement('div');
+    actions.id = 'custom-theme-actions';
+    actions.className = 'custom-theme-actions';
+
+    const saveBtn = document.createElement('button');
+    saveBtn.type = 'button';
+    saveBtn.id = 'btn-save-theme';
+    saveBtn.className = 'btn';
+    saveBtn.textContent = 'Save current as...';
+    saveBtn.title = 'Save the current visual settings as a named theme you can switch back to later.';
+    saveBtn.addEventListener('click', revealSaveAsInput);
+    actions.appendChild(saveBtn);
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.type = 'button';
+    deleteBtn.id = 'btn-delete-theme';
+    deleteBtn.className = 'btn';
+    deleteBtn.textContent = 'Delete';
+    deleteBtn.title = 'Delete the currently selected custom theme. Only enabled when a custom theme is active.';
+    deleteBtn.addEventListener('click', deleteCurrentCustomTheme);
+    actions.appendChild(deleteBtn);
+
+    // Inline name entry, hidden until Save current as... is clicked.
+    const entry = document.createElement('div');
+    entry.id = 'save-theme-entry';
+    entry.className = 'custom-theme-entry';
+    entry.style.display = 'none';
+
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.id = 'save-theme-name';
+    nameInput.placeholder = 'Theme name';
+    nameInput.maxLength = 100;
+    nameInput.autocomplete = 'off';
+    nameInput.spellcheck = false;
+    nameInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); submitSaveAsInput(); }
+        else if (e.key === 'Escape') { e.preventDefault(); hideSaveAsInput(); }
+    });
+    entry.appendChild(nameInput);
+
+    const entrySave = document.createElement('button');
+    entrySave.type = 'button';
+    entrySave.className = 'btn btn-primary';
+    entrySave.textContent = 'Save';
+    entrySave.addEventListener('click', submitSaveAsInput);
+    entry.appendChild(entrySave);
+
+    const entryCancel = document.createElement('button');
+    entryCancel.type = 'button';
+    entryCancel.className = 'btn';
+    entryCancel.textContent = 'Cancel';
+    entryCancel.addEventListener('click', hideSaveAsInput);
+    entry.appendChild(entryCancel);
+
+    row.appendChild(actions);
+    row.appendChild(entry);
+
+    return row;
+}
+
+function updateThemeActionsVisibility() {
+    const deleteBtn = document.getElementById('btn-delete-theme');
+    if (!deleteBtn) return;
+    // Delete is the only Always/Sometimes piece. The actions wrapper
+    // itself is shown/hidden by reveal/hideSaveAsInput.
+    deleteBtn.disabled = !currentCustomTheme;
+}
+
+function revealSaveAsInput() {
+    const entry = document.getElementById('save-theme-entry');
+    const actions = document.getElementById('custom-theme-actions');
+    if (!entry || !actions) return;
+    actions.style.display = 'none';
+    entry.style.display = '';
+    const nameInput = document.getElementById('save-theme-name');
+    if (nameInput) {
+        // Pre-populate with the current custom theme name (if any) so
+        // saving changes back to the same theme is one click.
+        nameInput.value = currentCustomTheme || '';
+        nameInput.focus();
+        nameInput.select();
+    }
+}
+
+function hideSaveAsInput() {
+    const entry = document.getElementById('save-theme-entry');
+    const actions = document.getElementById('custom-theme-actions');
+    if (entry) entry.style.display = 'none';
+    if (actions) actions.style.display = '';
+    updateThemeActionsVisibility();
+}
+
+function submitSaveAsInput() {
+    const nameInput = document.getElementById('save-theme-name');
+    if (!nameInput) return;
+    const raw = nameInput.value;
+    const err = validateThemeName(raw);
+    if (err) {
+        setStatus(err, 'fail');
+        nameInput.focus();
+        return;
+    }
+    const trimmed = raw.trim();
+    const exists = customThemes.some(t => t.toLowerCase() === trimmed.toLowerCase());
+    if (exists && !window.confirm(`Theme "${trimmed}" already exists. Overwrite it?`)) {
+        nameInput.focus();
+        return;
+    }
+    const snapshot = snapshotCurrentTheme();
+    send({ type: 'saveCustomTheme', name: trimmed, json: JSON.stringify(snapshot, null, 2) });
+}
+
+function deleteCurrentCustomTheme() {
+    if (!currentCustomTheme) return;
+    if (!window.confirm(`Delete the custom theme "${currentCustomTheme}"? The current settings are not affected.`)) return;
+    send({ type: 'deleteCustomTheme', name: currentCustomTheme });
+}
+
+function validateThemeName(name) {
+    const trimmed = (name || '').trim();
+    if (!trimmed) return 'Theme name cannot be empty.';
+    if (trimmed.length > 100) return 'Theme name too long (max 100 characters).';
+    if (/[\\\/:*?"<>|]/.test(trimmed)) {
+        return 'Theme name contains illegal characters: \\ / : * ? " < > |';
+    }
+    if (/[\x00-\x1f]/.test(trimmed)) return 'Theme name contains control characters.';
+    if (/^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\.|$)/i.test(trimmed)) {
+        return 'Theme name is a reserved Windows filename.';
+    }
+    const builtIns = ['Default Auto', 'Default Light', 'Default Dark',
+                      ...Object.keys(palettes)];
+    if (builtIns.some(b => b.toLowerCase() === trimmed.toLowerCase())) {
+        return `"${trimmed}" matches a built-in palette name. Pick another name.`;
+    }
+    return null;
+}
+
+// Snapshot the current form state into a JSON-serialisable map of every
+// themable key with a non-empty value. Used both by Save current as...
+// and for asterisk comparison.
+function snapshotCurrentTheme() {
+    const out = {};
+    for (const key of THEMABLE_KEYS) {
+        if (key === 'theme') {
+            const t = getThemeValue();
+            if (t && t !== 'auto') out.theme = t;
+            continue;
+        }
+        const entry = schema.find(s => s.key === key);
+        if (!entry) continue;
+        const cur = getControlValue(entry);
+        if (!isEmpty(cur)) out[key] = cur;
+    }
+    return out;
+}
+
+// Fill the form from a saved custom theme. Full replace, not merge: any
+// themable key absent from the snapshot is cleared so switching themes
+// is deterministic.
+function applyCustomTheme(themeData) {
+    for (const key of THEMABLE_KEYS) {
+        if (key === 'theme') {
+            setThemeValue(themeData.theme || 'auto');
+            continue;
+        }
+        const entry = schema.find(s => s.key === key);
+        if (!entry) continue;
+        const v = (themeData[key] !== undefined) ? themeData[key] : null;
+        setControlValue(entry, v);
+        const row = form.querySelector(`.row[data-key="${key}"]`);
+        if (row) updateResetState(row, entry);
+    }
+    applyOwnTheme();
+}
+
+// True if the current form state differs from the most recently applied
+// custom theme's snapshot. Drives the asterisk on the picker.
+function formDivergesFromSnapshot() {
+    if (!appliedSnapshot) return false;
+    const current = snapshotCurrentTheme();
+    const keys = new Set([...Object.keys(appliedSnapshot), ...Object.keys(current)]);
+    for (const k of keys) {
+        const a = appliedSnapshot[k];
+        const b = current[k];
+        if (String(a == null ? '' : a) !== String(b == null ? '' : b)) return true;
+    }
+    return false;
+}
+
+// Rebuild the preset picker's <option>/<optgroup> children so a new
+// custom themes list shows up. Preserves prior selection where possible;
+// syncPresetPicker will reconcile.
+function refreshPresetPicker() {
+    const sel = document.getElementById('preset-picker');
+    if (!sel) return;
+    const prev = sel.value;
+    buildPresetOptions(sel);
+    if (prev) sel.value = prev;
+    if (!sel.value) sel.value = 'Default Auto';
 }
 
 function renderForm() {
@@ -1020,6 +1298,15 @@ function renderForm() {
                 helpEl.className = 'help';
                 helpEl.textContent = 'Picking a preset fills the colour and highlight fields below and sets the theme. Font, layout, and encoding are untouched.';
                 presetRow.appendChild(helpEl);
+
+                // Custom themes: Save current as... + Delete + name entry.
+                // Sits right under the preset picker.
+                const actionsRow = makeCustomThemeActionsRow();
+                form.appendChild(actionsRow);
+                const themesHelp = document.createElement('div');
+                themesHelp.className = 'help';
+                themesHelp.textContent = 'Save your current configuration as a named theme. Custom themes capture every visual setting (colours, fonts, layout) except file encoding, and appear in the preset dropdown above under "Your themes".';
+                actionsRow.appendChild(themesHelp);
             }
             continue;
         }
@@ -1074,16 +1361,47 @@ function applyDefault(theme) {
     applyOwnTheme();
 }
 
-// Reconcile the preset picker with the currently-loaded settings: pick
-// whichever preset's values match the form exactly, else "Default" when
-// nothing's overridden, else leave on Default (a slight white lie, but
-// the user already requested no "Custom" placeholder).
+// Reconcile the preset picker with the currently-loaded settings.
+//
+// If a custom theme is active, select its option (creating it ad hoc if
+// the customThemes list hasn't arrived yet) and append a trailing ' *'
+// to its label when the form has drifted from the loaded snapshot.
+//
+// Otherwise: pick whichever built-in preset's values match the form
+// exactly, else "Default <theme>" when nothing's overridden. No
+// "Custom" placeholder for never-saved-before states (existing decision).
 function syncPresetPicker() {
     const sel = document.getElementById('preset-picker');
     if (!sel) return;
 
-    // Treat colour overrides separately from theme: if user only has a
-    // theme pin set (no colours), we still pick a "Default <theme>".
+    // First, clear any asterisks left over from a previous sync. Iterate
+    // every custom option and reset its textContent to the bare name.
+    for (const opt of sel.querySelectorAll('option')) {
+        if (opt.value.startsWith('custom:')) {
+            opt.textContent = opt.value.substring(7);
+        }
+    }
+
+    if (currentCustomTheme) {
+        let optValue = 'custom:' + currentCustomTheme;
+        let opt = sel.querySelector(`option[value="${CSS.escape(optValue)}"]`);
+        if (!opt) {
+            // customThemes list hasn't arrived yet — inject a placeholder
+            // option so the picker can still display the active name.
+            opt = document.createElement('option');
+            opt.value = optValue;
+            opt.textContent = currentCustomTheme;
+            sel.appendChild(opt);
+        }
+        sel.value = optValue;
+        if (formDivergesFromSnapshot()) {
+            opt.textContent = currentCustomTheme + ' *';
+        }
+        updateThemeActionsVisibility();
+        return;
+    }
+
+    // No custom theme active. Fall back to existing built-in resolution.
     const hasColourOverride = PRESET_KEYS.some(k => {
         if (k === 'theme') return false;
         const entry = schema.find(s => s.key === k);
@@ -1098,16 +1416,19 @@ function syncPresetPicker() {
 
     if (!hasColourOverride) {
         sel.value = defaultName;
+        updateThemeActionsVisibility();
         return;
     }
 
     for (const [name, p] of Object.entries(palettes)) {
         if (presetMatches(p)) {
             sel.value = name;
+            updateThemeActionsVisibility();
             return;
         }
     }
     sel.value = defaultName;
+    updateThemeActionsVisibility();
 }
 
 function presetMatches(palette) {
@@ -1187,6 +1508,13 @@ function collectForSave() {
             if (!isEmpty(cur)) out[entry.key] = cur;
         }
     }
+
+    // Active custom theme name (not in schema — module state). Persisted
+    // so the next dialog open can highlight the right entry in the picker.
+    if (currentCustomTheme) {
+        out.activeCustomTheme = currentCustomTheme;
+    }
+
     return out;
 }
 
@@ -1217,10 +1545,27 @@ function onHostMessage(event) {
                 setStatus('Warning: your existing settings.json is malformed, defaults loaded', 'fail');
             }
             populateFromState();
-            // Reconcile the preset dropdown AFTER the form has the real
-            // user values; the initial sync in renderForm runs before
-            // native has pushed userSettings, so it always picked Default.
+
+            // Restore active custom theme name (if any) from persisted
+            // settings, then ask native for its snapshot so the asterisk
+            // indicator has something to compare against.
+            if (typeof userSettings.activeCustomTheme === 'string' &&
+                userSettings.activeCustomTheme) {
+                currentCustomTheme = userSettings.activeCustomTheme;
+                pendingLoadMode = 'compare';
+                send({ type: 'loadCustomTheme', name: currentCustomTheme });
+            } else {
+                currentCustomTheme = null;
+                appliedSnapshot = null;
+            }
+
+            // Always ask for the custom themes list so the picker can
+            // surface 'Your themes'. Reply arrives async; syncPresetPicker
+            // is called both here (without customs yet) and on reply.
+            send({ type: 'listCustomThemes' });
+
             syncPresetPicker();
+            updateThemeActionsVisibility();
             break;
         case 'paneTheme':
             // Native: {type:'paneTheme', mode:'dark'|'light', paneBg:'#rrggbb'}
@@ -1245,10 +1590,77 @@ function onHostMessage(event) {
                 // the dialog's own theme in case the user's tweaks
                 // changed the preset match.
                 applyOwnTheme();
+                // Refresh asterisk: the form may have diverged from the
+                // saved theme snapshot before this Apply ran.
+                syncPresetPicker();
             } else {
                 setStatus('Save failed — check that %APPDATA%\\HyperWorX\\mdWorX\\ is writable.', 'fail');
             }
             break;
+        case 'customThemesList':
+            customThemes = Array.isArray(m.names) ? m.names : [];
+            refreshPresetPicker();
+            syncPresetPicker();
+            updateThemeActionsVisibility();
+            break;
+        case 'customTheme': {
+            // Reply to loadCustomTheme. pendingLoadMode says whether to
+            // apply the values to the form or just record the snapshot
+            // for asterisk comparison.
+            let themeData = {};
+            try {
+                themeData = m.json && m.json.trim() ? JSON.parse(m.json) : {};
+            } catch (err) {
+                setStatus(`Could not parse theme "${m.name}": ${err.message}`, 'fail');
+                pendingLoadMode = null;
+                break;
+            }
+            if (pendingLoadMode === 'apply') {
+                applyCustomTheme(themeData);
+                currentCustomTheme = m.name;
+                appliedSnapshot = themeData;
+                setStatus(`Loaded "${m.name}". Click Apply to save.`, '');
+            } else {
+                // 'compare' (or null fallback): keep current form values,
+                // store snapshot for divergence detection.
+                appliedSnapshot = themeData;
+            }
+            pendingLoadMode = null;
+            syncPresetPicker();
+            updateThemeActionsVisibility();
+            break;
+        }
+        case 'customThemeSaved':
+            setStatus(`Saved theme "${m.name}".`, 'ok');
+            currentCustomTheme = m.name;
+            appliedSnapshot = snapshotCurrentTheme();
+            hideSaveAsInput();
+            // Refresh list so the new name appears in the picker.
+            send({ type: 'listCustomThemes' });
+            // syncPresetPicker runs after the list reply; pre-sync now so
+            // the picker reflects the save immediately if the option
+            // already existed (overwrite case).
+            syncPresetPicker();
+            updateThemeActionsVisibility();
+            break;
+        case 'customThemeDeleted':
+            setStatus(`Deleted theme "${m.name}".`, 'ok');
+            if (currentCustomTheme === m.name) {
+                currentCustomTheme = null;
+                appliedSnapshot = null;
+            }
+            send({ type: 'listCustomThemes' });
+            syncPresetPicker();
+            updateThemeActionsVisibility();
+            break;
+        case 'customThemeError': {
+            const op = m.op || 'operation';
+            const name = m.name || '';
+            const message = m.message || 'Unknown error.';
+            setStatus(`Theme ${op} failed${name ? ` ("${name}")` : ''}: ${message}`, 'fail');
+            pendingLoadMode = null;
+            break;
+        }
         default:
             // settings page ignores theme / load messages
             break;
@@ -1306,10 +1718,16 @@ async function boot() {
         }
         // Theme isn't in the schema — clear via the dedicated helper.
         setThemeValue('auto');
+        // Reset also drops the custom-theme association: the form no
+        // longer matches any saved snapshot, so picker should fall back
+        // to Default rather than show an asterisk-marked stale name.
+        currentCustomTheme = null;
+        appliedSnapshot = null;
         // Re-theme the dialog AND snap the preset picker back to
         // "Default Auto" so the dropdown reflects the cleared state.
         applyOwnTheme();
         syncPresetPicker();
+        updateThemeActionsVisibility();
         setStatus('All fields cleared. Click Apply to save, or Close to discard.', '');
     });
 
