@@ -219,3 +219,26 @@ body {
 .btn-link:hover {
     color: var(--accent-override, var(--accent));
 }
+
+/* Custom themes row: Save current as... / Delete + inline name entry.
+ * Both wrappers span the data + reset columns (2 / -1) and only one is
+ * displayed at a time so they share the same grid cell without overlap. */
+.row[data-special="custom-theme-actions"] {
+    /* Default 3-column row layout is fine; child wrappers handle span. */
+}
+.custom-theme-actions,
+.custom-theme-entry {
+    grid-column: 2 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+.custom-theme-entry input[type="text"] {
+    flex: 1 1 160px;
+    min-width: 120px;
+}
+#btn-delete-theme[disabled] {
+    opacity: 0.4;
+    cursor: not-allowed;
+}

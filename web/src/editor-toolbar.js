@@ -76,6 +76,65 @@ export function toggleLinePrefix(view, prefix) {
 
 export function bulletedList(view) { toggleLinePrefix(view, '- '); }
 
+// Task list. Adds `- [ ] ` to each line in selection if not already a task.
+// If every selected line is already `- [ ] ` or `- [x] `, removes the syntax.
+// Preserves any leading indent so it works inside nested lists.
+export function taskList(view) {
+    const { state } = view;
+    const lines = lineRangeForSelection(state);
+    if (lines.length === 0) return;
+    const taskRE = /^(\s*)- \[[ xX]\] /;
+    const allTasks = lines.every(l => taskRE.test(l.text));
+    let changes;
+    if (allTasks) {
+        changes = lines.map(l => {
+            const m = l.text.match(taskRE);
+            // Delete the "- [ ] " (6 chars) right after the indent.
+            return { from: l.from + m[1].length, to: l.from + m[0].length, insert: '' };
+        });
+    } else {
+        changes = lines.map(l => {
+            // Preserve any existing indent; replace any existing bullet/number marker.
+            const m = l.text.match(/^(\s*)([-*+]\s|\d+\.\s)?/);
+            const indent = m[1];
+            const existingMarker = (m[2] || '').length;
+            return {
+                from: l.from + indent.length,
+                to:   l.from + indent.length + existingMarker,
+                insert: '- [ ] ',
+            };
+        });
+    }
+    view.dispatch({ changes, userEvent: allTasks ? 'delete.task' : 'input.task' });
+    view.focus();
+}
+
+// Indent: prepend 2 spaces to each selected line. Matches the Tab-on-list
+// indent step used by editor.js's list-indent keymap.
+export function indentLines(view) {
+    const { state } = view;
+    const lines = lineRangeForSelection(state);
+    if (lines.length === 0) return;
+    const changes = lines.map(l => ({ from: l.from, to: l.from, insert: '  ' }));
+    view.dispatch({ changes, userEvent: 'input.indent' });
+    view.focus();
+}
+
+// Outdent: remove up to 2 leading spaces from each selected line.
+export function outdentLines(view) {
+    const { state } = view;
+    const lines = lineRangeForSelection(state);
+    if (lines.length === 0) return;
+    const changes = [];
+    for (const l of lines) {
+        const m = l.text.match(/^( {1,2})/);
+        if (m) changes.push({ from: l.from, to: l.from + m[1].length, insert: '' });
+    }
+    if (changes.length === 0) return;
+    view.dispatch({ changes, userEvent: 'delete.outdent' });
+    view.focus();
+}
+
 // Numbered list: assigns 1. 2. 3. to consecutive lines covered by the
 // selection. If every line already starts with "<number>. ", removes the
 // prefix instead.
@@ -232,6 +291,44 @@ export function insertFootnote(view) {
     view.focus();
 }
 
+// Insert an image at the cursor with optional width, height, and
+// alignment. Always emits portable markdown. Dimensions and alignment
+// ride along as a markdown-it-attrs attribute block right after the
+// image: `![alt](src){width=200 height=150 .md-img-center}`. The plugin
+// parses the braces into width/height attributes and a class on the
+// rendered <img>; viewer.css provides the alignment class rules.
+//
+// opts: { path: string, alt: string, width: number|null,
+//         height: number|null, alignment: 'none'|'left'|'center'|'right' }
+export function insertImage(view, opts) {
+    if (!view || !opts || !opts.path) return;
+    const path   = String(opts.path);
+    const alt    = String(opts.alt || '');
+    const width  = (opts.width  != null && opts.width  !== '') ? Number(opts.width)  : null;
+    const height = (opts.height != null && opts.height !== '') ? Number(opts.height) : null;
+    const align  = (opts.alignment || 'none');
+
+    const attrBits = [];
+    if (width  != null && Number.isFinite(width))  attrBits.push(`width=${width}`);
+    if (height != null && Number.isFinite(height)) attrBits.push(`height=${height}`);
+    if (align === 'left')   attrBits.push('.md-img-left');
+    if (align === 'center') attrBits.push('.md-img-center');
+    if (align === 'right')  attrBits.push('.md-img-right');
+
+    let insertText = `![${alt}](${path})`;
+    if (attrBits.length > 0) insertText += `{${attrBits.join(' ')}}`;
+
+    const { state } = view;
+    const r = state.selection.main;
+    view.dispatch({
+        changes: { from: r.from, to: r.to, insert: insertText },
+        selection: EditorSelection.cursor(r.from + insertText.length),
+        scrollIntoView: true,
+        userEvent: 'input.image',
+    });
+    view.focus();
+}
+
 // Convenience map for toolbar wiring.
 export const COMMANDS = {
     bold:        v => wrapSelection(v, '**'),
@@ -244,6 +341,11 @@ export const COMMANDS = {
     quote:       v => toggleLinePrefix(v, '> '),
     bulletList:  v => bulletedList(v),
     orderedList: v => numberedList(v),
+    taskList:    v => taskList(v),
+    indent:      v => indentLines(v),
+    outdent:     v => outdentLines(v),
     link:        v => insertLink(v),
     footnote:    v => insertFootnote(v),
+    // image is dispatched from viewer.js's popup so it can collect path /
+    // dimensions / alignment before calling insertImage.
 };
