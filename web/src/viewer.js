@@ -784,9 +784,14 @@ function applySettings(s) {
     // hence the "switch and back" workaround. Filter+push preserves arbitrary
     // runtime classes (mode-*, sister-skill annotations, etc.).
     const preserved = document.body.className.split(/\s+/).filter(c =>
-        c && !c.startsWith('theme-') && !c.startsWith('heading-underline-') && !c.startsWith('heading-text-')
+        c && !c.startsWith('theme-') && !c.startsWith('heading-underline-') && !c.startsWith('heading-text-') && c !== 'collapse-soft-breaks'
     );
     document.body.className = [...preserved, themeClass, ...underlineClass.split(/\s+/).filter(Boolean)].join(' ');
+    // Soft-break collapse toggle: when true, the list decorator hides
+    // continuation-line leading whitespace and viewer.css aligns wrapped
+    // text so multi-line bullets read as a single flowing paragraph (the
+    // way Reading mode renders them per CommonMark soft-break semantics).
+    document.body.classList.toggle('collapse-soft-breaks', s.collapseSoftBreaks === true);
 }
 
 function resolveAndApply() {

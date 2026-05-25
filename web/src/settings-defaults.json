@@ -45,5 +45,7 @@
     "pagePadding":  null,
     "hrThickness":  null,
 
+    "collapseSoftBreaks": false,
+
     "activeCustomTheme": null
 }

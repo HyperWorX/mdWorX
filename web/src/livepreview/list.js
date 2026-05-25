@@ -45,6 +45,15 @@ function bulletDecoForDepth(depth) {
 
 const listNumberMark = Decoration.mark({ class: 'cm-md-list-number' });
 
+// Marks the leading whitespace ("  " under a bullet, "    " under a nested
+// item) on each continuation line so CSS can conditionally hide it. When the
+// user enables the "Collapse soft line breaks" setting, viewer.css uses the
+// body.collapse-soft-breaks class to set display: none on this span so the
+// continuation text flows visually under the bullet line instead of showing
+// a literal source indent. The source bytes are unchanged - only the visual
+// rendering hides.
+const contIndentMark = Decoration.mark({ class: 'cm-md-cont-indent' });
+
 // CRITICAL: walk the underlying SyntaxNode's parent chain, not the
 // SyntaxNodeRef's. SyntaxNodeRef (passed to tree.iterate's enter callback)
 // does NOT expose .parent — accessing it returns undefined and the loop
@@ -107,8 +116,15 @@ export const listField = decoratorStateField((state) => {
             const inBullet = isInBulletList(itemNode);
             const isTask   = inBullet && hasTaskMarker(itemNode);
 
-            // Per-line line decoration for indent.
+            // Per-line line decoration for indent. Track whether each line
+            // is the FIRST line of the ListItem (containing the marker) or a
+            // CONTINUATION line (markdown's lazy-continuation, where bullet
+            // text wraps across source lines indented to align under the
+            // first line's text). Continuation lines additionally get a
+            // mark decoration on their leading whitespace so CSS can hide
+            // it when the "Collapse soft line breaks" setting is on.
             let pos = node.from;
+            let isFirstLine = true;
             while (pos <= node.to) {
                 const line = state.doc.lineAt(pos);
                 items.push({
@@ -117,6 +133,22 @@ export const listField = decoratorStateField((state) => {
                     deco: lineDeco,
                     block: true,
                 });
+                if (!isFirstLine) {
+                    // Find the first non-whitespace char on this continuation
+                    // line - that's where the visible text starts. Mark the
+                    // span from line.from to that position so CSS can hide it
+                    // (display: none) when collapse-soft-breaks is enabled.
+                    const lineText = state.doc.sliceString(line.from, line.to);
+                    const indentLen = lineText.length - lineText.replace(/^\s+/, '').length;
+                    if (indentLen > 0) {
+                        items.push({
+                            from: line.from,
+                            to: line.from + indentLen,
+                            deco: contIndentMark,
+                        });
+                    }
+                }
+                isFirstLine = false;
                 if (line.to >= node.to) break;
                 pos = line.to + 1;
             }

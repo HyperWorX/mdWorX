@@ -566,6 +566,8 @@ const schema = [
     { key: 'fallbackEncoding', label: 'Fallback when auto fails', type: 'select',
       options: ENCODINGS_NO_AUTO,
       help: 'Used only when "Decode markdown as" is "auto". "system" = your Windows ANSI codepage.' },
+    { key: 'collapseSoftBreaks', label: 'Collapse soft line breaks in Live mode', type: 'check',
+      help: 'When enabled, Live mode joins multi-line bullets and paragraphs into flowing prose the way Reading mode does (per the CommonMark spec: single newlines inside a paragraph or list item are treated as whitespace). When disabled, every source-line break is shown as a visible line break, preserving the typography of the source file.' },
 
     // ---- Page surface --------------------------------------------------
     { section: 'Page surface' },
@@ -655,6 +657,7 @@ const schema = [
     { key: 'pagePadding', label: 'Page padding',   type: 'text',
       placeholder: "e.g. '32px 40px' or 24",
       help: 'CSS padding shorthand or a single number (interpreted as px).' },
+
 ];
 
 // ---------------------------------------------------------------------------
@@ -843,6 +846,14 @@ function makeRow(entry) {
         control.setAttribute('list', 'system-fonts-datalist');
         control.autocomplete = 'off';
         if (entry.placeholder) control.placeholder = entry.placeholder;
+    } else if (entry.type === 'check') {
+        // Boolean toggle. Value is true/false in the user-settings JSON;
+        // omitted (null/undefined) means use the default from settings-
+        // defaults.json. The reset button below clears it back to the
+        // default just like every other field.
+        control = document.createElement('input');
+        control.type = 'checkbox';
+        control.id = 'input-' + entry.key;
     } else {
         control = document.createElement('input');
         control.type = 'text';
@@ -906,6 +917,12 @@ function setControlValue(entry, value) {
         const inp = document.getElementById('input-' + entry.key);
         if (!inp) return;
         inp.value = isEmpty(value) ? '' : String(value);
+    } else if (entry.type === 'check') {
+        const inp = document.getElementById('input-' + entry.key);
+        if (!inp) return;
+        // null/undefined => use default value; explicit true/false wins.
+        const defVal = defaultSettings[entry.key];
+        inp.checked = isEmpty(value) ? (defVal === true) : (value === true);
     } else {
         const inp = document.getElementById('input-' + entry.key);
         if (!inp) return;
@@ -924,6 +941,10 @@ function getControlValue(entry) {
         if (!v) return null;
         const n = Number(v);
         return Number.isFinite(n) ? n : null;
+    } else if (entry.type === 'check') {
+        const inp = document.getElementById('input-' + entry.key);
+        if (!inp) return null;
+        return inp.checked === true;
     } else {
         const v = document.getElementById('input-' + entry.key)?.value;
         return (v === undefined || v === null || v === '') ? null : v;
