@@ -891,6 +891,65 @@ function makeRow(entry) {
     return row;
 }
 
+// Theme defaults: for each settings key, the value the dialog should
+// SHOW the user when their override is empty. Two sources:
+//   1. CSS variables on documentElement - looked up via getComputedStyle.
+//      Body theme classes (theme-light / theme-dark / palette overrides)
+//      determine which value is active, so the dialog reflects the real
+//      live default at any given moment.
+//   2. A static fallback map for keys without a corresponding CSS variable
+//      (numeric layout/typography defaults that live as inline `var(...,
+//      <literal>)` fallbacks in viewer.css rather than as named theme vars).
+// The returned value is a STRING ready for display as placeholder or
+// initial visual state (swatch colour, slider position, etc.).
+const themeDefaultVarMap = {
+    textColor:             '--ink',
+    pageColor:             '--page',
+    accentColor:           '--accent',
+    linkColor:             '--link',
+    codeBg:                '--code',
+    ruleColor:             '--rule',
+    hrColor:               '--accent-faded',
+    headingUnderlineColor: '--accent-faded',
+    h1Color:               '--h1',
+    h2Color:               '--ink',
+    h3Color:               '--accent',
+    h4Color:               '--ink',
+    h5Color:               '--ink-soft',
+    h6Color:               '--ink-soft',
+    highlightBg:           '--mark-bg',
+    highlightFg:           '--mark-fg',
+};
+const themeDefaultStatic = {
+    maxWidth:                  '760px',
+    pagePadding:               '36px 36px',
+    hrThickness:               '1px',
+    pageBorderThickness:       '1px',
+    headingUnderlineThickness: '2px',
+    fontSize:                  '14px',
+    lineHeight:                '1.55',
+    proseFontWeight:           '400',
+    codeFontWeight:            '400',
+    codeFontSize:              '0.92em',
+    codeLineHeight:            '1.5',
+    highlightOpacity:          '1',
+    highlightFontWeight:       '500',
+    headingUnderlineStyle:     'solid',
+    encoding:                  'auto',
+    fallbackEncoding:          'system',
+    fontFamily:                "'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif",
+    codeFont:                  "'Cascadia Code', Consolas, ui-monospace, monospace",
+};
+
+function themeDefaultFor(key) {
+    const varName = themeDefaultVarMap[key];
+    if (varName) {
+        const v = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+        if (v) return v;
+    }
+    return themeDefaultStatic[key] || null;
+}
+
 function setControlValue(entry, value) {
     if (entry.type === 'select') {
         const sel = document.getElementById('input-' + entry.key);
@@ -901,31 +960,60 @@ function setControlValue(entry, value) {
         const text   = document.getElementById('input-' + entry.key);
         const swatch = document.getElementById('input-' + entry.key + '-swatch');
         if (!text || !swatch) return;
+        const themeDef = themeDefaultFor(entry.key);
         text.value = isEmpty(value) ? '' : String(value);
-        const hex = parseHexColour(text.value);
+        // Placeholder shows the active theme default so the user can see
+        // EXACTLY what colour is in effect when their override is unset.
+        // Saving stays unchanged - an empty text input still serialises
+        // as 'use theme default' (no key written to settings.json).
+        text.placeholder = themeDef
+            ? `${themeDef}  (theme default)`
+            : '(theme default) — e.g. #ff8800, rgba(...), red';
+        // Swatch shows either the user value (if set) or the theme default
+        // (if not). Parsing falls back to #888888 only when neither parses.
+        const hex = parseHexColour(text.value) || parseHexColour(themeDef || '');
         swatch.value = hex || '#888888';
     } else if (entry.type === 'range') {
         const readout = document.getElementById('input-' + entry.key);
         const slider  = document.getElementById('input-' + entry.key + '-slider');
         if (!readout || !slider) return;
         if (isEmpty(value)) {
-            // Park the slider at the entry-specified emptyDisplay (or MAX
-            // if unset) when no override is set. Readout stays empty as
-            // the canonical "no value" signal. emptyDisplay lets opacity
-            // park at max while font weight parks at 400 (normal).
+            const themeDef = themeDefaultFor(entry.key);
+            // Park the slider at the theme default position (parsed
+            // numerically) when the user hasn't overridden. Falls back to
+            // entry.emptyDisplay then entry.max if no theme default applies.
+            let parked;
+            if (themeDef !== null) {
+                const n = parseFloat(themeDef);
+                parked = Number.isFinite(n) ? n
+                       : entry.emptyDisplay !== undefined ? entry.emptyDisplay
+                       : entry.max;
+            } else {
+                parked = entry.emptyDisplay !== undefined ? entry.emptyDisplay : entry.max;
+            }
             readout.value = '';
-            const parked = (entry.emptyDisplay !== undefined)
-                ? entry.emptyDisplay
-                : entry.max;
+            readout.placeholder = themeDef ? `${themeDef} (theme default)` : '(theme default)';
             slider.value = String(parked);
         } else {
             readout.value = String(value);
             slider.value  = String(value);
         }
-    } else if (entry.type === 'number' || entry.type === 'font') {
+    } else if (entry.type === 'number') {
         const inp = document.getElementById('input-' + entry.key);
         if (!inp) return;
+        const themeDef = themeDefaultFor(entry.key);
         inp.value = isEmpty(value) ? '' : String(value);
+        inp.placeholder = themeDef ? `${themeDef} (theme default)` : '(theme default)';
+    } else if (entry.type === 'font') {
+        const inp = document.getElementById('input-' + entry.key);
+        if (!inp) return;
+        const themeDef = themeDefaultFor(entry.key);
+        inp.value = isEmpty(value) ? '' : String(value);
+        // Font defaults can be long stacks; truncate for the placeholder.
+        const showDef = themeDef ? (themeDef.length > 50 ? themeDef.slice(0, 47) + '...' : themeDef) : null;
+        inp.placeholder = showDef
+            ? `${showDef} (theme default)`
+            : (entry.placeholder || 'Start typing or pick from list');
     } else if (entry.type === 'check') {
         const inp = document.getElementById('input-' + entry.key);
         if (!inp) return;
@@ -935,7 +1023,9 @@ function setControlValue(entry, value) {
     } else {
         const inp = document.getElementById('input-' + entry.key);
         if (!inp) return;
+        const themeDef = themeDefaultFor(entry.key);
         inp.value = isEmpty(value) ? '' : String(value);
+        if (themeDef) inp.placeholder = `${themeDef} (theme default)`;
     }
 }
 

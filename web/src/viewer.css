@@ -1296,27 +1296,21 @@ body.mode-live .cm-activeLine { background: transparent; }
  * every theme. Each heading level gets the gradient in its own
  * --hN-color-override colour. */
 
-/* Default (no body class) and explicit solid: H1/H2 get an Obsidian-style
- * fading rule — accent on the left, fading to transparent on the right.
- * The fade colour is derived from the active palette accent via color-mix
- * (palette-aware, unlike the hardcoded --accent-faded). 1px instead of
- * Obsidian's 2px so it reads as a refined hairline rather than a chunky
- * bar. A user-set --heading-underline-override is honoured as the starting
- * colour of the fade; otherwise the accent is used. */
+/* Default (no body class) and explicit 'solid' style: H1/H2 get a true
+ * flat solid underline (NOT a gradient). Colour falls back through:
+ *   1. --heading-underline-override (user's "Heading underline" setting)
+ *   2. --accent-faded (theme-aware soft-accent fallback)
+ *
+ * Thickness from --heading-underline-thickness-override (default 2px).
+ * Setting 0 hides the line because `0 solid` renders as no border.
+ *
+ * The 'gradient' style overrides this rule below with linear-gradient
+ * border-image (so a body.heading-underline-gradient class wins on
+ * specificity). The 'none' style removes border-bottom entirely. */
 :is(#content, .cm-md-rendered-block) h1, :is(#content, .cm-md-rendered-block) h2,
 body.mode-live .cm-md-heading-1, body.mode-live .cm-md-heading-2 {
-    /* Default heading underline thickness is 2px; the Settings field
-     * "Heading underline thickness" (range 0-6) writes
-     * --heading-underline-thickness-override which replaces the 2px
-     * here without touching the gradient/colour pipeline. 0 hides the
-     * line because `0 solid` renders as no visible border. */
-    border-bottom: var(--heading-underline-thickness-override, 2px) solid transparent;
-    border-image: linear-gradient(to right,
-        var(--heading-underline-override,
-            color-mix(in srgb, var(--accent-override, var(--accent)) 60%, transparent)) 0%,
-        var(--heading-underline-override,
-            color-mix(in srgb, var(--accent-override, var(--accent)) 35%, transparent)) 45%,
-        transparent 100%) 1;
+    border-bottom: var(--heading-underline-thickness-override, 2px) solid
+        var(--heading-underline-override, var(--accent-faded));
     padding-bottom: 0.3em;
 }
 body.heading-underline-none :is(#content, .cm-md-rendered-block) h1,
