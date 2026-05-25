@@ -1238,7 +1238,13 @@ body.mode-live .cm-activeLine { background: transparent; }
     line-height: 1.25;
     font-weight: 600;
     letter-spacing: 0.01em;
-    margin: 2em 0 0.6em;
+    /* Bottom margin bumped from 0.6em to 1em so the gap between a
+     * heading's underline and the next text matches the comfortable
+     * spacing Live mode shows when "Collapse soft line breaks" is on
+     * (where the source's blank line between heading + content gives
+     * a full line-height worth of breathing room). 0.6em was visibly
+     * tight at any non-trivial body line-height. */
+    margin: 2em 0 1em;
 }
 
 /* Heading font sizes use em (relative to body's 14px) so they scale
@@ -1253,7 +1259,10 @@ body.mode-live .cm-activeLine { background: transparent; }
  * original behaviour. */
 :is(#content, .cm-md-rendered-block) h1 {
     font-size: 1.71em;              /* ~24px at 14px body */
-    margin: 0 0 0.75em;             /* ~18px at H1's font-size */
+    /* H1 specifically overrides the group rule. Bottom margin bumped
+     * from 0.75em to 1em (~24px at H1's font-size) so the post-underline
+     * gap matches Live mode's natural line-height rhythm. */
+    margin: 0 0 1em;
     padding-bottom: 0.35em;
     color: var(--h1-color-override, var(--h1-override, var(--h1)));
 }
