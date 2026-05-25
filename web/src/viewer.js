@@ -723,11 +723,12 @@ const settingsCssMap = {
     maxWidth:              '--page-max-override',
     pagePadding:           '--page-pad-override',
     hrThickness:           '--hr-thickness-override',
+    headingUnderlineThickness: '--heading-underline-thickness-override',
     pageBorderColor:       '--page-border-color-override',
     pageBorderThickness:   '--page-border-thickness-override',
 };
 
-const settingsPxKeys = new Set(['fontSize', 'maxWidth', 'pagePadding', 'hrThickness', 'pageBorderThickness']);
+const settingsPxKeys = new Set(['fontSize', 'maxWidth', 'pagePadding', 'hrThickness', 'headingUnderlineThickness', 'pageBorderThickness']);
 
 let defaultSettings = {};   // populated by loadDefaults()
 let userSettings    = {};   // populated by 'userSettings' messages

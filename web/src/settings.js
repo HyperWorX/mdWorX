@@ -625,9 +625,12 @@ const schema = [
       help: 'Pixel height of the <hr> divider. Default 1px.' },
     { key: 'headingUnderlineColor', label: 'Heading underline (H1 / H2)', type: 'colour',
       help: 'Colour of the line under H1 and H2 headings. Ignored when underline style is "gradient" (gradient uses each heading\'s own colour).' },
+    { key: 'headingUnderlineThickness', label: 'Heading underline thickness', type: 'range',
+      min: 0, max: 6, step: 1, emptyDisplay: 2,
+      help: 'Pixel thickness of the line under H1/H2 in solid style and under H1-H6 in gradient style. H4-H6 in gradient style use half this value (rounded). 0 hides the underline.' },
     { key: 'headingUnderlineStyle', label: 'Heading underline style', type: 'select',
       options: ['solid', 'gradient', 'none'],
-      help: '"solid" = flat line under H1 and H2. "gradient" = fading line. "none" = no underline. Colour and thickness are controlled by the Heading underline + HR thickness fields above.' },
+      help: '"solid" = flat line under H1 and H2. "gradient" = fading line under H1-H6 in their own colours. "none" = no underline anywhere.' },
     { key: 'ruleColor',             label: 'Table / image / footnote borders', type: 'colour' },
 
     // ---- Body typography (the main prose) ------------------------------

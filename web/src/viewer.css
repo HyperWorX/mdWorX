@@ -1305,7 +1305,12 @@ body.mode-live .cm-activeLine { background: transparent; }
  * colour of the fade; otherwise the accent is used. */
 :is(#content, .cm-md-rendered-block) h1, :is(#content, .cm-md-rendered-block) h2,
 body.mode-live .cm-md-heading-1, body.mode-live .cm-md-heading-2 {
-    border-bottom: 2px solid transparent;
+    /* Default heading underline thickness is 2px; the Settings field
+     * "Heading underline thickness" (range 0-6) writes
+     * --heading-underline-thickness-override which replaces the 2px
+     * here without touching the gradient/colour pipeline. 0 hides the
+     * line because `0 solid` renders as no visible border. */
+    border-bottom: var(--heading-underline-thickness-override, 2px) solid transparent;
     border-image: linear-gradient(to right,
         var(--heading-underline-override,
             color-mix(in srgb, var(--accent-override, var(--accent)) 60%, transparent)) 0%,
@@ -1328,9 +1333,13 @@ body.heading-underline-none.mode-live .cm-md-heading-2 {
  * heading level. When it's unset, each heading level falls back to its
  * own per-heading colour (so Tokyo-Night-style rainbow gradients still
  * work in palettes that intend them). */
+/* Gradient style heading underlines. Thickness:
+ *   H1-H3 use the full --heading-underline-thickness-override value
+ *   (default 2px). H4-H6 use half (rounded down via calc), matching
+ *   the visual hierarchy of the original hardcoded 2px/1px split. */
 body.heading-underline-gradient :is(#content, .cm-md-rendered-block) h1,
 body.heading-underline-gradient.mode-live .cm-md-heading-1 {
-    border-bottom: 2px solid;
+    border-bottom: var(--heading-underline-thickness-override, 2px) solid;
     border-image: linear-gradient(to right,
         var(--heading-underline-override, var(--h1-color-override, var(--h1-override, var(--h1)))) 30%,
         transparent 70%) 1;
@@ -1338,7 +1347,7 @@ body.heading-underline-gradient.mode-live .cm-md-heading-1 {
 }
 body.heading-underline-gradient :is(#content, .cm-md-rendered-block) h2,
 body.heading-underline-gradient.mode-live .cm-md-heading-2 {
-    border-bottom: 2px solid;
+    border-bottom: var(--heading-underline-thickness-override, 2px) solid;
     border-image: linear-gradient(to right,
         var(--heading-underline-override, var(--h2-color-override, var(--ink-override, var(--ink)))) 30%,
         transparent 70%) 1;
@@ -1346,7 +1355,7 @@ body.heading-underline-gradient.mode-live .cm-md-heading-2 {
 }
 body.heading-underline-gradient :is(#content, .cm-md-rendered-block) h3,
 body.heading-underline-gradient.mode-live .cm-md-heading-3 {
-    border-bottom: 2px solid;
+    border-bottom: var(--heading-underline-thickness-override, 2px) solid;
     border-image: linear-gradient(to right,
         var(--heading-underline-override, var(--h3-color-override, var(--accent-override, var(--accent)))) 30%,
         transparent 70%) 1;
@@ -1354,7 +1363,7 @@ body.heading-underline-gradient.mode-live .cm-md-heading-3 {
 }
 body.heading-underline-gradient :is(#content, .cm-md-rendered-block) h4,
 body.heading-underline-gradient.mode-live .cm-md-heading-4 {
-    border-bottom: 1px solid;
+    border-bottom: calc(var(--heading-underline-thickness-override, 2px) / 2) solid;
     border-image: linear-gradient(to right,
         var(--heading-underline-override, var(--h4-color-override, var(--ink-override, var(--ink)))) 30%,
         transparent 70%) 1;
@@ -1362,7 +1371,7 @@ body.heading-underline-gradient.mode-live .cm-md-heading-4 {
 }
 body.heading-underline-gradient :is(#content, .cm-md-rendered-block) h5,
 body.heading-underline-gradient.mode-live .cm-md-heading-5 {
-    border-bottom: 1px solid;
+    border-bottom: calc(var(--heading-underline-thickness-override, 2px) / 2) solid;
     border-image: linear-gradient(to right,
         var(--heading-underline-override, var(--h5-color-override, var(--ink-soft))) 30%,
         transparent 70%) 1;
@@ -1370,7 +1379,7 @@ body.heading-underline-gradient.mode-live .cm-md-heading-5 {
 }
 body.heading-underline-gradient :is(#content, .cm-md-rendered-block) h6,
 body.heading-underline-gradient.mode-live .cm-md-heading-6 {
-    border-bottom: 1px solid;
+    border-bottom: calc(var(--heading-underline-thickness-override, 2px) / 2) solid;
     border-image: linear-gradient(to right,
         var(--heading-underline-override, var(--h6-color-override, var(--ink-soft))) 30%,
         transparent 70%) 1;
