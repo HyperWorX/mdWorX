@@ -179,12 +179,13 @@ const palettes = {
         hrColor: '#273747',
         headingUnderlineColor: '#273747',
         headingUnderlineStyle: 'gradient',
-        // Ayu Dark: single orange #ff8f40 (Ayu's keyword/markup colour, what
-        // every Obsidian Ayu port uses for headings). VS Code's markup.heading
-        // is green but that's a syntax-token quirk; orange matches the visual
-        // identity people associate with Ayu.
-        h1Color: '#ff8f40', h2Color: '#ff8f40', h3Color: '#ff8f40',
-        h4Color: '#ff8f40', h5Color: '#ff8f40', h6Color: '#ff8f40',
+        // Ayu Dark: yellow #e6b450 (Ayu's --func/accent token, also the
+        // accentColor for this palette). Originally orange #ff8f40 but user
+        // requested it match the yellow that appears elsewhere in the
+        // palette - the accent yellow is the right pick because it ties
+        // the headings to the rest of the Ayu Dark identity.
+        h1Color: '#e6b450', h2Color: '#e6b450', h3Color: '#e6b450',
+        h4Color: '#e6b450', h5Color: '#e6b450', h6Color: '#e6b450',
         // Highlight: yellow (Ayu's --func token) so it stands clear of the
         // orange headings instead of blending into them.
         highlightBg: '#ffb454',
@@ -874,8 +875,18 @@ function makeRow(entry) {
         row.appendChild(control);
     }
 
-    control.addEventListener('input',  () => updateResetState(row, entry));
-    control.addEventListener('change', () => updateResetState(row, entry));
+    // input/change fire on every keystroke / slider drag / colour pick.
+    // updateResetState toggles the reset button's enabled state, and
+    // applyOwnPalette + syncPresetPicker refresh the dialog's own chrome
+    // and preset dropdown live so the user sees the effect of their
+    // edit immediately - no more 'close and reopen to see the change'.
+    const onEdit = () => {
+        updateResetState(row, entry);
+        applyOwnPalette();
+        syncPresetPicker();
+    };
+    control.addEventListener('input',  onEdit);
+    control.addEventListener('change', onEdit);
 
     const reset = document.createElement('button');
     reset.type = 'button';
@@ -944,7 +955,13 @@ const themeDefaultStatic = {
 function themeDefaultFor(key) {
     const varName = themeDefaultVarMap[key];
     if (varName) {
-        const v = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+        // CRITICAL: theme variables (--ink, --page, --accent, ...) are
+        // declared on body.theme-light / body.theme-dark in viewer.css,
+        // NOT on :root. getComputedStyle(documentElement) returns ''
+        // for them. Must read from document.body. Override variables
+        // (--ink-override, etc) ARE on documentElement (set by
+        // applyOwnPalette) but those are USER values, not theme defaults.
+        const v = getComputedStyle(document.body).getPropertyValue(varName).trim();
         if (v) return v;
     }
     return themeDefaultStatic[key] || null;
@@ -961,17 +978,13 @@ function setControlValue(entry, value) {
         const swatch = document.getElementById('input-' + entry.key + '-swatch');
         if (!text || !swatch) return;
         const themeDef = themeDefaultFor(entry.key);
-        text.value = isEmpty(value) ? '' : String(value);
-        // Placeholder shows the active theme default so the user can see
-        // EXACTLY what colour is in effect when their override is unset.
-        // Saving stays unchanged - an empty text input still serialises
-        // as 'use theme default' (no key written to settings.json).
-        text.placeholder = themeDef
-            ? `${themeDef}  (theme default)`
-            : '(theme default) — e.g. #ff8800, rgba(...), red';
-        // Swatch shows either the user value (if set) or the theme default
-        // (if not). Parsing falls back to #888888 only when neither parses.
-        const hex = parseHexColour(text.value) || parseHexColour(themeDef || '');
+        // PRE-POPULATE: when the user hasn't set an override, show the
+        // active theme default value DIRECTLY in the input (not just as
+        // placeholder). Saving compares against the theme default and
+        // skips writing identical values to settings.json, so the
+        // pre-population doesn't produce spurious overrides.
+        text.value = isEmpty(value) ? (themeDef || '') : String(value);
+        const hex = parseHexColour(text.value);
         swatch.value = hex || '#888888';
     } else if (entry.type === 'range') {
         const readout = document.getElementById('input-' + entry.key);
@@ -979,21 +992,19 @@ function setControlValue(entry, value) {
         if (!readout || !slider) return;
         if (isEmpty(value)) {
             const themeDef = themeDefaultFor(entry.key);
-            // Park the slider at the theme default position (parsed
-            // numerically) when the user hasn't overridden. Falls back to
-            // entry.emptyDisplay then entry.max if no theme default applies.
-            let parked;
-            if (themeDef !== null) {
-                const n = parseFloat(themeDef);
-                parked = Number.isFinite(n) ? n
-                       : entry.emptyDisplay !== undefined ? entry.emptyDisplay
-                       : entry.max;
+            const themeNum = themeDef !== null ? parseFloat(themeDef) : NaN;
+            if (Number.isFinite(themeNum)) {
+                // Pre-populate with the numeric portion of the theme default
+                // (e.g. '1px' -> 1). collectForSave skips identical values.
+                readout.value = String(themeNum);
+                slider.value  = String(themeNum);
             } else {
-                parked = entry.emptyDisplay !== undefined ? entry.emptyDisplay : entry.max;
+                // No useful theme default: leave readout empty and park
+                // the slider at entry.emptyDisplay (or .max).
+                const parked = entry.emptyDisplay !== undefined ? entry.emptyDisplay : entry.max;
+                readout.value = '';
+                slider.value  = String(parked);
             }
-            readout.value = '';
-            readout.placeholder = themeDef ? `${themeDef} (theme default)` : '(theme default)';
-            slider.value = String(parked);
         } else {
             readout.value = String(value);
             slider.value  = String(value);
@@ -1002,18 +1013,22 @@ function setControlValue(entry, value) {
         const inp = document.getElementById('input-' + entry.key);
         if (!inp) return;
         const themeDef = themeDefaultFor(entry.key);
-        inp.value = isEmpty(value) ? '' : String(value);
-        inp.placeholder = themeDef ? `${themeDef} (theme default)` : '(theme default)';
+        if (isEmpty(value)) {
+            // Number inputs are stripped of unit suffix when populating
+            // (the suffix is applied by the schema's `suffix` property at
+            // display layer; the input's value is the bare number).
+            const themeNum = themeDef !== null ? parseFloat(themeDef) : NaN;
+            inp.value = Number.isFinite(themeNum) ? String(themeNum) : '';
+        } else {
+            inp.value = String(value);
+        }
     } else if (entry.type === 'font') {
         const inp = document.getElementById('input-' + entry.key);
         if (!inp) return;
         const themeDef = themeDefaultFor(entry.key);
-        inp.value = isEmpty(value) ? '' : String(value);
-        // Font defaults can be long stacks; truncate for the placeholder.
-        const showDef = themeDef ? (themeDef.length > 50 ? themeDef.slice(0, 47) + '...' : themeDef) : null;
-        inp.placeholder = showDef
-            ? `${showDef} (theme default)`
-            : (entry.placeholder || 'Start typing or pick from list');
+        // Font defaults can be long font stacks; pre-populate as-is and let
+        // the user edit if they want. Save logic skips identical values.
+        inp.value = isEmpty(value) ? (themeDef || '') : String(value);
     } else if (entry.type === 'check') {
         const inp = document.getElementById('input-' + entry.key);
         if (!inp) return;
@@ -1024,8 +1039,7 @@ function setControlValue(entry, value) {
         const inp = document.getElementById('input-' + entry.key);
         if (!inp) return;
         const themeDef = themeDefaultFor(entry.key);
-        inp.value = isEmpty(value) ? '' : String(value);
-        if (themeDef) inp.placeholder = `${themeDef} (theme default)`;
+        inp.value = isEmpty(value) ? (themeDef || '') : String(value);
     }
 }
 
@@ -1614,11 +1628,27 @@ const settingsPxKeys = new Set(['fontSize']);
 
 function applyOwnPalette() {
     const root = document.documentElement.style;
-    // Source of truth: user's saved settings (merged via effectiveValue).
-    // Each mapped key writes the override CSS variable; empty/null clears
-    // the variable so the theme default takes over.
+    // Source of truth: the CURRENT FORM VALUES, not userSettings. This
+    // makes the dialog chrome update LIVE as the user picks a different
+    // preset palette or edits a single colour - the swatch/button/text
+    // colours reflect their current selection instantly instead of
+    // lagging behind userSettings (which only updates on Apply).
+    //
+    // Pre-populated values that match the active theme default are
+    // treated as 'no override' so the variable is cleared and the theme
+    // CSS naturally takes over (otherwise pre-population would write
+    // override variables for every field on initial dialog open).
     for (const [k, varName] of Object.entries(settingsCssMap)) {
-        const v = effectiveValue(k);
+        const entry = schema.find(s => s.key === k);
+        let v;
+        if (entry) {
+            v = getControlValue(entry);
+            if (v !== null && v !== undefined && v !== '' && equalsThemeDefault(entry, v)) {
+                v = null;
+            }
+        } else {
+            v = effectiveValue(k);
+        }
         if (v === undefined || v === null || v === '') {
             root.removeProperty(varName);
             continue;
@@ -1643,10 +1673,40 @@ function applyOwnTheme() {
 // ---------------------------------------------------------------------------
 // Save / apply
 
+// Helper for collectForSave: returns true if the current form value
+// matches the active theme default for this entry. Used to skip
+// persisting values that equal the theme default - the form pre-
+// populates fields with theme defaults visually, but we don't want
+// to write those into settings.json as if they were user overrides.
+function equalsThemeDefault(entry, cur) {
+    const themeDef = themeDefaultFor(entry.key);
+    if (themeDef === null) return false;
+    if (entry.type === 'colour') {
+        // Compare normalised hex colours (case-insensitive) so '#FFF' and
+        // '#ffffff' match. parseHexColour normalises to 7-char lowercase.
+        const a = parseHexColour(String(cur));
+        const b = parseHexColour(themeDef);
+        if (a && b) return a.toLowerCase() === b.toLowerCase();
+        // Fall back to string compare if either doesn't parse as hex
+        // (rgba/hsl/named colour cases).
+        return String(cur).trim() === themeDef.trim();
+    }
+    if (entry.type === 'range' || entry.type === 'number') {
+        const themeNum = parseFloat(themeDef);
+        if (Number.isFinite(themeNum)) return Number(cur) === themeNum;
+        return false;
+    }
+    // Text-ish types (font, plain text): straight string compare.
+    return String(cur).trim() === themeDef.trim();
+}
+
 function collectForSave() {
     // Produce a JSON object containing ONLY keys whose form value differs
-    // from the bundled default. Keeps the user settings file minimal so
-    // future default changes propagate to users who haven't overridden.
+    // from BOTH the bundled defaults AND the active theme default. Keeps
+    // the user settings file minimal: when a user hasn't customised a
+    // value (form is showing the theme default verbatim), no key is
+    // written, and the value continues to follow the theme as the user
+    // switches palettes or theme modes.
     const out = { _comment_: 'Generated by mdWorX Settings. Hand-edit at your own risk.' };
 
     // Theme has no schema entry — pulled directly from userSettings.
@@ -1662,9 +1722,13 @@ function collectForSave() {
             // Selects always have a value; keep iff differs from default.
             const defVal = def ?? entry.options[0];
             if (cur !== defVal) out[entry.key] = cur;
+        } else if (entry.type === 'check') {
+            // Booleans: persist iff differs from the bundled default.
+            if (cur !== (def === true)) out[entry.key] = cur;
         } else {
-            // Other types: keep iff non-null.
-            if (!isEmpty(cur)) out[entry.key] = cur;
+            if (isEmpty(cur)) continue;
+            if (equalsThemeDefault(entry, cur)) continue;
+            out[entry.key] = cur;
         }
     }
 
