@@ -54,8 +54,18 @@ body {
 
 /* ---- Form ---------------------------------------------------------- */
 
+/* IMPORTANT: do NOT use `flex: 1` here. Combined with
+ * `.settings-shell { min-height: 100vh }`, flex: 1 sets the form's size
+ * to exactly `viewport - header - footer`. Content taller than that
+ * overflows the form's box BUT the shell doesn't grow (it's already at
+ * min-height: 100vh), so body never gets a scrollbar and sections after
+ * the visible area become unreachable. Letting the form size to its
+ * intrinsic content height (default block layout) lets the shell grow
+ * with content; the body's overflow: auto then provides the scrollbar,
+ * and the sticky footer (below) pins to viewport bottom while
+ * scrolling. */
 .settings-form {
-    flex: 1;
+    width: 100%;
 }
 
 .section-head {
