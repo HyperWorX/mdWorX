@@ -10,20 +10,31 @@ html, body {
 }
 
 body {
-    /* Settings dialog has no "page" wrapper; the body IS the page surface. */
+    /* Settings dialog has no "page" wrapper; the body IS the page surface.
+     * Theme variables (--page, --ink, --accent, etc.) come from
+     * body.theme-light / body.theme-dark in viewer.css. User override
+     * variables (--page-override, --ink-override, --accent-override, ...)
+     * are applied by settings.js applyOwnUserPalette() so the dialog
+     * adopts the same custom palette the user has picked for the viewer. */
     background: var(--page-override, var(--page));
     color: var(--ink-override, var(--ink));
+    font-family: var(--font-prose-override,
+        'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif);
     padding: 0;
     overflow: auto;
+    margin: 0;
 }
 
+/* The shell uses flex column so the form scrolls inside the body while the
+ * sticky footer stays pinned to the bottom of the viewport regardless of
+ * scroll position. */
 .settings-shell {
     display: flex;
     flex-direction: column;
-    min-height: 100%;
+    min-height: 100vh;
     max-width: 720px;
     margin: 0 auto;
-    padding: 24px 32px 16px;
+    padding: 24px 32px 0;
     box-sizing: border-box;
 }
 
@@ -164,15 +175,25 @@ body {
     text-decoration: none;
 }
 
-/* ---- Footer (sticky-ish) ------------------------------------------- */
+/* ---- Footer (sticky, always visible while scrolling) --------------- */
 
 .settings-foot {
+    /* position: sticky pins the footer to the viewport bottom while the
+     * form scrolls. background and border match the body so the form
+     * cannot bleed under the footer when scrolling. negative horizontal
+     * margins extend the footer to the shell padding edge so the border-
+     * top runs the full width. */
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-top: 24px;
-    padding-top: 14px;
+    margin: 24px -32px 0;
+    padding: 14px 32px 16px;
+    background: var(--page-override, var(--page));
     border-top: 1px solid var(--rule-override, var(--rule));
+    box-shadow: 0 -4px 12px -8px rgba(0, 0, 0, 0.25);
 }
 .status {
     flex: 1;

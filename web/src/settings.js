@@ -556,10 +556,8 @@ const schema = [
     // (presets write it, viewer reads it) but it's managed via the preset
     // picker, not a dedicated form field. When no preset is set, theme
     // resolves to 'auto' which follows DOpus pane bg luminance.
-    { section: 'General' },
-
-    // ---- File encoding -------------------------------------------------
-    { section: 'File encoding' },
+    // ---- Document handling (file decode + source-rendering behaviour) -
+    { section: 'Document handling' },
     { key: 'encoding', label: 'Decode markdown as', type: 'select',
       options: ENCODINGS_FULL,
       help: '"auto" sniffs BOM, then tries strict UTF-8, then falls back to the encoding below.' },
@@ -1495,11 +1493,50 @@ function resolveTheme() {
     return panePaletteMode === 'dark' ? 'dark' : 'light';
 }
 
+// Map of settings keys -> CSS variables, kept in sync with viewer.js
+// settingsCssMap. The settings dialog applies the same overrides as the
+// viewer so the form chrome (background, text, borders, accent) matches
+// the active custom palette instead of staying on the bundled defaults.
+const settingsCssMap = {
+    textColor:             '--ink-override',
+    pageColor:             '--page-override',
+    accentColor:           '--accent-override',
+    codeBg:                '--code-override',
+    linkColor:             '--link-override',
+    ruleColor:             '--rule-override',
+    fontFamily:            '--font-prose-override',
+    proseFontWeight:       '--font-weight-prose-override',
+    fontSize:              '--font-size-override',
+    lineHeight:            '--line-height-override',
+};
+const settingsPxKeys = new Set(['fontSize']);
+
+function applyOwnPalette() {
+    const root = document.documentElement.style;
+    // Source of truth: user's saved settings (merged via effectiveValue).
+    // Each mapped key writes the override CSS variable; empty/null clears
+    // the variable so the theme default takes over.
+    for (const [k, varName] of Object.entries(settingsCssMap)) {
+        const v = effectiveValue(k);
+        if (v === undefined || v === null || v === '') {
+            root.removeProperty(varName);
+            continue;
+        }
+        let out = v;
+        if (settingsPxKeys.has(k)) {
+            if (typeof v === 'number') out = `${v}px`;
+            else if (typeof v === 'string' && /^\s*-?\d+(\.\d+)?\s*$/.test(v)) out = `${v.trim()}px`;
+        }
+        root.setProperty(varName, out);
+    }
+}
+
 function applyOwnTheme() {
     document.body.className = 'theme-' + resolveTheme();
     if (panePaneBg) {
         document.documentElement.style.setProperty('--pane-bg', panePaneBg);
     }
+    applyOwnPalette();
 }
 
 // ---------------------------------------------------------------------------

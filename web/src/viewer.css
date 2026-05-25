@@ -15,6 +15,14 @@
 
 :root {
     color-scheme: light dark;
+
+    /* ---- Shared block-padding variables ---------------------------------
+     * Used by BOTH Live (.cm-md-codeblock, blockquote widget) and Reading
+     * (:is(#content, .cm-md-rendered-block) pre/blockquote) so the visual
+     * inset is guaranteed identical across modes and a future settings
+     * field can change one variable to update both views. */
+    --code-block-padding: 12px 14px;
+    --blockquote-padding: 8px 14px;
 }
 
 body.theme-light {
@@ -792,8 +800,8 @@ body.mode-live .cm-md-list-number {
  * leading 2-space (or deeper) indent on every non-first line of a
  * ListItem with class .cm-md-cont-indent. By default the indent stays
  * visible so users who prefer source-fidelity see the markdown source
- * verbatim. With body.collapse-soft-breaks active (Settings -> File
- * encoding -> "Collapse soft line breaks in Live mode") the indent
+ * verbatim. With body.collapse-soft-breaks active (Settings -> Document
+ * handling -> "Collapse soft line breaks in Live mode") the indent
  * collapses to zero so multi-line bullets read as one flowing paragraph,
  * matching Reading mode's CommonMark soft-break behaviour. font-size: 0
  * is used in addition to display: none because some inline contexts
@@ -801,6 +809,44 @@ body.mode-live .cm-md-list-number {
 body.mode-live.collapse-soft-breaks .cm-md-cont-indent {
     display: none;
     font-size: 0;
+}
+
+/* Collapse-soft-breaks layout: hanging-indent on every list-item cm-line so
+ * the bullet glyph protrudes left and the wrapped/continuation text aligns
+ * with the bullet's text column. Visually this makes a multi-line bullet
+ * read as a single flowing paragraph - each continuation cm-line's text
+ * sits under the first line's text, no extra leading whitespace, no
+ * step-down indent.
+ *
+ *   padding-left  = bullet-text X column (cm-md-list-item-L{n} indent +
+ *                   bullet glyph width 1.45em)
+ *   text-indent   = -1.45em on first-line cm-line so the bullet itself
+ *                   gets pulled back into the indent zone at position
+ *                   cm-md-list-item-L{n}.
+ *   cm-md-list-item-cont overrides text-indent to 0 because those cm-lines
+ *   have no bullet - their text starts at content edge (= padding-left).
+ *
+ * Without text-indent on the first line, the bullet would sit at the
+ * column where bullet-text starts (1.45em too far right) and the line
+ * would appear over-indented. */
+body.mode-live.collapse-soft-breaks .cm-md-list-item-L0 {
+    padding-left: 2.25em !important;
+    text-indent: -1.45em;
+}
+body.mode-live.collapse-soft-breaks .cm-md-list-item-L1 {
+    padding-left: 3.85em !important;
+    text-indent: -1.45em;
+}
+body.mode-live.collapse-soft-breaks .cm-md-list-item-L2 {
+    padding-left: 5.45em !important;
+    text-indent: -1.45em;
+}
+body.mode-live.collapse-soft-breaks .cm-md-list-item-L3 {
+    padding-left: 7.05em !important;
+    text-indent: -1.45em;
+}
+body.mode-live.collapse-soft-breaks .cm-md-list-item-cont {
+    text-indent: 0 !important;
 }
 /* Reading-mode list markers (<ul>/<ol> ::marker) — match the weight bump
  * so Reading and Live look consistent. */
@@ -1007,7 +1053,7 @@ body.mode-live .cm-md-rendered-hr {
      * line after a widget must remain hit-testable). 0.7em ≈ 10px which
      * is small enough that an accidental click in the gap is unlikely. */
     margin: 0.7em 0 0;
-    padding: 12px 14px;
+    padding: var(--code-block-padding);
     background: var(--code-override, var(--code));
     border-radius: 5px;
     /* min-width: 0 + max-width: 100% breaks the min-content propagation
@@ -1453,7 +1499,7 @@ body.mode-live .cm-md-superscript { vertical-align: super; }
 }
 :is(#content, .cm-md-rendered-block) pre {
     margin: 1.2em 0 14px;
-    padding: 12px 14px;
+    padding: var(--code-block-padding);
     background: var(--code-override, var(--code));
     border-radius: 5px;
     overflow-x: auto;
@@ -1470,7 +1516,7 @@ body.mode-live .cm-md-superscript { vertical-align: super; }
 
 :is(#content, .cm-md-rendered-block) blockquote {
     margin: 1.2em 2px 12px;
-    padding: 8px 14px;
+    padding: var(--blockquote-padding);
     border-left: 3px solid var(--accent-override, var(--accent));
     background: var(--code-override, var(--code));
     color: var(--ink-soft);
