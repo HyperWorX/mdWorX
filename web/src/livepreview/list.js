@@ -14,6 +14,64 @@ import { Decoration, WidgetType } from '@codemirror/view';
 import { RangeSetBuilder } from '@codemirror/state';
 import { syntaxTree, ensureSyntaxTree } from '@codemirror/language';
 import { decoratorStateField, isCursorInRange, invisibleDecoration } from './util.js';
+import { renderBlock, wireExternalLinks } from '../lib/markdown-it-shared.js';
+
+// SoftBreakCollapseWidget: when body.collapse-soft-breaks is on AND the
+// outermost list contains a multi-line ListItem (markdown lazy-
+// continuation), the whole list is rendered as a single block widget
+// whose innerHTML comes from markdown-it. This delegates to the same
+// parser Reading uses, so single LFs inside a paragraph or list item
+// get treated as whitespace (per CommonMark soft-break rules) and the
+// text flows as one wrapped paragraph - exactly what Reading does.
+// Cursor inside the list range falls back to per-line rendering for
+// editing (existing pattern, same as blockquote.js).
+class SoftBreakCollapseWidget extends WidgetType {
+    constructor(source) {
+        super();
+        this.source = source;
+    }
+    eq(other) { return other.source === this.source; }
+    toDOM() {
+        const wrap = document.createElement('div');
+        wrap.className = 'cm-md-rendered-block cm-md-rendered-list';
+        const src = this.source.endsWith('\n') ? this.source : this.source + '\n';
+        wrap.innerHTML = renderBlock(src);
+        wireExternalLinks(wrap);
+        return wrap;
+    }
+    ignoreEvent() { return false; }
+}
+
+function listHasMultiLineItem(listNode, state) {
+    // Walk direct ListItem children; if any spans more than one source
+    // line, the list contains a soft-break that markdown-it would
+    // collapse but the per-line decorator would preserve.
+    let result = false;
+    const c = listNode.cursor();
+    if (c.firstChild()) {
+        do {
+            if (c.name === 'ListItem') {
+                const startLine = state.doc.lineAt(c.from).number;
+                const endLine = state.doc.lineAt(c.to).number;
+                if (endLine > startLine) { result = true; break; }
+                // Nested list inside this item may itself contain a
+                // multi-line item; check recursively.
+                const nestedNode = c.node;
+                const n = nestedNode.cursor();
+                if (n.firstChild()) {
+                    do {
+                        if ((n.name === 'BulletList' || n.name === 'OrderedList') &&
+                            listHasMultiLineItem(n.node, state)) {
+                            result = true; break;
+                        }
+                    } while (n.nextSibling());
+                }
+                if (result) break;
+            }
+        } while (c.nextSibling());
+    }
+    return result;
+}
 
 const BULLET_GLYPHS = ['•', '◦', '▪', '▫'];
 
@@ -105,15 +163,68 @@ function lineDecoFor(depth, isCont) {
     return deco;
 }
 
+// Read the collapse-soft-breaks toggle from the body class. The class is
+// set/cleared by viewer.js applySettings every time user settings load.
+// Decorators re-run on each state transaction and read the live DOM
+// state here; toggling the setting + clicking Apply triggers a viewer
+// reinit (DVPLUGINMSG_REINITIALIZE) which rebuilds the editor and so
+// the new value is read on the next iteration.
+function collapseSoftBreaksEnabled() {
+    return typeof document !== 'undefined' &&
+           document.body.classList.contains('collapse-soft-breaks');
+}
+
 export const listField = decoratorStateField((state) => {
     ensureSyntaxTree(state, state.doc.length, 200);
 
     const items = [];
     const tree = syntaxTree(state);
+    const collapseEnabled = collapseSoftBreaksEnabled();
+    // Track ranges already consumed by a SoftBreakCollapseWidget so the
+    // per-ListItem code below doesn't ALSO add per-line decorations
+    // inside the widget's source range.
+    const widgetRanges = [];
+    function withinWidgetRange(from, to) {
+        for (const r of widgetRanges) {
+            if (from >= r.from && to <= r.to) return true;
+        }
+        return false;
+    }
 
     tree.iterate({
         enter(node) {
+            // OUTERMOST list path: when collapse-soft-breaks is on and
+            // this is the top-level BulletList/OrderedList that contains
+            // at least one multi-line ListItem, replace the whole list
+            // with a markdown-it-rendered widget. Cursor inside the
+            // range falls back to per-line rendering.
+            if (collapseEnabled && (node.name === 'BulletList' || node.name === 'OrderedList')) {
+                // Skip if this list is nested inside another list - we
+                // only wrap the outermost.
+                let p = node.node.parent;
+                let nestedInList = false;
+                while (p) {
+                    if (p.name === 'BulletList' || p.name === 'OrderedList') { nestedInList = true; break; }
+                    p = p.parent;
+                }
+                if (nestedInList) return;
+                if (!listHasMultiLineItem(node.node, state)) return;
+                if (isCursorInRange(state, [node.from, node.to])) return;
+                const source = state.doc.sliceString(node.from, node.to);
+                items.push({
+                    from: node.from,
+                    to: node.to,
+                    deco: Decoration.replace({
+                        block: true,
+                        widget: new SoftBreakCollapseWidget(source),
+                    }),
+                });
+                widgetRanges.push({ from: node.from, to: node.to });
+                return false;   // do not iterate into the widget's range
+            }
+
             if (node.name !== 'ListItem') return;
+            if (withinWidgetRange(node.from, node.to)) return;
             const itemNode = node.node;
             const depth    = listDepth(itemNode);
             const inBullet = isInBulletList(itemNode);

@@ -550,12 +550,20 @@ const ENCODINGS_FULL = [
 const ENCODINGS_NO_AUTO = ENCODINGS_FULL.filter(e => e !== 'auto');
 
 const schema = [
-    // ---- General -------------------------------------------------------
+    // ---- Theme & presets -----------------------------------------------
     // The Theme dropdown was removed in favour of preset selection — the
     // preset palette IS the theme. 'theme' is still a valid settings key
     // (presets write it, viewer reads it) but it's managed via the preset
     // picker, not a dedicated form field. When no preset is set, theme
     // resolves to 'auto' which follows DOpus pane bg luminance.
+    //
+    // IMPORTANT: renderForm() injects the preset picker + custom-themes
+    // actions when it sees `entry.section === 'Theme & presets'`. Renaming
+    // this header without also updating renderForm() removes that picker
+    // from the dialog (the regression that caused commit 9cf896e's
+    // sibling bug-fix).
+    { section: 'Theme & presets' },
+
     // ---- Document handling (file decode + source-rendering behaviour) -
     { section: 'Document handling' },
     { key: 'encoding', label: 'Decode markdown as', type: 'select',
@@ -1308,9 +1316,9 @@ function renderForm() {
             h.textContent = entry.section;
             form.appendChild(h);
 
-            // Inject the preset picker as the first row of the General
-            // section so it sits alongside the Theme control.
-            if (entry.section === 'General') {
+            // Inject the preset picker as the first row of the Theme &
+            // presets section so it sits at the top of the dialog.
+            if (entry.section === 'Theme & presets') {
                 const presetRow = makePresetRow();
                 form.appendChild(presetRow);
                 const helpEl = document.createElement('div');
