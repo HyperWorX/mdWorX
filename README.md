@@ -73,7 +73,7 @@ Empty fields mean "use the theme default". `Reset all fields` blanks the form bu
 
 | Light palette                                  | Dark palette                                 |
 | ---------------------------------------------- | -------------------------------------------- |
-| ![Light palette example](img/palette_light.png) | ![Dark palette example](img/palette_dark.png) |
+| ![Light palette example](docs/palette_light.png) | ![Dark palette example](docs/palette_dark.png) |
 
 Built-in dark: Default Dark, Dracula, Solarized Dark, Nord, Gruvbox Dark, One Dark, Tokyo Night, Ayu Dark, Catppuccin Mocha, GitHub Dark, Obsidianite, PLN Dark, AnuPpuccin Frappé, Everforest, Rosé Pine, Vesper, Red Rascal.
 
