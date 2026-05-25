@@ -683,7 +683,10 @@ body.mode-reading .editor { display: none; }
  * so the tight heading line-height wins over `body.mode-live .cm-line
  * { line-height: inherit }` (0,0,2,1). Otherwise headings would inherit
  * .cm-content's prose line-height and stretch vertically. */
-body.mode-live .cm-line.cm-md-heading-line { font-weight: 600; line-height: var(--line-height-override, 1.25); letter-spacing: 0.01em; }
+/* See the Reading-mode h1..h6 rule below for why this line-height is
+ * fixed at 1.25 instead of following --line-height-override - headings
+ * need to stay tight regardless of the user's body line-height. */
+body.mode-live .cm-line.cm-md-heading-line { font-weight: 600; line-height: 1.25; letter-spacing: 0.01em; }
 /* defaultHighlightStyle (re-registered in editor.js so the fenced-code
  * widget's spans get coloured CSS) sets `text-decoration: underline` on
  * tags.heading. In Live mode that lands on the span inside
@@ -1225,7 +1228,14 @@ body.mode-live .cm-activeLine { background: transparent; }
 :is(#content, .cm-md-rendered-block) h1, :is(#content, .cm-md-rendered-block) h2, :is(#content, .cm-md-rendered-block) h3,
 :is(#content, .cm-md-rendered-block) h4, :is(#content, .cm-md-rendered-block) h5, :is(#content, .cm-md-rendered-block) h6 {
     color: var(--ink-override, var(--ink));
-    line-height: var(--line-height-override, 1.25);
+    /* Headings deliberately use a fixed tight line-height (1.25), not the
+     * user's body lineHeight setting. Display headings look stretched and
+     * weak at body line-heights (2.0 etc.) - tight headings + spacious
+     * body is the conventional reading-typography pair. If a user wants
+     * to drive heading line-height separately, that needs its own
+     * settings field; reusing --line-height-override here breaks the
+     * heading appearance for anyone who increased body line-height. */
+    line-height: 1.25;
     font-weight: 600;
     letter-spacing: 0.01em;
     margin: 2em 0 0.6em;
