@@ -12,13 +12,23 @@ There are three views, switched from the top toolbar:
 
 - **Reading** for clean rendered HTML. The formatting toolbar is hidden in this mode.
 - **Live** keeps the formatting visible until your cursor enters a line, at which point the raw markdown markers reveal themselves for that line only. Click somewhere else and they hide again.
-- **Source** for raw Markdown. Click Source a second time to split the pane: raw on the left, live preview on the right, with a draggable handle and a link/unlink toggle for scroll syncing.
+- **Source** for raw Markdown. Click Source a second time to split the pane (see below).
 
 ![Live editing inside the DOpus viewer pane](img/liveedit.png)
 
 Double-click an `.md` file and the viewer pops out into its own window. Same modes, same split view, just without the DOpus chrome around it. The pop-out window keeps unsaved edits if you switch focus to DOpus and come back; the in-pane viewer reloads when you click a different file, so save first.
 
+### Split preview in Source mode
+
+Click Source a second time while already in Source mode and the pane splits in two: raw markdown on the left, live-rendered preview on the right. Click Source a third time to close the split and return to single-pane Source.
+
 ![Source mode with split-pane preview](img/split_pane.png)
+
+- **Drag the centre handle** to resize the two panes. The split position is remembered for the session.
+- **Linked scrolling is on by default.** Scrolling either side scrolls the other to the matching position, so the preview tracks the source as you write. The link icon sits in the middle of the split handle.
+- **Click the link icon to unlink** the two panes. Each side then scrolls independently — handy when you want to read one section in the preview while editing somewhere else in the source. Click again to re-link; the panes resync from the active side.
+- **Both panes use the same word-wrap setting.** Toggling word wrap in the top toolbar applies to source and preview together.
+- **The editing toolbar stays available** at the bottom in split mode and acts on the source pane.
 
 ## Toolbars
 
