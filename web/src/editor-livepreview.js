@@ -23,6 +23,15 @@ import { highlightField  } from './livepreview/highlight.js';
 import { hrField         } from './livepreview/hr.js';
 import { deflistField    } from './livepreview/deflist.js';
 import { footnoteField, footnoteNormalizer } from './livepreview/footnote.js';
+import { formattingMarksField } from './livepreview/formatting-marks.js';
+
+// blank-line collapser and heading-spacer fields are intentionally NOT
+// registered here. Both were experiments to make Live's vertical rhythm
+// match Reading. They turned out to interact badly with CodeMirror's
+// click-to-position mapping, and the user requested a clean baseline where
+// Live renders from source with no margin/spacing compensation. The source
+// files remain at livepreview/blank-line.js and livepreview/heading-spacer.js
+// for reference but are not active.
 
 export function livePreviewExtension() {
     return [
@@ -40,5 +49,6 @@ export function livePreviewExtension() {
         deflistField,
         footnoteField,
         footnoteNormalizer,
+        formattingMarksField,
     ];
 }

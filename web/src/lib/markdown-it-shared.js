@@ -19,6 +19,7 @@ import sub from 'markdown-it-sub';
 import sup from 'markdown-it-sup';
 import DOMPurify from 'dompurify';
 import { rewriteImageUrl } from './local-url.js';
+import { parseImageAlt } from './image-alt.js';
 
 export const md = new MarkdownIt({
     html: false,
@@ -26,6 +27,18 @@ export const md = new MarkdownIt({
     typographer: true,
     breaks: false,
 });
+
+// Allow viewer.js to flip the `breaks` option at runtime when the user
+// toggles the hardLineBreaks setting. markdown-it's md.set() reconfigures
+// options without rebuilding the instance. The next renderBlock() /
+// renderInline() call uses the new value. Live-mode block widgets
+// (heading/list/blockquote/table) re-render through this same instance,
+// so a single setter flip propagates to both Reading-mode HTML and Live
+// widget HTML — provided the relevant call sites re-run after the change
+// (Reading: viewer re-render; Live: editor rebuild on next mode entry).
+export function setBreaks(hardBreaks) {
+    md.set({ breaks: !!hardBreaks });
+}
 
 md.use(taskLists, { enabled: true, label: true, labelAfter: true });
 md.use(footnote);
@@ -41,6 +54,19 @@ const defaultImageRender = md.renderer.rules.image ||
 
 md.renderer.rules.image = (tokens, idx, options, env, slf) => {
     const token = tokens[idx];
+
+    // Obsidian-style alt-text dimensions/alignment (matches viewer.js).
+    const rawAlt = token.attrGet('alt') || (token.content || '');
+    const parsed = parseImageAlt(rawAlt);
+    token.attrSet('alt', parsed.alt);
+    if (parsed.width  != null) token.attrSet('width',  String(parsed.width));
+    if (parsed.height != null) token.attrSet('height', String(parsed.height));
+    if (parsed.alignment !== 'none') {
+        const existing = token.attrGet('class') || '';
+        const cls = (existing ? existing + ' ' : '') + 'md-img-' + parsed.alignment;
+        token.attrSet('class', cls);
+    }
+
     const raw = token.attrGet('src');
     if (raw) {
         const rewritten = rewriteImageUrl(raw);

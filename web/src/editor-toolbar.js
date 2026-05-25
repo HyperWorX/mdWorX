@@ -291,12 +291,13 @@ export function insertFootnote(view) {
     view.focus();
 }
 
-// Insert an image at the cursor with optional width, height, and
-// alignment. Always emits portable markdown. Dimensions and alignment
-// ride along as a markdown-it-attrs attribute block right after the
-// image: `![alt](src){width=200 height=150 .md-img-center}`. The plugin
-// parses the braces into width/height attributes and a class on the
-// rendered <img>; viewer.css provides the alignment class rules.
+// Insert an image at the cursor using Obsidian-style pipe syntax for
+// dimensions and alignment:
+//
+//   ![alt|400x300|center](path)
+//
+// Files written this way render at the correct size in Obsidian and in
+// mdWorX (both read the alt-text tokens via lib/image-alt.js).
 //
 // opts: { path: string, alt: string, width: number|null,
 //         height: number|null, alignment: 'none'|'left'|'center'|'right' }
@@ -308,15 +309,20 @@ export function insertImage(view, opts) {
     const height = (opts.height != null && opts.height !== '') ? Number(opts.height) : null;
     const align  = (opts.alignment || 'none');
 
-    const attrBits = [];
-    if (width  != null && Number.isFinite(width))  attrBits.push(`width=${width}`);
-    if (height != null && Number.isFinite(height)) attrBits.push(`height=${height}`);
-    if (align === 'left')   attrBits.push('.md-img-left');
-    if (align === 'center') attrBits.push('.md-img-center');
-    if (align === 'right')  attrBits.push('.md-img-right');
+    const pipeBits = [alt];
+    const hasW = width  != null && Number.isFinite(width);
+    const hasH = height != null && Number.isFinite(height);
+    if (hasW && hasH) pipeBits.push(`${width}x${height}`);
+    else if (hasW)    pipeBits.push(String(width));
+    else if (hasH)    pipeBits.push(`x${height}`);    // height-only form
+    if (align !== 'none') pipeBits.push(align);
 
-    let insertText = `![${alt}](${path})`;
-    if (attrBits.length > 0) insertText += `{${attrBits.join(' ')}}`;
+    // If only the alt text is present (no dimensions, no alignment),
+    // drop the trailing pipe so the output is plain markdown.
+    const finalAlt = pipeBits.length > 1
+        ? pipeBits.join('|')
+        : alt;
+    const insertText = `![${finalAlt}](${path})`;
 
     const { state } = view;
     const r = state.selection.main;
@@ -325,6 +331,34 @@ export function insertImage(view, opts) {
         selection: EditorSelection.cursor(r.from + insertText.length),
         scrollIntoView: true,
         userEvent: 'input.image',
+    });
+    view.focus();
+}
+
+// Insert a fenced code block at the cursor. If there's a selection, wrap it;
+// otherwise insert an empty fence and park the caret on the body line.
+//
+// Generated text always starts and ends on its own line so the markdown
+// parser sees a clean block (a fence pinned mid-line would otherwise parse
+// as inline code or break the surrounding paragraph).
+export function insertCodeBlock(view) {
+    const { state } = view;
+    const r = state.selection.main;
+    const selected = state.doc.sliceString(r.from, r.to);
+    const line = state.doc.lineAt(r.from);
+    // Insert a leading newline only if we're not already at the start of a line.
+    const lead = (r.from === line.from) ? '' : '\n';
+    const body = selected || '';
+    const text = `${lead}\`\`\`\n${body}\n\`\`\`\n`;
+    // Caret target: the body line. Position = r.from + lead + 4 (the opening
+    // "```" plus its trailing newline). If the user had selected text, leave
+    // the caret at the END of that selected body instead so they can keep typing.
+    const caret = r.from + lead.length + 4 + body.length;
+    view.dispatch({
+        changes: { from: r.from, to: r.to, insert: text },
+        selection: EditorSelection.cursor(caret),
+        scrollIntoView: true,
+        userEvent: 'input.codeblock',
     });
     view.focus();
 }
@@ -339,6 +373,7 @@ export const COMMANDS = {
     heading2:    v => toggleLinePrefix(v, '## '),
     heading3:    v => toggleLinePrefix(v, '### '),
     quote:       v => toggleLinePrefix(v, '> '),
+    codeBlock:   v => insertCodeBlock(v),
     bulletList:  v => bulletedList(v),
     orderedList: v => numberedList(v),
     taskList:    v => taskList(v),

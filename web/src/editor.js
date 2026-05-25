@@ -6,7 +6,8 @@
 
 import { EditorState } from '@codemirror/state';
 import { EditorView, keymap, drawSelection, highlightActiveLine,
-         highlightActiveLineGutter, lineNumbers } from '@codemirror/view';
+         highlightActiveLineGutter, lineNumbers, highlightWhitespace,
+         highlightTrailingWhitespace } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
@@ -46,15 +47,38 @@ import { livePreviewExtension } from './editor-livepreview.js';
 // Switching palettes recolours markers automatically because the colours are
 // CSS variables resolved at paint time. Adding a new palette to settings.js
 // requires no source-view tuning.
+// Every markdown marker token routes through the palette accent so the live
+// editor's revealed-source state (cursor on line) tracks the active palette
+// instead of falling through to defaultHighlightStyle's hardcoded #7a757a
+// (meta -> ListMark dash/asterisk) and #219 (url, contentSeparator, labelName).
+//
+// textDecoration: 'none' on tag.heading is REQUIRED: defaultHighlightStyle.heading
+// sets textDecoration: underline, both styles' classes apply to heading tokens,
+// and the cascade resolves by declaration order. By registering markdownSyntaxStyle
+// AFTER defaultHighlightStyle in createEditor() below, this rule wins and the
+// heading text in live mode (where cm-md-heading-N already owns heading visuals)
+// is not underlined by the syntax highlighter.
 const markdownSyntaxStyle = HighlightStyle.define([
-    { tag: tags.processingInstruction, color: 'var(--accent-override, var(--accent))' },
-    { tag: tags.contentSeparator,      color: 'var(--accent-override, var(--accent))' },
-    { tag: tags.url,                   color: 'var(--link-override, var(--link))' },
-    { tag: tags.labelName,             color: 'var(--link-override, var(--link))' },
-    { tag: tags.heading,               fontWeight: '600' },
-    { tag: tags.emphasis,              fontStyle: 'italic' },
-    { tag: tags.strong,                fontWeight: '600' },
-    { tag: tags.strikethrough,         textDecoration: 'line-through' },
+    // Marker tokens carry both colour and bold weight: bold makes the thin
+    // accent-coloured punctuation read as a deliberate syntax-emphasis layer
+    // rather than blending into prose, especially when the same accent is
+    // used for ordered-list numbers and the heading H3 default colour.
+    { tag: tags.processingInstruction, color: 'var(--accent-override, var(--accent))', fontWeight: '700' },
+    { tag: tags.meta,                  color: 'var(--accent-override, var(--accent))', fontWeight: '700' },
+    { tag: tags.contentSeparator,      color: 'var(--accent-override, var(--accent))', fontWeight: '700' },
+    { tag: tags.labelName,             color: 'var(--accent-override, var(--accent))', fontWeight: '700' },
+    { tag: tags.url,                   color: 'var(--accent-override, var(--accent))', fontWeight: '700' },
+    { tag: tags.heading,               fontWeight: '600', textDecoration: 'none' },
+    // Wrapped CONTENT colours: each inline-emphasis kind gets its own
+    // palette-derived hue so prose reads like a real syntax-highlighter view,
+    // not "marker accent + plain ink for everything else". Variables are
+    // pushed by settings.js for the per-palette overrides; non-override
+    // fallback resolves to --strong / --emphasis / --strike / --mono defined
+    // per-theme in viewer.css.
+    { tag: tags.emphasis,              fontStyle: 'italic',  color: 'var(--emphasis-override, var(--emphasis))' },
+    { tag: tags.strong,                fontWeight: '600',    color: 'var(--strong-override, var(--strong))' },
+    { tag: tags.strikethrough,         textDecoration: 'line-through', color: 'var(--strike-override, var(--strike))' },
+    { tag: tags.monospace,             color: 'var(--mono-override, var(--mono))' },
 ]);
 
 // List-aware Tab / Shift-Tab. When the cursor is on a line that is part of
@@ -187,27 +211,36 @@ export function createEditor({ parent, doc, onChange, onSave, onSaveAs,
           run: () => { if (onSaveAs) onSaveAs(); return true; } },
     ]);
     const baseExtensions = [
-        // Line numbers + active-line gutter + default syntax highlighting are
-        // SOURCE-mode only. In Live mode the syntax highlighter applies tag-
-        // based styling (e.g. text-decoration:underline on headings) which
-        // conflicts with the WYSIWYG cm-md-* decorations we want to win.
+        // Line numbers + active-line gutter are SOURCE-mode only.
         ...(livePreview ? [] : [
             lineNumbers(),
             highlightActiveLineGutter(),
-            syntaxHighlighting(markdownSyntaxStyle),
         ]),
-        // defaultHighlightStyle is registered for BOTH modes so the
-        // rendered-code-block widget in Live mode (which calls
-        // highlightTree(tree, defaultHighlightStyle, ...) in
-        // livepreview/fenced-code.js to colour nested-language tokens)
-        // gets its CSS rules injected into the document. markdownSyntaxStyle
-        // is registered first in Source mode and wins for the markdown-specific
-        // tags it covers (heading, emphasis, strong, processingInstruction,
-        // etc.); defaultHighlightStyle then covers everything else
-        // (keyword, string, number, comment) which is exactly what the
-        // nested code in fenced blocks needs.
+        // BOTH modes get both highlight styles, registered in this order:
+        //   1. markdownSyntaxStyle — palette-aware overrides. MUST be first.
+        //      CM6's highlightingFor() iterates registered HighlightStyles and
+        //      breaks on the FIRST style that returns a class for a tag — it
+        //      does NOT concatenate, so registration order is winner-takes-all.
+        //      Putting markdownSyntaxStyle first ensures meta (ListMark dash) /
+        //      url / contentSeparator / labelName / heading get the palette
+        //      accent (and 'textDecoration: none' on heading) instead of
+        //      defaultHighlightStyle's hardcoded #7a757a / #219 / underline.
+        //   2. defaultHighlightStyle — fallback for everything markdownSyntaxStyle
+        //      does not cover. Required in Live mode too because
+        //      livepreview/fenced-code.js calls highlightTree(tree,
+        //      defaultHighlightStyle, ...) to colour nested-language tokens
+        //      inside rendered code-block widgets (string, keyword, number,
+        //      comment, etc.).
+        syntaxHighlighting(markdownSyntaxStyle),
         syntaxHighlighting(defaultHighlightStyle),
         highlightActiveLine(),
+        // Whitespace markers (spaces -> ·, tabs -> →, trailing spaces
+        // surfaced separately) are wired here always. The marker glyphs
+        // are gated by CSS on body.mdwx-show-formatting so toggling the
+        // "Show formatting characters in Live mode" setting flips
+        // visibility instantly without an editor rebuild.
+        highlightWhitespace(),
+        highlightTrailingWhitespace(),
         history(),
         drawSelection(),
         indentOnInput(),

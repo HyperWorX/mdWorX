@@ -23,6 +23,17 @@ export function rewriteImageUrl(rawSrc) {
     const src = (rawSrc || '').trim();
     if (!src) return { src: '' };
 
+    // Windows absolute path (e.g. C:\foo\bar.png or C:/foo/bar.png).
+    // Detected BEFORE the generic scheme check below because "C:" looks
+    // like a one-letter scheme to the URI grammar but is actually a drive
+    // letter. Routed via the local host's `_abs/` prefix so the native
+    // WebResourceRequested handler can serve the file from anywhere on
+    // disk (not just the current file's parent directory).
+    if (/^[A-Za-z]:[\\/]/.test(src)) {
+        const normalised = src.replace(/\\/g, '/');
+        return { src: `${LOCAL_HOST}/_abs/${encodePathSegments(normalised)}` };
+    }
+
     // Has a scheme (foo:bar)?
     if (/^[a-z][a-z0-9+\-.]*:/i.test(src)) {
         if (/^(?:https?):/i.test(src)) {
