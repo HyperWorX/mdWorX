@@ -686,6 +686,14 @@ let systemFonts     = [];     // string list set by native via 'fonts' message
 let customThemes        = [];
 let currentCustomTheme  = null;
 let appliedSnapshot     = null;
+// Tracks the most recently selected BUILT-IN palette name (e.g. 'Dracula',
+// 'PLN Dark', 'Tokyo Night Day') so the preset picker can simply show
+// that name back on dialog open instead of trying to auto-detect a match
+// against every palette - which is fragile when a palette omits some
+// PRESET_KEYs or when the user has tweaked one colour after applying.
+// Persisted as `activePalette` in settings.json. Cleared when the user
+// picks Default Auto / Light / Dark (returning to no-preset state).
+let currentBuiltinPalette = null;
 // When loading a custom theme, the reply handler needs to know whether
 // to apply the values to the form (user picked it from the picker) or
 // just store the snapshot for comparison (dialog open with an already-
@@ -978,13 +986,17 @@ function setControlValue(entry, value) {
         const swatch = document.getElementById('input-' + entry.key + '-swatch');
         if (!text || !swatch) return;
         const themeDef = themeDefaultFor(entry.key);
-        // PRE-POPULATE: when the user hasn't set an override, show the
-        // active theme default value DIRECTLY in the input (not just as
-        // placeholder). Saving compares against the theme default and
-        // skips writing identical values to settings.json, so the
-        // pre-population doesn't produce spurious overrides.
-        text.value = isEmpty(value) ? (themeDef || '') : String(value);
-        const hex = parseHexColour(text.value);
+        // Text input stays EMPTY when there is no user override so the
+        // form clearly distinguishes 'no override' (empty) from 'user
+        // value' (populated). The placeholder + swatch surface the
+        // active theme default value so the user can see what is in
+        // effect without confusing it for a real override (which would
+        // break preset-matching when a palette omits some PRESET_KEYs).
+        text.value = isEmpty(value) ? '' : String(value);
+        text.placeholder = themeDef
+            ? `${themeDef}  (theme default)`
+            : '(theme default) — e.g. #ff8800, rgba(...), red';
+        const hex = parseHexColour(text.value) || parseHexColour(themeDef || '');
         swatch.value = hex || '#888888';
     } else if (entry.type === 'range') {
         const readout = document.getElementById('input-' + entry.key);
@@ -993,18 +1005,15 @@ function setControlValue(entry, value) {
         if (isEmpty(value)) {
             const themeDef = themeDefaultFor(entry.key);
             const themeNum = themeDef !== null ? parseFloat(themeDef) : NaN;
-            if (Number.isFinite(themeNum)) {
-                // Pre-populate with the numeric portion of the theme default
-                // (e.g. '1px' -> 1). collectForSave skips identical values.
-                readout.value = String(themeNum);
-                slider.value  = String(themeNum);
-            } else {
-                // No useful theme default: leave readout empty and park
-                // the slider at entry.emptyDisplay (or .max).
-                const parked = entry.emptyDisplay !== undefined ? entry.emptyDisplay : entry.max;
-                readout.value = '';
-                slider.value  = String(parked);
-            }
+            // Slider parks at the theme default position if parseable, so
+            // the visual state reflects what's in effect. Readout stays
+            // empty (matches 'no override' for save / preset matching).
+            const parked = Number.isFinite(themeNum)
+                         ? themeNum
+                         : (entry.emptyDisplay !== undefined ? entry.emptyDisplay : entry.max);
+            readout.value = '';
+            readout.placeholder = themeDef ? `${themeDef} (theme default)` : '(theme default)';
+            slider.value = String(parked);
         } else {
             readout.value = String(value);
             slider.value  = String(value);
@@ -1013,33 +1022,26 @@ function setControlValue(entry, value) {
         const inp = document.getElementById('input-' + entry.key);
         if (!inp) return;
         const themeDef = themeDefaultFor(entry.key);
-        if (isEmpty(value)) {
-            // Number inputs are stripped of unit suffix when populating
-            // (the suffix is applied by the schema's `suffix` property at
-            // display layer; the input's value is the bare number).
-            const themeNum = themeDef !== null ? parseFloat(themeDef) : NaN;
-            inp.value = Number.isFinite(themeNum) ? String(themeNum) : '';
-        } else {
-            inp.value = String(value);
-        }
+        inp.value = isEmpty(value) ? '' : String(value);
+        inp.placeholder = themeDef ? `${themeDef} (theme default)` : '(theme default)';
     } else if (entry.type === 'font') {
         const inp = document.getElementById('input-' + entry.key);
         if (!inp) return;
         const themeDef = themeDefaultFor(entry.key);
-        // Font defaults can be long font stacks; pre-populate as-is and let
-        // the user edit if they want. Save logic skips identical values.
-        inp.value = isEmpty(value) ? (themeDef || '') : String(value);
+        inp.value = isEmpty(value) ? '' : String(value);
+        const showDef = themeDef ? (themeDef.length > 50 ? themeDef.slice(0, 47) + '...' : themeDef) : null;
+        inp.placeholder = showDef ? `${showDef} (theme default)` : (entry.placeholder || 'Start typing or pick from list');
     } else if (entry.type === 'check') {
         const inp = document.getElementById('input-' + entry.key);
         if (!inp) return;
-        // null/undefined => use default value; explicit true/false wins.
         const defVal = defaultSettings[entry.key];
         inp.checked = isEmpty(value) ? (defVal === true) : (value === true);
     } else {
         const inp = document.getElementById('input-' + entry.key);
         if (!inp) return;
         const themeDef = themeDefaultFor(entry.key);
-        inp.value = isEmpty(value) ? (themeDef || '') : String(value);
+        inp.value = isEmpty(value) ? '' : String(value);
+        if (themeDef) inp.placeholder = `${themeDef} (theme default)`;
     }
 }
 
@@ -1178,12 +1180,13 @@ function makePresetRow() {
         // Built-in selection clears any custom-theme active state.
         currentCustomTheme = null;
         appliedSnapshot = null;
-        if (name === 'Default Auto')  applyDefault('auto');
-        else if (name === 'Default Light') applyDefault('light');
-        else if (name === 'Default Dark')  applyDefault('dark');
+        if (name === 'Default Auto')       { currentBuiltinPalette = null; applyDefault('auto');  }
+        else if (name === 'Default Light') { currentBuiltinPalette = null; applyDefault('light'); }
+        else if (name === 'Default Dark')  { currentBuiltinPalette = null; applyDefault('dark');  }
         else {
             const p = palettes[name];
             if (!p) return;
+            currentBuiltinPalette = name;
             applyPreset(p);
         }
         // syncPresetPicker resets stale asterisks on any custom options
@@ -1535,20 +1538,26 @@ function syncPresetPicker() {
         return;
     }
 
-    // No custom theme active. Fall back to existing built-in resolution.
-    // 'Has a real colour override' means at least one PRESET_KEY field
-    // contains a value that differs from the active theme default. Form
-    // fields pre-populated with the theme default value (no user
-    // override) must NOT count - otherwise every field always 'has a
-    // value' and the picker can never resolve to Default Light/Dark.
+    // Built-in palette tracked by name (set by the picker change handler
+    // and persisted as `activePalette` in settings.json). When set, just
+    // show that name back without any auto-detection - this is robust
+    // against palettes that omit some PRESET_KEYs (Tokyo Night, Tokyo
+    // Night Day, PLN Light, AnuPpuccin Frappé etc.) where the auto-
+    // matcher was failing.
+    if (currentBuiltinPalette && palettes[currentBuiltinPalette]) {
+        sel.value = currentBuiltinPalette;
+        updateThemeActionsVisibility();
+        return;
+    }
+
+    // No custom theme, no tracked built-in palette: fall back to
+    // 'Default Light' / 'Default Dark' based on the theme value, or
+    // attempt heuristic matching only if the form has actual overrides.
     const hasColourOverride = PRESET_KEYS.some(k => {
         if (k === 'theme') return false;
         const entry = schema.find(s => s.key === k);
         if (!entry) return false;
-        const cur = getControlValue(entry);
-        if (isEmpty(cur)) return false;
-        if (equalsThemeDefault(entry, cur)) return false;
-        return true;
+        return !isEmpty(getControlValue(entry));
     });
 
     const themeVal = getThemeValue();
@@ -1583,17 +1592,6 @@ function presetMatches(palette) {
             const entry = schema.find(s => s.key === k);
             if (!entry) continue;
             current = getControlValue(entry);
-            // Treat a pre-populated theme default as 'no override' for
-            // matching purposes. Palettes vary in how many PRESET_KEYS
-            // they define (e.g. PLN Dark omits headingUnderlineColor);
-            // un-defined keys leave the form showing the theme default,
-            // which - after my recent pre-population change - is no
-            // longer an empty string. Without this normalisation, every
-            // palette that omits any key would fail to match its own
-            // applied state.
-            if (current != null && current !== '' && equalsThemeDefault(entry, current)) {
-                current = null;
-            }
             wanted  = palette[k];
         }
         const curNorm  = isEmpty(current) ? null : String(current).toLowerCase();
@@ -1647,27 +1645,17 @@ const settingsPxKeys = new Set(['fontSize']);
 
 function applyOwnPalette() {
     const root = document.documentElement.style;
-    // Source of truth: the CURRENT FORM VALUES, not userSettings. This
-    // makes the dialog chrome update LIVE as the user picks a different
-    // preset palette or edits a single colour - the swatch/button/text
-    // colours reflect their current selection instantly instead of
-    // lagging behind userSettings (which only updates on Apply).
+    // Source of truth: the CURRENT FORM VALUES, not userSettings. Lets
+    // the dialog chrome update LIVE as the user picks a different
+    // palette or edits an individual colour - no need to click Apply
+    // and reopen to see the change reflected in the dialog itself.
     //
-    // Pre-populated values that match the active theme default are
-    // treated as 'no override' so the variable is cleared and the theme
-    // CSS naturally takes over (otherwise pre-population would write
-    // override variables for every field on initial dialog open).
+    // For un-overridden fields getControlValue returns null/empty, which
+    // clears the override variable so the theme CSS naturally takes
+    // over.
     for (const [k, varName] of Object.entries(settingsCssMap)) {
         const entry = schema.find(s => s.key === k);
-        let v;
-        if (entry) {
-            v = getControlValue(entry);
-            if (v !== null && v !== undefined && v !== '' && equalsThemeDefault(entry, v)) {
-                v = null;
-            }
-        } else {
-            v = effectiveValue(k);
-        }
+        const v = entry ? getControlValue(entry) : effectiveValue(k);
         if (v === undefined || v === null || v === '') {
             root.removeProperty(varName);
             continue;
@@ -1692,43 +1680,13 @@ function applyOwnTheme() {
 // ---------------------------------------------------------------------------
 // Save / apply
 
-// Helper for collectForSave: returns true if the current form value
-// matches the active theme default for this entry. Used to skip
-// persisting values that equal the theme default - the form pre-
-// populates fields with theme defaults visually, but we don't want
-// to write those into settings.json as if they were user overrides.
-function equalsThemeDefault(entry, cur) {
-    const themeDef = themeDefaultFor(entry.key);
-    if (themeDef === null) return false;
-    if (entry.type === 'colour') {
-        // Compare normalised hex colours (case-insensitive) so '#FFF' and
-        // '#ffffff' match. parseHexColour normalises to 7-char lowercase.
-        const a = parseHexColour(String(cur));
-        const b = parseHexColour(themeDef);
-        if (a && b) return a.toLowerCase() === b.toLowerCase();
-        // Fall back to string compare if either doesn't parse as hex
-        // (rgba/hsl/named colour cases).
-        return String(cur).trim() === themeDef.trim();
-    }
-    if (entry.type === 'range' || entry.type === 'number') {
-        const themeNum = parseFloat(themeDef);
-        if (Number.isFinite(themeNum)) return Number(cur) === themeNum;
-        return false;
-    }
-    // Text-ish types (font, plain text): straight string compare.
-    return String(cur).trim() === themeDef.trim();
-}
-
 function collectForSave() {
     // Produce a JSON object containing ONLY keys whose form value differs
-    // from BOTH the bundled defaults AND the active theme default. Keeps
-    // the user settings file minimal: when a user hasn't customised a
-    // value (form is showing the theme default verbatim), no key is
-    // written, and the value continues to follow the theme as the user
-    // switches palettes or theme modes.
+    // from the bundled default. Empty fields = 'use theme default' and
+    // are NOT written to settings.json, so the value stays adaptive across
+    // theme switches.
     const out = { _comment_: 'Generated by mdWorX Settings. Hand-edit at your own risk.' };
 
-    // Theme has no schema entry — pulled directly from userSettings.
     if (!isEmpty(userSettings.theme) && userSettings.theme !== 'auto') {
         out.theme = userSettings.theme;
     }
@@ -1738,23 +1696,24 @@ function collectForSave() {
         const cur = getControlValue(entry);
         const def = defaultSettings[entry.key];
         if (entry.type === 'select') {
-            // Selects always have a value; keep iff differs from default.
             const defVal = def ?? entry.options[0];
             if (cur !== defVal) out[entry.key] = cur;
         } else if (entry.type === 'check') {
-            // Booleans: persist iff differs from the bundled default.
             if (cur !== (def === true)) out[entry.key] = cur;
         } else {
-            if (isEmpty(cur)) continue;
-            if (equalsThemeDefault(entry, cur)) continue;
-            out[entry.key] = cur;
+            if (!isEmpty(cur)) out[entry.key] = cur;
         }
     }
 
-    // Active custom theme name (not in schema — module state). Persisted
-    // so the next dialog open can highlight the right entry in the picker.
     if (currentCustomTheme) {
         out.activeCustomTheme = currentCustomTheme;
+    }
+    // Persist the selected built-in palette name so the next dialog
+    // open can restore the picker selection without any matching
+    // heuristic. Only when no custom theme is active (custom themes
+    // take priority).
+    if (!currentCustomTheme && currentBuiltinPalette) {
+        out.activePalette = currentBuiltinPalette;
     }
 
     return out;
@@ -1799,6 +1758,19 @@ function onHostMessage(event) {
             } else {
                 currentCustomTheme = null;
                 appliedSnapshot = null;
+            }
+
+            // Restore the active BUILT-IN palette name. This is the
+            // simple, robust mechanism the user asked for: instead of
+            // syncPresetPicker auto-detecting which palette matches the
+            // current form values, the picker just shows whichever
+            // palette was selected last. Cleared if user picked a
+            // Default Auto/Light/Dark or a custom theme.
+            if (!currentCustomTheme && typeof userSettings.activePalette === 'string' &&
+                userSettings.activePalette && palettes[userSettings.activePalette]) {
+                currentBuiltinPalette = userSettings.activePalette;
+            } else {
+                currentBuiltinPalette = null;
             }
 
             // Always ask for the custom themes list so the picker can

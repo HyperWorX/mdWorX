@@ -48,5 +48,6 @@
 
     "collapseSoftBreaks": false,
 
-    "activeCustomTheme": null
+    "activeCustomTheme": null,
+    "activePalette":     null
 }
