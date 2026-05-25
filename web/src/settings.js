@@ -1536,11 +1536,19 @@ function syncPresetPicker() {
     }
 
     // No custom theme active. Fall back to existing built-in resolution.
+    // 'Has a real colour override' means at least one PRESET_KEY field
+    // contains a value that differs from the active theme default. Form
+    // fields pre-populated with the theme default value (no user
+    // override) must NOT count - otherwise every field always 'has a
+    // value' and the picker can never resolve to Default Light/Dark.
     const hasColourOverride = PRESET_KEYS.some(k => {
         if (k === 'theme') return false;
         const entry = schema.find(s => s.key === k);
         if (!entry) return false;
-        return !isEmpty(getControlValue(entry));
+        const cur = getControlValue(entry);
+        if (isEmpty(cur)) return false;
+        if (equalsThemeDefault(entry, cur)) return false;
+        return true;
     });
 
     const themeVal = getThemeValue();
@@ -1575,6 +1583,17 @@ function presetMatches(palette) {
             const entry = schema.find(s => s.key === k);
             if (!entry) continue;
             current = getControlValue(entry);
+            // Treat a pre-populated theme default as 'no override' for
+            // matching purposes. Palettes vary in how many PRESET_KEYS
+            // they define (e.g. PLN Dark omits headingUnderlineColor);
+            // un-defined keys leave the form showing the theme default,
+            // which - after my recent pre-population change - is no
+            // longer an empty string. Without this normalisation, every
+            // palette that omits any key would fail to match its own
+            // applied state.
+            if (current != null && current !== '' && equalsThemeDefault(entry, current)) {
+                current = null;
+            }
             wanted  = palette[k];
         }
         const curNorm  = isEmpty(current) ? null : String(current).toLowerCase();
