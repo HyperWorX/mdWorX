@@ -1544,6 +1544,17 @@ function syncPresetPicker() {
     // against palettes that omit some PRESET_KEYs (Tokyo Night, Tokyo
     // Night Day, PLN Light, AnuPpuccin Frappé etc.) where the auto-
     // matcher was failing.
+    //
+    // Defensive hydration: if currentBuiltinPalette is still null but
+    // userSettings.activePalette names a valid built-in, set it here.
+    // This catches any code path where the userSettings-handler restore
+    // didn't run (or ran in the wrong order relative to syncPresetPicker)
+    // so the picker stays consistent with the saved file.
+    if (!currentBuiltinPalette && !currentCustomTheme &&
+        typeof userSettings.activePalette === 'string' &&
+        userSettings.activePalette && palettes[userSettings.activePalette]) {
+        currentBuiltinPalette = userSettings.activePalette;
+    }
     if (currentBuiltinPalette && palettes[currentBuiltinPalette]) {
         sel.value = currentBuiltinPalette;
         updateThemeActionsVisibility();
