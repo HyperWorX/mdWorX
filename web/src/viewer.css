@@ -776,8 +776,15 @@ body.mode-live .cm-md-list-item-L3 { padding-left: 5.6em !important; }
  * the page hue (Catppuccin Mocha, Obsidianite, etc.). The thin default
  * weight made digits in particular hard to spot against similar-hue
  * backgrounds even when WCAG luminance contrast was nominally fine. */
-.cm-md-list-number {
-    color: var(--accent-override, var(--accent));
+/* Live-mode ordered-list marker ("1.", "2.", etc.). Prefixed with
+ * body.mode-live to match the specificity of `body.mode-live .cm-md-list-item
+ * { color: var(--ink-soft) }` so this colour always wins over any inherited
+ * ink-soft on the cm-line. Without this prefix the previous rule was
+ * (0,0,1,0) and could be overridden by per-line decorator rules added
+ * later. Reading mode uses the ol > li::marker rule below for the same
+ * accent colour. */
+body.mode-live .cm-md-list-number {
+    color: var(--accent-override, var(--accent)) !important;
     font-weight: 700;
 }
 /* Reading-mode list markers (<ul>/<ol> ::marker) — match the weight bump
