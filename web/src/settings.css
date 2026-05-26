@@ -759,25 +759,56 @@ body.theme-dark .row select {
 .row-toolbar-layout .reset-link {
     margin-left: auto;
 }
+/* Toolbar-layout row overrides the standard 220px / 1fr / auto grid so
+ * the icon strip can claim the FULL dialog width. Label sits on top on
+ * its own line, the strip stretches edge-to-edge below, the reset link
+ * sits beneath the strip aligned right.
+ *
+ * Implementation: override the row's grid with block flow and zero out
+ * the label's typical max-width / single-column behaviour. */
+.row.row-toolbar-layout {
+    display: block;
+    grid-template-columns: none;
+    padding: 12px 0 8px;
+}
+.row.row-toolbar-layout > label {
+    display: block;
+    margin-bottom: 8px;
+    max-width: none;
+}
+.row.row-toolbar-layout > .reset-link {
+    /* Block + width:fit-content + margin-left:auto = right-aligned in a
+     * block parent. inline-block + margin-left:auto doesn't centre/right-
+     * align because auto margins only collapse in flex/grid/block flows. */
+    display: block;
+    width: fit-content;
+    margin-top: 6px;
+    margin-left: auto;
+}
+
 /* Single horizontal strip mirroring the actual edit toolbar pill. Tiles
  * are icon-only with a native-tooltip label on hover. Click a tile to
- * toggle visibility (no separate toggle button); drag-and-drop within
- * the strip to reorder. Hidden tiles stay in place but render dim with
- * a strike-through over the glyph so they're easy to re-enable. */
+ * toggle visibility; drag-and-drop within the strip to reorder. Hidden
+ * tiles stay in place but render dim with a strike-through over the
+ * glyph so they're easy to re-enable. */
 .toolbar-layout-list {
-    flex: 1 1 100%;
     display: flex;
     flex-wrap: nowrap;
     align-items: center;
     gap: 3px;
-    margin-top: 6px;
+    width: 100%;
+    margin: 0;
     padding: 8px 10px;
+    box-sizing: border-box;
     border: 1px solid color-mix(in srgb, var(--accent-override, var(--accent)) 20%, var(--rule-override, var(--rule)));
     border-radius: 8px;
     background: color-mix(in srgb, var(--page-override, var(--page)) 90%, var(--accent-override, var(--accent)));
     overflow-x: auto;
-    /* Hide the horizontal scrollbar — overflow:auto enables scroll, this
-     * just keeps the scrollbar visually quiet on Chromium / WebView2. */
+    overflow-y: hidden;
+    /* Block horizontal scroll from chaining to the form's vertical scroll
+     * — without this, scrolling the strip with shift+wheel / trackpad
+     * also scrolls the dialog underneath. */
+    overscroll-behavior: contain;
     scrollbar-width: thin;
 }
 
