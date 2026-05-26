@@ -2077,89 +2077,45 @@ body.mode-source .cm-highlightTab {
  *
  * The top toolbar (#toolbar) is anchored at the top of the viewport with
  * `position: fixed; top: 8px`. The edit toolbar (#editing-toolbar) is
- * anchored at the bottom with `position: fixed; bottom: 14px`. They are
- * already in their final positions in the default CSS, so auto-hide
- * animates ONLY the anchor offset (top or bottom) — no position-property
- * changes, no transform overrides. Otherwise we'd accidentally yank the
- * edit toolbar from the bottom of the viewport to the top, which was
- * the brown-overlay-at-the-top bug fixed here.
+ * anchored at the bottom with `position: fixed; bottom: 14px`.
  *
- * Each toolbar has its OWN hot-zone strip on the matching edge of the
- * viewport: top strip for the top toolbar, bottom strip for the edit
- * toolbar. Hovering the strip (or the toolbar itself, or any descendant
- * holding keyboard focus) brings the toolbar back to its anchored
- * position. Mouse-leave retracts after a 400ms grace.
+ * When auto-hide is active each toolbar slides PARTIALLY off-screen so
+ * only its own near-edge stays visible — like a phone slide-up panel.
+ * No separate full-width "marker strip" is rendered; the peek IS the
+ * toolbar itself poking out. The visible peek inherits the toolbar's
+ * existing centred width (top toolbar is centred via flex; edit toolbar
+ * is centred via translateX(-50%)), so the peek is a short pill at the
+ * top/bottom centre, not a viewport-wide bar.
+ *
+ * Hovering the visible peek (or anything inside it holding keyboard
+ * focus) brings the toolbar back to its anchored position. Mouse-leave
+ * retracts after a 400ms grace.
  */
 #toolbar-hotzone,
 #editing-toolbar-hotzone {
     display: none;
 }
-/* Each hot zone doubles as a peek marker: when its toolbar is auto-
- * hidden, a thin accent-coloured strip stays visible at the matching
- * edge of the viewport so the user always knows the toolbar is there.
- * Hovering the strip expands the hit area and reveals the toolbar via
- * the rules below. */
-body.top-toolbar-autohide #toolbar-hotzone {
-    display: block;
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 4px;
-    z-index: 200;
-    background: color-mix(in srgb, var(--accent-override, var(--accent)) 35%, transparent);
-    border-bottom: 1px solid color-mix(in srgb, var(--accent-override, var(--accent)) 65%, transparent);
-    cursor: pointer;
-    transition: height 120ms ease-out, background 120ms ease-out;
-}
-body.top-toolbar-autohide #toolbar-hotzone:hover {
-    /* Widen the strike zone while revealing the toolbar so the user has
-     * room to move down into the toolbar without it retracting under them. */
-    height: 18px;
-    background: color-mix(in srgb, var(--accent-override, var(--accent)) 55%, transparent);
-}
-body.edit-toolbar-autohide #editing-toolbar-hotzone {
-    display: block;
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 4px;
-    z-index: 200;
-    background: color-mix(in srgb, var(--accent-override, var(--accent)) 35%, transparent);
-    border-top: 1px solid color-mix(in srgb, var(--accent-override, var(--accent)) 65%, transparent);
-    cursor: pointer;
-    transition: height 120ms ease-out, background 120ms ease-out;
-}
-body.edit-toolbar-autohide #editing-toolbar-hotzone:hover {
-    height: 18px;
-    background: color-mix(in srgb, var(--accent-override, var(--accent)) 55%, transparent);
-}
 
-/* Top toolbar: hidden state parks it just above the viewport. The hot-
- * zone strip below renders the visible peek marker, so the toolbar
- * itself goes fully off-screen (no half-cut buttons poking down).
- * Reveal slides it back to its default top: 8px. */
+/* Top toolbar: hidden state slides up so ~6-10px of the centred toolbar-
+ * group peeks below the top edge of the viewport. The wrapper itself is
+ * transparent so the visible peek is just the toolbar-group pill. */
 body.top-toolbar-autohide #toolbar {
-    top: -80px;
+    top: -24px;
     transition: top 200ms ease-out 400ms;
 }
-body.top-toolbar-autohide #toolbar-hotzone:hover ~ #toolbar,
 body.top-toolbar-autohide #toolbar:hover,
 body.top-toolbar-autohide #toolbar:focus-within {
     top: 8px;
     transition-delay: 0ms;
 }
 
-/* Edit toolbar: hidden state parks it just below the viewport. The
- * peek marker is the hot-zone strip at the bottom edge of the viewport.
- * transform: translateX(-50%) stays untouched so the toolbar keeps its
- * horizontal centring. */
+/* Edit toolbar: hidden state slides down so ~8px of the centred pill
+ * peeks above the bottom edge. transform: translateX(-50%) stays untouched
+ * so the toolbar keeps its horizontal centring. */
 body.edit-toolbar-autohide #editing-toolbar {
-    bottom: -100px;
+    bottom: -32px;
     transition: bottom 200ms ease-out 400ms;
 }
-body.edit-toolbar-autohide #editing-toolbar-hotzone:hover ~ #editing-toolbar,
 body.edit-toolbar-autohide #editing-toolbar:hover,
 body.edit-toolbar-autohide #editing-toolbar:focus-within {
     bottom: 14px;
