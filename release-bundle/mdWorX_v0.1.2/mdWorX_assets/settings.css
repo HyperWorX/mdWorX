@@ -347,6 +347,28 @@ body.theme-dark .row select {
 
 /* ---- Footer (sticky, always visible while scrolling) --------------- */
 
+/* Update-check row sits just above the sticky footer. Flex row with the
+ * version on the left, button next to it, and a status / link area that
+ * shows the check result.
+ */
+.update-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 0;
+    border-top: 1px solid color-mix(in srgb, var(--accent-override, var(--accent)) 18%, var(--rule-override, var(--rule)));
+    font-size: 12px;
+    color: var(--ink-override, var(--ink));
+    flex-wrap: wrap;
+}
+.update-version  { opacity: 0.8; }
+.update-status   { flex: 1 1 auto; opacity: 0.9; }
+.update-status a {
+    color: var(--accent-override, var(--accent));
+    text-decoration: underline;
+    cursor: pointer;
+}
+
 .settings-foot {
     /* position: sticky pins the footer to the viewport bottom while the
      * form scrolls. background and border match the body so the form
