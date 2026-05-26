@@ -1409,47 +1409,86 @@ function themeDefaultFor(key) {
 }
 
 function clearDropHints(list) {
-    list.querySelectorAll('.tbl-row').forEach(rr =>
-        rr.classList.remove('drop-above', 'drop-below'));
+    list.querySelectorAll('.tbl-tile').forEach(rr =>
+        rr.classList.remove('drop-above', 'drop-below', 'drop-left', 'drop-right'));
 }
 
 function buildToolbarLayoutRow(list, item, def) {
+    // "Row" is a misnomer now — these are horizontal tiles laid out in a
+    // flex strip that mirrors the actual toolbar pill. Each tile shows
+    // the same glyph the live button uses, plus a visibility toggle.
+    // Separators get a thin vertical-line tile in the same strip.
     const r = document.createElement('div');
-    r.className = 'tbl-row';
+    r.className = item.visible === false ? 'tbl-tile tbl-tile-off' : 'tbl-tile';
     r.dataset.id = def.id;
     r.draggable = true;
-    // Separator entries get a distinct visual so they read as "this is
-    // a group break, not a button". CSS .tbl-row.tbl-separator does the
-    // styling (italic label, lighter row bg).
+    r.title = def.label + (def.isSeparator ? '' : ' — drag to reorder, click eye to hide/show');
     if (def.isSeparator) r.classList.add('tbl-separator');
 
-    // Drag handle: visual cue on the left. The whole row is draggable so
-    // grabbing anywhere works, but a dedicated handle reads as
-    // "this row is reorderable" without the user having to discover it.
-    const handle = document.createElement('span');
-    handle.className = 'tbl-handle';
-    handle.setAttribute('aria-hidden', 'true');
-    handle.textContent = '⋮⋮';
+    const visible = item.visible !== false;
 
-    const cb = document.createElement('input');
-    cb.type = 'checkbox';
-    cb.className = 'tbl-cb';
-    cb.checked = item.visible !== false;
-    cb.addEventListener('change', () => {
-        list.dispatchEvent(new Event('input', { bubbles: true }));
-    });
-    // Clicks inside the checkbox shouldn't bubble up and start a drag.
-    cb.addEventListener('mousedown', (e) => e.stopPropagation());
+    if (def.isSeparator) {
+        // Separator tile is just a thin vertical line in the strip.
+        // No visibility toggle — to remove a separator the user drags
+        // it out of the strip via... well, they can't really. So the
+        // separator stays toggle-able too: click cycles visible/hidden.
+        const line = document.createElement('span');
+        line.className = 'tbl-separator-line';
+        r.appendChild(line);
+        // Click cycles the separator's visibility (no checkbox to make
+        // the tile compact).
+        r.addEventListener('click', (e) => {
+            if (e.button !== 0) return;
+            const newVisible = r.classList.toggle('tbl-tile-off');
+            // Flip is opposite — toggle returns true if class was ADDED,
+            // meaning the tile is NOW off.
+            list.dispatchEvent(new Event('input', { bubbles: true }));
+            // Mark the data state so getControlValue reads correctly.
+            r.dataset.visible = newVisible ? '0' : '1';
+        });
+        r.dataset.visible = visible ? '1' : '0';
+    } else {
+        // Glyph: copy the live toolbar's button icon. innerHTML used so
+        // the SVG/span markup the manifest supplied renders correctly.
+        const glyph = document.createElement('span');
+        glyph.className = 'tbl-tile-glyph';
+        glyph.innerHTML = def.glyph || `<span class="etb-glyph">${def.label.charAt(0)}</span>`;
+        r.appendChild(glyph);
 
-    const labelEl = document.createElement('label');
-    labelEl.className = 'tbl-label';
-    labelEl.appendChild(cb);
-    const txt = document.createElement('span');
-    txt.textContent = def.label;
-    labelEl.appendChild(txt);
+        // Visibility toggle — a small "eye" overlay in the corner of the
+        // tile. Click flips visible state without starting a drag.
+        const toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'tbl-tile-toggle';
+        toggle.setAttribute('aria-label', visible ? 'Hide ' + def.label : 'Show ' + def.label);
+        toggle.title = visible ? 'Hide' : 'Show';
+        toggle.dataset.checked = visible ? '1' : '0';
+        toggle.textContent = visible ? '●' : '○';
+        toggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            const wasChecked = toggle.dataset.checked === '1';
+            const nowChecked = !wasChecked;
+            toggle.dataset.checked = nowChecked ? '1' : '0';
+            toggle.textContent = nowChecked ? '●' : '○';
+            toggle.title = nowChecked ? 'Hide' : 'Show';
+            toggle.setAttribute('aria-label', nowChecked ? 'Hide ' + def.label : 'Show ' + def.label);
+            r.classList.toggle('tbl-tile-off', !nowChecked);
+            r.dataset.visible = nowChecked ? '1' : '0';
+            list.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+        toggle.addEventListener('mousedown', (e) => e.stopPropagation());
+        r.appendChild(toggle);
 
-    r.appendChild(handle);
-    r.appendChild(labelEl);
+        // Small label beneath the icon. Helps when the icon isn't
+        // self-evident (footnote, inline code).
+        const lbl = document.createElement('span');
+        lbl.className = 'tbl-tile-label';
+        lbl.textContent = def.label;
+        r.appendChild(lbl);
+
+        r.dataset.visible = visible ? '1' : '0';
+    }
 
     // HTML5 native drag-and-drop. On dragover the row is marked as
     // drop-above or drop-below based on the pointer Y position so the
@@ -1466,30 +1505,29 @@ function buildToolbarLayoutRow(list, item, def) {
         clearDropHints(list);
     });
     r.addEventListener('dragover', (e) => {
-        const dragging = list.querySelector('.tbl-row.dragging');
+        const dragging = list.querySelector('.tbl-tile.dragging');
         if (!dragging || dragging === r) return;
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
-        const rect = r.getBoundingClientRect();
-        const above = (e.clientY - rect.top) < rect.height / 2;
+        // Horizontal layout: compare X within the tile to decide insert side.
+        const rect  = r.getBoundingClientRect();
+        const left  = (e.clientX - rect.left) < rect.width / 2;
         clearDropHints(list);
-        r.classList.add(above ? 'drop-above' : 'drop-below');
+        r.classList.add(left ? 'drop-left' : 'drop-right');
     });
     r.addEventListener('dragleave', (e) => {
-        // Only clear when the pointer truly leaves this row (not just
-        // moving over a child). relatedTarget is the node we're entering.
         if (!r.contains(e.relatedTarget)) {
-            r.classList.remove('drop-above', 'drop-below');
+            r.classList.remove('drop-left', 'drop-right');
         }
     });
     r.addEventListener('drop', (e) => {
-        const dragging = list.querySelector('.tbl-row.dragging');
+        const dragging = list.querySelector('.tbl-tile.dragging');
         if (!dragging || dragging === r) return;
         e.preventDefault();
         const rect = r.getBoundingClientRect();
-        const above = (e.clientY - rect.top) < rect.height / 2;
-        if (above) list.insertBefore(dragging, r);
-        else       list.insertBefore(dragging, r.nextSibling);
+        const left = (e.clientX - rect.left) < rect.width / 2;
+        if (left) list.insertBefore(dragging, r);
+        else      list.insertBefore(dragging, r.nextSibling);
         clearDropHints(list);
         list.dispatchEvent(new Event('input', { bubbles: true }));
     });
@@ -1590,10 +1628,13 @@ function getControlValue(entry) {
         if (!list) return null;
         const manifestKey = list.dataset.manifestKey;
         const out = [];
-        list.querySelectorAll('.tbl-row').forEach(r => {
+        list.querySelectorAll('.tbl-tile').forEach(r => {
             const id = r.dataset.id;
-            const cb = r.querySelector('input[type=checkbox]');
-            out.push({ id, visible: cb ? cb.checked : true });
+            // dataset.visible is the source of truth — '1' visible, '0' off.
+            // Set by the toggle button (buttons) or the click handler
+            // (separators). Defaults to visible if absent.
+            const visible = r.dataset.visible !== '0';
+            out.push({ id, visible });
         });
         // Persist null when the user has not deviated from the default
         // layout, so settings.json stays clean and forward-compat with

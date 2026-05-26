@@ -401,7 +401,7 @@ body {
  * (stroked, currentColor) so they re-tint with palette changes. */
 .editing-toolbar {
     position: fixed;
-    bottom: 14px;
+    bottom: 12.5px;
     left: 50%;
     transform: translateX(-50%);
     z-index: 49;
@@ -2142,7 +2142,7 @@ body.edit-toolbar-autohide #editing-toolbar {
     /* Combine the existing horizontal centring with the vertical slide.
      * 100% + 10px slides the whole pill down past the bottom: 14px anchor
      * leaving ~4px of the top edge peeking above the viewport bottom. */
-    transform: translate(-50%, calc(100% + 10px));
+    transform: translate(-50%, calc(100% + 8.5px));
     transition:
         transform 280ms cubic-bezier(0.4, 0, 0.2, 1) 400ms,
         box-shadow 280ms cubic-bezier(0.4, 0, 0.2, 1) 400ms;
