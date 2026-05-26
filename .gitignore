@@ -48,3 +48,7 @@ Thumbs.db
 # Temp / logs
 *.log
 *.tmp
+
+# Local-only files (never tracked)
+CHANGELOG.md
+docs/render_palette_cards.py
