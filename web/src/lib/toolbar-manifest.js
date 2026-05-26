@@ -30,6 +30,8 @@ export const EDIT_TOOLBAR_BUTTONS = [
       glyph: '<span class="etb-glyph etb-glyph-italic">I</span>' },
     { id: 'strike',       label: 'Strikethrough',     domSelector: '#editing-toolbar [data-cmd="strike"]',
       glyph: '<span class="etb-glyph etb-glyph-strike">S</span>' },
+    { id: 'highlight',    label: 'Highlight',         domSelector: '#editing-toolbar [data-cmd="highlight"]',
+      glyph: '<svg viewBox="0 0 24 24" class="etb-icon"><path d="M14.5 3.5 20.5 9.5 11 19l-4.5 1.5L8 16Z"/><path d="m6 20 1-3"/><path d="M14.5 3.5 11 7l6 6 3.5-3.5z" fill="currentColor" stroke="none"/></svg>' },
     { id: 'inlineCode',   label: 'Inline code',       domSelector: '#editing-toolbar [data-cmd="inlineCode"]',
       glyph: '<svg viewBox="0 0 24 24" class="etb-icon"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>' },
     { id: 'link',         label: 'Link',              domSelector: '#editing-toolbar [data-cmd="link"]',
@@ -37,12 +39,8 @@ export const EDIT_TOOLBAR_BUTTONS = [
     { id: 'footnote',     label: 'Footnote',          domSelector: '#editing-toolbar [data-cmd="footnote"]',
       glyph: '<svg viewBox="0 0 24 24" class="etb-icon"><path d="M4 6h11"/><path d="M9.5 6v13"/><text x="17" y="11" font-size="9" font-weight="700" fill="currentColor" stroke="none" font-family="system-ui, sans-serif">1</text></svg>' },
     { id: 'sep-1',        label: 'Separator',         isSeparator: true },
-    { id: 'heading1',     label: 'Heading 1',         domSelector: '#editing-toolbar [data-cmd="heading1"]',
-      glyph: '<svg viewBox="0 0 24 24" class="etb-icon"><path d="M4 12h8"/><path d="M4 18V6"/><path d="M12 18V6"/><path d="m17 12 3-2v8"/></svg>' },
-    { id: 'heading2',     label: 'Heading 2',         domSelector: '#editing-toolbar [data-cmd="heading2"]',
-      glyph: '<svg viewBox="0 0 24 24" class="etb-icon"><path d="M4 12h8"/><path d="M4 18V6"/><path d="M12 18V6"/><path d="M17 9.5C17 8 18 7 19.5 7S22 8 22 9.5c0 2.5-5 4.5-5 8.5h5"/></svg>' },
-    { id: 'heading3',     label: 'Heading 3',         domSelector: '#editing-toolbar [data-cmd="heading3"]',
-      glyph: '<svg viewBox="0 0 24 24" class="etb-icon"><path d="M4 12h8"/><path d="M4 18V6"/><path d="M12 18V6"/><path d="M17.5 8.5C18.5 7 21 7 22 8.7c1 1.7-1 3.6-2.5 3.6 1.7 0 3.5 1.4 2.8 3.4-.7 2-3.5 2.4-5 .8"/></svg>' },
+    { id: 'heading',      label: 'Heading (cycles H1-H6)', domSelector: '#editing-toolbar [data-cmd="heading"]',
+      glyph: '<span class="etb-glyph etb-glyph-h">H<span class="etb-glyph-num">1</span></span>' },
     { id: 'sep-2',        label: 'Separator',         isSeparator: true },
     { id: 'bulletList',   label: 'Bulleted list',     domSelector: '#editing-toolbar [data-cmd="bulletList"]',
       glyph: '<svg viewBox="0 0 24 24" class="etb-icon"><line x1="9" y1="6" x2="21" y2="6"/><line x1="9" y1="12" x2="21" y2="12"/><line x1="9" y1="18" x2="21" y2="18"/><circle cx="4.5" cy="6" r="1.5" fill="currentColor" stroke="none"/><circle cx="4.5" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="4.5" cy="18" r="1.5" fill="currentColor" stroke="none"/></svg>' },
@@ -77,8 +75,26 @@ export function defaultLayoutFor(manifestKey) {
     return TOOLBAR_MANIFESTS[manifestKey].map(b => ({ id: b.id, visible: true }));
 }
 
+// Migrate ids that have been renamed / consolidated between versions.
+// Returns the current-manifest id for a stored id, or the original id
+// when no migration applies. Used by reconcileLayout so existing user
+// layouts keep their position after a button is renamed or collapsed.
+//   heading1 / heading2 / heading3 -> heading  (collapsed to one
+//                                               cycling button in 0.2.0)
+function migrateLegacyId(id) {
+    if (id === 'heading1' || id === 'heading2' || id === 'heading3') {
+        return 'heading';
+    }
+    return id;
+}
+
 // Reconcile a stored layout against the current manifest:
 //   - drop entries whose id is no longer in the manifest
+//   - migrate legacy ids to their current equivalents (preserves
+//     position so the heading button stays where heading1 used to be)
+//   - when several legacy ids collapse to one target, OR their
+//     visibility together so a user who showed heading2 but hid
+//     heading1 still gets a visible heading button after migration
 //   - append new manifest entries (visible) at the end so new buttons
 //     don't silently disappear after an update
 // Returns the same shape the user stored — an array of `{ id, visible }`.
@@ -88,13 +104,27 @@ export function reconcileLayout(manifestKey, storedLayout) {
         return defaultLayoutFor(manifestKey);
     }
     const known   = new Set(manifest.map(b => b.id));
-    const seen    = new Set();
-    const out     = [];
+    // First pass: collect per-target merged visibility. When several
+    // legacy ids migrate to the same target, OR their visibility so
+    // ANY visible legacy id keeps the merged button visible.
+    const mergedVisibility = new Map();
     for (const entry of storedLayout) {
         if (!entry || typeof entry.id !== 'string') continue;
-        if (!known.has(entry.id) || seen.has(entry.id)) continue;
-        out.push({ id: entry.id, visible: entry.visible !== false });
-        seen.add(entry.id);
+        const id = migrateLegacyId(entry.id);
+        if (!known.has(id)) continue;
+        const wasVisible = entry.visible !== false;
+        mergedVisibility.set(id, (mergedVisibility.get(id) ?? false) || wasVisible);
+    }
+    // Second pass: emit each target in first-seen order with its
+    // merged visibility.
+    const seen = new Set();
+    const out  = [];
+    for (const entry of storedLayout) {
+        if (!entry || typeof entry.id !== 'string') continue;
+        const id = migrateLegacyId(entry.id);
+        if (!known.has(id) || seen.has(id)) continue;
+        out.push({ id, visible: mergedVisibility.get(id) });
+        seen.add(id);
     }
     // Append any manifest ids missing from the stored list.
     for (const b of manifest) {

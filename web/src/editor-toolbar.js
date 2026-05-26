@@ -363,15 +363,53 @@ export function insertCodeBlock(view) {
     view.focus();
 }
 
+// Heading cycle: one toolbar button SETS the current target level on
+// each line in the selection (replacing any existing #-prefix), then
+// advances the target level for the next click. The displayed number
+// on the button glyph is the level the NEXT click will apply, so the
+// user sees what's coming. Wraps H6 -> H1. State is in-memory only;
+// resets on reload.
+//
+// Always REPLACES the heading level rather than toggling. The previous
+// 3-button approach could toggle a heading off by re-clicking the same
+// level, but a single cycling button has no way to express "remove
+// heading" - if the user wants that, they delete the # manually or use
+// undo. The tradeoff favours predictable cycling over toggle-off.
+const HEADING_PREFIX_RE = /^(#{1,6}) /;
+let headingCycleLevel = 1;
+function cycleHeading(view) {
+    const level = headingCycleLevel;
+    const newPrefix = '#'.repeat(level) + ' ';
+    const { state } = view;
+    const lines = lineRangeForSelection(state);
+    if (lines.length === 0) return;
+    const changes = lines.map(l => {
+        const m = l.text.match(HEADING_PREFIX_RE);
+        // Replace existing heading prefix in-place when present, else
+        // insert the new prefix at the line start.
+        return m
+            ? { from: l.from, to: l.from + m[0].length, insert: newPrefix }
+            : { from: l.from, to: l.from, insert: newPrefix };
+    });
+    view.dispatch({ changes, userEvent: 'input.heading' });
+    view.focus();
+    headingCycleLevel = (level % 6) + 1;
+    // Update the visible number on the button glyph. Querying the DOM
+    // here keeps the handler self-contained so callers don't have to
+    // know about the glyph element. Falls through silently if the
+    // button isn't on the toolbar (user has hidden it via layout).
+    const numEl = document.querySelector('#editing-toolbar [data-cmd="heading"] .etb-glyph-num');
+    if (numEl) numEl.textContent = String(headingCycleLevel);
+}
+
 // Convenience map for toolbar wiring.
 export const COMMANDS = {
     bold:        v => wrapSelection(v, '**'),
     italic:      v => wrapSelection(v, '*'),
     strike:      v => wrapSelection(v, '~~'),
+    highlight:   v => wrapSelection(v, '=='),
     inlineCode:  v => wrapSelection(v, '`'),
-    heading1:    v => toggleLinePrefix(v, '# '),
-    heading2:    v => toggleLinePrefix(v, '## '),
-    heading3:    v => toggleLinePrefix(v, '### '),
+    heading:     v => cycleHeading(v),
     quote:       v => toggleLinePrefix(v, '> '),
     codeBlock:   v => insertCodeBlock(v),
     bulletList:  v => bulletedList(v),
