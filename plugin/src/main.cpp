@@ -76,6 +76,10 @@ HWND DVP_Configure(HWND hWndParent, HWND hWndNotify, DWORD dwNotifyData);
 // expects DVP_Configure to block until the dialog is closed; see #3).
 static constexpr DWORD kInternalConfigureFlag = 0xC0DE0001u;
 
+// Forward declaration: implemented down in the settings section.
+struct SettingsState;
+void HandleCheckForUpdatesMessage(SettingsState* s);
+
 // Build the WebView2 user data folder under %LOCALAPPDATA% so multiple
 // plugin instances and Windows users don't fight over a single state dir.
 std::wstring GetUserDataFolder() {
@@ -2281,6 +2285,27 @@ constexpr wchar_t kSettingsWindowTitle[]     = L"mdWorX Settings";
 
 HWND g_hwndSettings = nullptr;  // single-instance handle, or null
 
+// Tracks whether the currently-open settings dialog was invoked by DOpus's
+// plugin host (true) or by the in-viewer cog button (false). At single-
+// instance scope (g_hwndSettings enforces one dialog at a time). Set in
+// DVP_Configure based on the dwNotifyData sentinel.
+bool g_settingsInvokedByDOpus = false;
+
+// Set in our WM_CLOSE handler. Distinguishes user-initiated close (X
+// button, JS closeSettings message — both go through WM_CLOSE before
+// DestroyWindow) from owner-destruction cascade (DOpus's prefs window
+// closes, Windows destroys our owned dialog WITHOUT sending WM_CLOSE
+// first — DestroyWindow on a parent sends WM_DESTROY straight to the
+// owned children).
+//
+// Gate for PostQuitMessage(0) in WM_DESTROY:
+//   invokedByDOpus && closeReceived → post quit (DOpus's inner pump
+//     is still waiting on us; break it)
+//   anything else → skip (no inner pump exists, or it has already
+//     exited as part of the cascade; posting would leak WM_QUIT to
+//     DOpus's main lister loop)
+bool g_settingsCloseReceived = false;
+
 // Enumerate installed fonts via GDI for the settings dialog's font
 // dropdown. DEFAULT_CHARSET means "all charsets"; the callback may emit
 // the same family name multiple times (once per charset) so we dedupe
@@ -2331,11 +2356,10 @@ struct SettingsState {
     ComPtr<ICoreWebView2>            webview;
     EventRegistrationToken           webMessageToken{};
     bool destroyed = false;
-    bool invokedByDOpus = false;     // true when DOpus's plugin-prefs page
-                                     // invoked DVP_Configure (vs the cog
-                                     // button in the viewer). DOpus expects
-                                     // DVP_Configure to block in that case;
-                                     // see DVP_Configure for the modal pump.
+    // Invocation context (cog button vs DOpus prefs/toolbar) lives at file
+    // scope in g_settingsInvokedByDOpus, not per-state. The single-instance
+    // policy (g_hwndSettings) means there's never more than one settings
+    // dialog at a time, so per-HWND tracking would just be busywork.
 };
 
 
@@ -2541,6 +2565,28 @@ HRESULT OnSettingsControllerCreated(SettingsState* s,
                     }
                     fontsMsg += L"]}";
                     s->webview->PostWebMessageAsJson(fontsMsg.c_str());
+
+                    // Plugin version for the "Check for updates" row.
+                    // MDWORX_VERSION_STR is set as a /D from CMakeLists,
+                    // mirroring the project VERSION field.
+                    std::wstring verMsg = std::wstring(L"{\"type\":\"appVersion\",\"current\":\"")
+                        + MDWORX_VERSION_STR + L"\"}";
+                    s->webview->PostWebMessageAsJson(verMsg.c_str());
+                    return S_OK;
+                }
+                if (msg.find(L"\"checkForUpdates\"") != std::wstring::npos) {
+                    HandleCheckForUpdatesMessage(s);
+                    return S_OK;
+                }
+                if (msg.find(L"\"openExternal\"") != std::wstring::npos) {
+                    std::wstring url = ExtractJsonStringKey(msg, L"url");
+                    // Only http(s); never shell-execute arbitrary schemes.
+                    if (!url.empty() &&
+                        (url.compare(0, 8, L"https://") == 0 ||
+                         url.compare(0, 7, L"http://")  == 0)) {
+                        ShellExecuteW(nullptr, L"open", url.c_str(),
+                                      nullptr, nullptr, SW_SHOWNORMAL);
+                    }
                     return S_OK;
                 }
                 if (msg.find(L"\"saveSettings\"") != std::wstring::npos) {
@@ -2709,6 +2755,94 @@ HRESULT InitSettingsWebView2(SettingsState* s) {
             }).Get());
 }
 
+// Lexicographic-by-numeric-component compare of two dotted version
+// strings ("0.1.2" style). Returns -1, 0, +1 like strcmp. Non-numeric
+// or missing components are treated as 0. Stops at the first difference.
+static int CompareVersionStrings(const std::wstring& a, const std::wstring& b) {
+    size_t i = 0, j = 0;
+    while (i < a.size() || j < b.size()) {
+        int av = 0, bv = 0;
+        while (i < a.size() && a[i] >= L'0' && a[i] <= L'9') {
+            av = av * 10 + (a[i] - L'0'); ++i;
+        }
+        while (j < b.size() && b[j] >= L'0' && b[j] <= L'9') {
+            bv = bv * 10 + (b[j] - L'0'); ++j;
+        }
+        if (av != bv) return av < bv ? -1 : +1;
+        if (i < a.size() && a[i] == L'.') ++i;
+        if (j < b.size() && b[j] == L'.') ++j;
+    }
+    return 0;
+}
+
+// Fetch the latest GitHub release info and post the result back to the
+// settings dialog. Synchronous (URLDownloadToFileW blocks the UI thread
+// briefly — typical GitHub API response is well under a second). For a
+// click-triggered action this is acceptable; promoting to async is a
+// simple change if it ever surfaces as a UX problem.
+//
+// On the wire JS gets:
+//   {type:'updateCheckResult', current:'0.1.2', latest:'0.1.3',
+//    url:'https://github.com/.../releases/tag/v0.1.3', newer:true|false}
+// or on failure:
+//   {type:'updateCheckResult', error:'<message>'}
+void HandleCheckForUpdatesMessage(SettingsState* s) {
+    if (!s || !s->webview) return;
+    auto reply = [&](const std::wstring& body) {
+        if (s && s->webview) s->webview->PostWebMessageAsJson(body.c_str());
+    };
+
+    // Temp file for the API response.
+    wchar_t tmpDir[MAX_PATH] = {0};
+    if (GetTempPathW(MAX_PATH, tmpDir) == 0) {
+        reply(L"{\"type\":\"updateCheckResult\",\"error\":\"Could not locate temp folder.\"}");
+        return;
+    }
+    wchar_t tmpPath[MAX_PATH] = {0};
+    if (GetTempFileNameW(tmpDir, L"mdwx", 0, tmpPath) == 0) {
+        reply(L"{\"type\":\"updateCheckResult\",\"error\":\"Could not create temp file.\"}");
+        return;
+    }
+
+    const wchar_t* url = L"https://api.github.com/repos/HyperWorX/mdWorX/releases/latest";
+    HRESULT hr = URLDownloadToFileW(nullptr, url, tmpPath, 0, nullptr);
+    if (FAILED(hr)) {
+        DeleteFileW(tmpPath);
+        wchar_t err[96];
+        StringCchPrintfW(err, 96, L"Network fetch failed (HRESULT 0x%08lX)",
+                         static_cast<unsigned long>(hr));
+        reply(L"{\"type\":\"updateCheckResult\",\"error\":\"" + JsonEscape(err) + L"\"}");
+        return;
+    }
+
+    std::wstring body = ReadFileUtf8(tmpPath);
+    DeleteFileW(tmpPath);
+    if (body.empty()) {
+        reply(L"{\"type\":\"updateCheckResult\",\"error\":\"Empty response from GitHub.\"}");
+        return;
+    }
+
+    std::wstring tagName = ExtractJsonStringKey(body, L"tag_name");
+    std::wstring htmlUrl = ExtractJsonStringKey(body, L"html_url");
+    if (tagName.empty()) {
+        reply(L"{\"type\":\"updateCheckResult\",\"error\":\"Couldn't read release tag from response.\"}");
+        return;
+    }
+    // Strip leading 'v' so "v0.1.3" -> "0.1.3" for the comparison.
+    std::wstring latest = tagName;
+    if (!latest.empty() && (latest[0] == L'v' || latest[0] == L'V')) latest.erase(0, 1);
+
+    const std::wstring current = MDWORX_VERSION_STR;
+    bool newer = CompareVersionStrings(latest, current) > 0;
+
+    std::wstring out = L"{\"type\":\"updateCheckResult\",\"current\":\""
+        + JsonEscape(current) + L"\",\"latest\":\""
+        + JsonEscape(latest)  + L"\",\"url\":\""
+        + JsonEscape(htmlUrl) + L"\",\"newer\":"
+        + (newer ? L"true" : L"false") + L"}";
+    reply(out);
+}
+
 void TeardownSettingsWebView2(SettingsState* s) {
     if (!s) return;
     if (s->webview && s->webMessageToken.value != 0) {
@@ -2770,32 +2904,45 @@ LRESULT CALLBACK SettingsWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPar
         return 0;
     }
     case WM_CLOSE:
+        // User-initiated close: X button on the dialog title bar OR our
+        // closeSettings JS message both arrive here before DestroyWindow.
+        // Cascade destruction (owner being destroyed by Windows) goes
+        // straight to WM_DESTROY without WM_CLOSE first. We use that
+        // distinction in WM_DESTROY to decide whether to post WM_QUIT.
+        g_settingsCloseReceived = true;
         DestroyWindow(hwnd);
         return 0;
     case WM_DESTROY: {
-        bool dopusInvoked = false;
         if (auto* s = GetSettingsState(hwnd)) {
-            dopusInvoked = s->invokedByDOpus;
             s->destroyed = true;
             TeardownSettingsWebView2(s);
             SetSettingsState(hwnd, nullptr);
             delete s;
         }
         if (g_hwndSettings == hwnd) g_hwndSettings = nullptr;
-        // When DOpus's plugin-prefs page invoked us, DVP_Configure is
-        // running a modal message pump that waits for WM_QUIT. Post it now
-        // so the pump exits and DVP_Configure returns; otherwise DOpus's
-        // prefs UI stays in a "waiting" state and you can't close it.
-        // Reported by iamlimeng in HyperWorX/mdWorX#3 (fix suggested by
-        // PolarGoose: same pattern used in DirectoryOpus-CSV-viewer-plugin).
+
+        // PostQuitMessage(0) breaks DOpus's inner pump (the one Preferences
+        // → Plugins → Configure runs while waiting for us to finish).
+        // Required by #3 (settings dialog couldn't close from DOpus prefs).
         //
-        // PostQuitMessage sets a thread-local quit flag — it only breaks
-        // OUR pump in DVP_Configure (which calls GetMessage and bails when
-        // it returns 0). DOpus's outer message loops are not affected
-        // because they have their own GetMessage calls on different
-        // pump entries; the quit flag is consumed when our pump's
-        // GetMessage observes it.
-        if (dopusInvoked) PostQuitMessage(0);
+        // Gated on BOTH:
+        //   - g_settingsInvokedByDOpus: cog-button invocations have no
+        //     inner pump; posting would leak WM_QUIT to the viewer's
+        //     main loop.
+        //   - g_settingsCloseReceived: the user actually initiated this
+        //     close (WM_CLOSE arrived first). The owner-destruction
+        //     cascade in #8 skips WM_CLOSE and goes straight to
+        //     WM_DESTROY; in that case DOpus's inner pump has either
+        //     already exited or is in the process of doing so as part
+        //     of the prefs-window teardown, and posting WM_QUIT would
+        //     leak into DOpus's main lister loop.
+        //
+        // Both flags reset after consumption so the next invocation
+        // starts clean.
+        bool postQuit = g_settingsInvokedByDOpus && g_settingsCloseReceived;
+        g_settingsInvokedByDOpus = false;
+        g_settingsCloseReceived  = false;
+        if (postQuit) PostQuitMessage(0);
         return 0;
     }
     default:
@@ -2876,10 +3023,14 @@ HWND DVP_Configure(HWND hWndParent, HWND hWndNotify, DWORD dwNotifyData) {
     state->hwndParent    = hWndParent;
     state->hwndNotify    = hWndNotify;
     state->dwNotifyData  = dwNotifyData;
-    // Two callers: the cog button in our viewer (passes
-    // kInternalConfigureFlag in dwNotifyData) and DOpus's plugin-prefs
-    // page (passes its own data). The latter expects a blocking call.
-    state->invokedByDOpus = (dwNotifyData != kInternalConfigureFlag);
+    // Classify the invocation context at file scope (single-instance, so
+    // per-state tracking would be redundant). Two callers:
+    //   - cog button in our viewer (passes kInternalConfigureFlag)
+    //   - DOpus plugin host: either Preferences → Plugins → Configure
+    //     (runs an inner message pump) or a DOpus bottom-toolbar button
+    //     (no inner pump). Both pass DOpus-supplied data.
+    g_settingsInvokedByDOpus = (dwNotifyData != kInternalConfigureFlag);
+    g_settingsCloseReceived  = false;
 
     // Centre over the parent. Fall back to the work area if no parent (or
     // if the parent rect is degenerate).
@@ -2934,29 +3085,10 @@ HWND DVP_Configure(HWND hWndParent, HWND hWndNotify, DWORD dwNotifyData) {
     ShowWindow(hwnd, SW_SHOWNORMAL);
     UpdateWindow(hwnd);
 
-    // DOpus-invoked path: run a modal message pump and return only when
-    // the window is destroyed (WM_DESTROY posts WM_QUIT). DOpus's plugin
-    // prefs page stays blocked on DVP_Configure and can't close until
-    // this function returns — modeless return here is what caused
-    // HyperWorX/mdWorX#3 ("Can't close the settings interface").
-    //
-    // Cog-button invocation stays modeless (returns hwnd immediately) so
-    // it doesn't recurse into DOpus's main message pump.
-    //
-    // No IsDialogMessageW here: our window isn't a true dialog (it's
-    // CreateWindowExW, not DialogBox), so the only thing IsDialogMessage
-    // would do is intercept VK_TAB / arrow keys before they reach the
-    // WebView2 — which we DON'T want, because WebView2 handles its own
-    // keyboard navigation. Plain Translate + Dispatch passes everything
-    // through unchanged.
-    if (state->invokedByDOpus) {
-        MSG msg;
-        while (GetMessageW(&msg, nullptr, 0, 0) > 0) {
-            TranslateMessage(&msg);
-            DispatchMessageW(&msg);
-        }
-        return nullptr;
-    }
+    // Always return the HWND modeless. WM_DESTROY conditionally posts
+    // WM_QUIT to break DOpus's inner pump (the one Preferences → Plugins
+    // → Configure runs while waiting for us to finish). See the gating
+    // logic in the WM_DESTROY handler.
     return hwnd;
 }
 
