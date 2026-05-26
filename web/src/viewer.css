@@ -2102,7 +2102,7 @@ body.mode-source .cm-highlightTab {
  * pill leaks into the viewport so the peek is easy to find without the
  * content giving away which toolbar it is. */
 body.top-toolbar-autohide #toolbar {
-    top: -32px;
+    top: -38px;
     transition: top 200ms ease-out 400ms;
 }
 body.top-toolbar-autohide .toolbar-group {
