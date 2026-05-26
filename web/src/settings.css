@@ -832,3 +832,17 @@ body.theme-dark .row select {
     margin: 0;
     cursor: pointer;
 }
+
+/* Separator entries in the toolbar layout list: italic label and a
+ * lighter background so the eye reads them as "structural" rather
+ * than a button. The drag handle + checkbox still work the same. */
+.tbl-row.tbl-separator {
+    background: transparent;
+    opacity: 0.7;
+}
+.tbl-row.tbl-separator .tbl-label > span {
+    font-style: italic;
+    color: color-mix(in srgb, var(--ink-override, var(--ink)) 65%, transparent);
+    letter-spacing: 0.04em;
+    font-size: 12px;
+}

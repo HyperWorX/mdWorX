@@ -408,7 +408,12 @@ body {
     display: flex;
     flex-wrap: nowrap;
     align-items: center;
-    gap: 0;
+    /* 1px gap between adjacent items so buttons don't visually touch.
+     * Static-layout uses .etb-group wrappers with gap: 1px between
+     * buttons; once the layout engine flattens the toolbar (any time
+     * applyToolbarLayout runs) the buttons live directly here, so the
+     * root gap kicks in and preserves the same spacing. */
+    gap: 1px;
     padding: 5px 8px;
     background: color-mix(in srgb, var(--accent-override, var(--accent)) 25%, var(--page-override, var(--page)));
     border: 1px solid color-mix(in srgb, var(--accent-override, var(--accent)) 55%, var(--rule-override, var(--rule)));
@@ -2096,51 +2101,59 @@ body.mode-source .cm-highlightTab {
     display: none;
 }
 
-/* Top toolbar: hidden state slides up so only the toolbar-group's edge
- * (border + a few px of accent-tinted padding) peeks below the top edge.
- * Button glyphs / labels stay hidden. An accent-coloured glow on the
- * pill leaks into the viewport so the peek is easy to find without the
- * content giving away which toolbar it is. */
+/* Animate `transform` instead of `top`/`bottom` so the slide composites
+ * on the GPU rather than re-running layout each frame. Both anchors
+ * stay constant (top: 8px on the wrapper, bottom: 14px on the edit pill);
+ * only the transform value changes. The edit toolbar's existing
+ * `translateX(-50%)` centring is preserved by including it on both
+ * states.
+ *
+ * cubic-bezier(0.4, 0, 0.2, 1) is Material's "standard" easing — slow
+ * start, slow end, no acceleration spike. Reads as a soft drawer rather
+ * than a snap. 280ms is just slow enough to feel deliberate without
+ * dragging. 400ms transition-delay applies only to the hiding direction:
+ * the hover-to-reveal swap sets `transition-delay: 0ms` so the toolbar
+ * pops in immediately. */
 body.top-toolbar-autohide #toolbar {
-    top: -38px;
-    transition: top 200ms ease-out 400ms;
+    transform: translateY(calc(-100% - 4px));
+    transition: transform 280ms cubic-bezier(0.4, 0, 0.2, 1) 400ms;
+    will-change: transform;
 }
 body.top-toolbar-autohide .toolbar-group {
     box-shadow:
         0 6px 22px color-mix(in srgb, var(--accent-override, var(--accent)) 50%, transparent),
         0 2px 8px  color-mix(in srgb, var(--accent-override, var(--accent)) 30%, transparent);
-    transition: box-shadow 200ms ease-out 400ms;
+    transition: box-shadow 280ms cubic-bezier(0.4, 0, 0.2, 1) 400ms;
 }
 body.top-toolbar-autohide #toolbar:hover,
 body.top-toolbar-autohide #toolbar:focus-within {
-    top: 8px;
+    transform: translateY(0);
     transition-delay: 0ms;
 }
 body.top-toolbar-autohide #toolbar:hover .toolbar-group,
 body.top-toolbar-autohide #toolbar:focus-within .toolbar-group {
-    /* Reverts to the default pill shadow (defined on `.toolbar-group`
-     * above) once revealed, so the glow is purely a "hidden" affordance. */
     box-shadow:
         0 2px 10px color-mix(in srgb, var(--accent-override, var(--accent)) 18%, transparent),
         var(--shadow);
     transition-delay: 0ms;
 }
 
-/* Edit toolbar: same pattern, mirrored to the bottom edge. Hide enough
- * that button glyphs are below the viewport; the glow leaks upward so
- * the peek is findable. */
 body.edit-toolbar-autohide #editing-toolbar {
-    bottom: -36px;
+    /* Combine the existing horizontal centring with the vertical slide.
+     * 100% + 10px slides the whole pill down past the bottom: 14px anchor
+     * leaving ~4px of the top edge peeking above the viewport bottom. */
+    transform: translate(-50%, calc(100% + 10px));
     transition:
-        bottom     200ms ease-out 400ms,
-        box-shadow 200ms ease-out 400ms;
+        transform 280ms cubic-bezier(0.4, 0, 0.2, 1) 400ms,
+        box-shadow 280ms cubic-bezier(0.4, 0, 0.2, 1) 400ms;
+    will-change: transform;
     box-shadow:
         0 -6px 22px color-mix(in srgb, var(--accent-override, var(--accent)) 50%, transparent),
         0 -2px 8px  color-mix(in srgb, var(--accent-override, var(--accent)) 30%, transparent);
 }
 body.edit-toolbar-autohide #editing-toolbar:hover,
 body.edit-toolbar-autohide #editing-toolbar:focus-within {
-    bottom: 14px;
+    transform: translate(-50%, 0);
     transition-delay: 0ms;
     box-shadow: var(--shadow);
 }

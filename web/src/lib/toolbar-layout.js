@@ -15,82 +15,89 @@
 
 import { TOOLBAR_MANIFESTS, reconcileLayout } from './toolbar-manifest.js';
 
-const SEPARATOR_SELECTORS = {
-    top:  ['#toolbar .tbm-sep'],
-    edit: ['#editing-toolbar .etb-sep', '#editing-toolbar .etb-group'],
+const TOOLBAR_ROOTS = {
+    top:  '#toolbar .toolbar-main',
+    edit: '#editing-toolbar',
 };
 
-function isDefaultLayout(manifestKey, layout) {
-    const manifest = TOOLBAR_MANIFESTS[manifestKey];
-    if (!Array.isArray(layout) || layout.length !== manifest.length) return false;
-    for (let i = 0; i < manifest.length; ++i) {
-        if (layout[i].id !== manifest[i].id) return false;
-        if (layout[i].visible === false)     return false;
-    }
-    return true;
-}
+// Separator class to apply when creating new separator nodes dynamically
+// from layout entries. Matches the static HTML separator class so the
+// existing CSS handles spacing/visuals without extra rules.
+const SEP_CLASS = {
+    top:  'tbm-sep',
+    edit: 'etb-sep',
+};
 
 export function applyToolbarLayout(manifestKey, storedLayout) {
     const manifest = TOOLBAR_MANIFESTS[manifestKey];
     if (!manifest) return;
 
-    const layout = reconcileLayout(manifestKey, storedLayout);
-    const useDefault = isDefaultLayout(manifestKey, layout);
+    const rootSel = TOOLBAR_ROOTS[manifestKey];
+    const root = rootSel && document.querySelector(rootSel);
+    if (!root) return;
 
-    // Pass 1: visibility. Look up each button and apply hidden=true/false.
-    for (const entry of layout) {
-        const def  = manifest.find(b => b.id === entry.id);
-        const node = def && document.querySelector(def.domSelector);
-        if (!node) continue;
-        node.hidden = entry.visible === false;
+    const layout = reconcileLayout(manifestKey, storedLayout);
+
+    // Wipe any dynamically-created separators from the previous apply
+    // pass so we don't accumulate. The static HTML separators (data-
+    // static="true") and the etb-group wrappers stay so they can be
+    // restored if the layout reverts to default. Buttons are MOVED, not
+    // destroyed, so their event handlers (wired by viewer.js delegation
+    // on the toolbar root) stay attached.
+    root.querySelectorAll(`.${SEP_CLASS[manifestKey]}[data-dynamic-sep="1"]`).forEach(el => el.remove());
+
+    // Flatten edit-toolbar grouping into the root so cross-group reorder
+    // works. For the top toolbar, buttons already live directly under
+    // `.toolbar-main`, so no flattening required.
+    if (manifestKey === 'edit') {
+        root.querySelectorAll('.etb-group').forEach(group => {
+            // Move each child up to the toolbar root, in order, before
+            // dropping the empty group wrapper.
+            while (group.firstChild) {
+                root.insertBefore(group.firstChild, group);
+            }
+            group.remove();
+        });
     }
 
-    // Pass 2: re-order. Only run when the layout actually diverges from
-    // the manifest default; otherwise leave the static HTML structure
-    // intact (preserves the etb-group containers and tbm-sep separators
-    // that the default visual grouping depends on).
-    if (!useDefault) {
-        const nodes = layout.map(entry => {
-            const def = manifest.find(b => b.id === entry.id);
-            return def && document.querySelector(def.domSelector);
-        }).filter(Boolean);
-        if (nodes.length > 0) {
-            // For the edit toolbar, the buttons live inside multiple
-            // `.etb-group` wrappers. Flatten them into a single parent
-            // (the toolbar root) so cross-group reordering works. The top
-            // toolbar's buttons all live under `.toolbar-main`, no
-            // flattening required.
-            const parent = manifestKey === 'edit'
-                ? document.getElementById('editing-toolbar')
-                : nodes[0].parentNode;
-            if (parent) {
-                for (const n of nodes) {
-                    if (n.parentNode !== parent) parent.appendChild(n);
-                    else parent.appendChild(n);
-                }
+    // Hide every static separator. We'll either re-create them as
+    // dynamic separators per the layout (custom case) or unhide the
+    // statics when the layout matches the manifest default.
+    const sepStatics = root.querySelectorAll(`.${SEP_CLASS[manifestKey]}:not([data-dynamic-sep])`);
+    sepStatics.forEach(el => { el.hidden = true; });
+
+    // Build the toolbar in layout order. For button entries: move the
+    // existing DOM node. For separator entries: create a fresh span.
+    let prevNode = null;
+    for (const entry of layout) {
+        const def = manifest.find(b => b.id === entry.id);
+        if (!def) continue;
+        if (def.isSeparator) {
+            if (entry.visible === false) continue;
+            const sep = document.createElement('span');
+            sep.className = SEP_CLASS[manifestKey];
+            sep.dataset.dynamicSep = '1';
+            sep.dataset.id = def.id;
+            // Insert after prevNode (or at the start if no prev).
+            if (prevNode && prevNode.nextSibling) {
+                root.insertBefore(sep, prevNode.nextSibling);
+            } else {
+                root.appendChild(sep);
             }
+            prevNode = sep;
+            continue;
         }
-        // Hide separator / group decoration since the user-chosen order
-        // doesn't respect the original grouping.
-        for (const sel of (SEPARATOR_SELECTORS[manifestKey] || [])) {
-            document.querySelectorAll(sel).forEach(el => {
-                // An `.etb-group` is the wrapper containing other
-                // buttons we just relocated; leave it in DOM but empty
-                // so its CSS doesn't introduce phantom gaps.
-                if (el.classList.contains('etb-group')) {
-                    el.hidden = el.childElementCount === 0;
-                } else {
-                    el.hidden = true;
-                }
-            });
+        const node = document.querySelector(def.domSelector);
+        if (!node) continue;
+        node.hidden = entry.visible === false;
+        // Move into position. Buttons already inside root just get
+        // re-ordered; ones that aren't (shouldn't happen but safe) get
+        // adopted.
+        if (prevNode && prevNode.nextSibling) {
+            root.insertBefore(node, prevNode.nextSibling);
+        } else {
+            root.appendChild(node);
         }
-    } else {
-        // Restore default: ensure separators and group wrappers are visible
-        // again in case a previous call hid them.
-        for (const sel of (SEPARATOR_SELECTORS[manifestKey] || [])) {
-            document.querySelectorAll(sel).forEach(el => {
-                el.hidden = false;
-            });
-        }
+        prevNode = node;
     }
 }

@@ -1418,6 +1418,10 @@ function buildToolbarLayoutRow(list, item, def) {
     r.className = 'tbl-row';
     r.dataset.id = def.id;
     r.draggable = true;
+    // Separator entries get a distinct visual so they read as "this is
+    // a group break, not a button". CSS .tbl-row.tbl-separator does the
+    // styling (italic label, lighter row bg).
+    if (def.isSeparator) r.classList.add('tbl-separator');
 
     // Drag handle: visual cue on the left. The whole row is draggable so
     // grabbing anywhere works, but a dedicated handle reads as
@@ -2593,6 +2597,21 @@ function onHostMessage(event) {
             break;
         case 'customThemesList':
             customThemes = Array.isArray(m.names) ? m.names : [];
+            // Belt-and-braces persistence restore: by the time the custom
+            // themes list arrives we know both userSettings and the
+            // custom-theme set. If `activePalette` is in userSettings but
+            // currentBuiltinPalette didn't get hydrated (e.g. because a
+            // transient currentCustomTheme briefly held it in the
+            // userSettings handler), restore it now. This is a one-shot
+            // restore on dialog open, NOT a re-hydration inside
+            // syncPresetPicker — that would clobber legitimate user
+            // selections of Default Auto/Light/Dark.
+            if (!currentCustomTheme && !currentBuiltinPalette
+                && typeof userSettings.activePalette === 'string'
+                && userSettings.activePalette
+                && palettes[userSettings.activePalette]) {
+                currentBuiltinPalette = userSettings.activePalette;
+            }
             refreshPresetPicker();
             syncPresetPicker();
             updateThemeActionsVisibility();
@@ -2824,10 +2843,13 @@ async function boot() {
         }
         // Theme isn't in the schema — clear via the dedicated helper.
         setThemeValue('auto');
-        // Reset also drops the custom-theme association: the form no
-        // longer matches any saved snapshot, so picker should fall back
-        // to Default rather than show an asterisk-marked stale name.
+        // Reset also drops the custom-theme association AND the
+        // selected built-in palette association: the form no longer
+        // matches any saved snapshot or palette, so the preset picker
+        // must fall back to "Default Auto" rather than show the
+        // previously-active palette name with an asterisk.
         currentCustomTheme = null;
+        currentBuiltinPalette = null;
         appliedSnapshot = null;
         // Re-theme the dialog AND snap the preset picker back to
         // "Default Auto" so the dropdown reflects the cleared state.
