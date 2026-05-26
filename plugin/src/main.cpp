@@ -20,6 +20,7 @@
 #include <vector>
 #include <mutex>
 #include <algorithm>
+#include <unordered_map>
 
 // The 2007-era DOpus SDK uses LPCBYTE in function-pointer typedefs.
 // Modern Windows SDKs don't always expose LPCBYTE under WIN32_LEAN_AND_MEAN.
@@ -848,6 +849,8 @@ struct ViewerState {
     HWND hwndParent     = nullptr;
     std::wstring filePath;
     std::wstring currentFileDir;   // Updated each LOAD; used by /_local/ handler.
+    std::wstring currentFilePath;  // Updated each LOAD; raw absolute path used as stash key.
+    FILETIME     loadedDiskMtime{}; // Disk mtime captured at LOAD; baseline for conflict detection.
     COLORREF bgColour   = GetSysColor(COLOR_WINDOW);
 
     EncodingChoice lastReadEncoding{DK_AUTO, 0};
@@ -863,6 +866,54 @@ struct ViewerState {
     bool destroyed       = false;
     std::wstring pendingFilePath;  // Set if LOAD arrives before init finishes.
 };
+
+// ---------------------------------------------------------------------------
+// Per-session unsaved-edits stash.
+//
+// When the user edits a file in mdWorX and then switches the viewer pane to
+// a different file, the WebView2 instance is torn down and the editor state
+// is lost. To restore in-progress edits when the user comes back, the JS
+// side periodically posts a 'stashBuffer' message with the current buffer;
+// it lives here keyed by the canonicalised file path. Process-scoped — the
+// map dies when DOpus exits, never touching disk.
+//
+// The FILETIME records the file's mtime at the moment it was loaded, so a
+// reload can detect external modifications (file changed in another editor
+// since we switched away) and surface a conflict banner.
+struct StashEntry {
+    std::wstring buffer;             // raw editor buffer as wide string
+    FILETIME     diskMtimeAtLoad{};  // mtime at first stash for this file
+};
+std::unordered_map<std::wstring, StashEntry> g_unsavedBuffers;
+std::mutex                                   g_unsavedBuffersMutex;
+
+// Canonicalise a file path so the same file reached via different routes
+// (drive letter vs UNC, short vs long names, symlinks, '..' segments) maps
+// to a single stash key. Falls back to the input on failure.
+std::wstring CanonicaliseStashKey(const std::wstring& raw) {
+    if (raw.empty()) return raw;
+    constexpr DWORD CAP = MAX_PATH * 2;
+    wchar_t buf[CAP];
+    DWORD n = GetLongPathNameW(raw.c_str(), buf, CAP);
+    std::wstring s = (n > 0 && n < CAP) ? std::wstring(buf, n) : raw;
+    for (wchar_t& c : s) {
+        if (c >= L'A' && c <= L'Z') c = static_cast<wchar_t>(c + 32);
+    }
+    return s;
+}
+
+// Read a file's last-write FILETIME. Returns a zero FILETIME if the file
+// can't be opened (callers compare against zero to detect that).
+FILETIME ReadFileMtime(const std::wstring& path) {
+    FILETIME ft{};
+    HANDLE h = CreateFileW(path.c_str(), GENERIC_READ,
+                           FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                           nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE) return ft;
+    GetFileTime(h, nullptr, nullptr, &ft);
+    CloseHandle(h);
+    return ft;
+}
 
 inline ViewerState* GetState(HWND hwnd) {
     return reinterpret_cast<ViewerState*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
@@ -922,17 +973,49 @@ void PushFileToWebView(ViewerState* state, const std::wstring& path) {
 
     // Record the file's directory so the WebResourceRequested handler
     // installed at controller init can resolve /_local/* paths.
-    state->currentFileDir = GetParentDir(path);
+    state->currentFileDir  = GetParentDir(path);
+    state->currentFilePath = path;
+    state->loadedDiskMtime = ReadFileMtime(path);
 
     DecodedFile df = ReadFileDecoded(path);
     state->lastReadEncoding = df.encoding;
     state->lastReadHadBOM   = df.hadBOM;
 
+    // Stash lookup. If we have a stashed buffer for this file, decide
+    // whether to surface it cleanly (mtime unchanged since the stash was
+    // recorded) or as a conflict (file modified externally since then).
+    std::wstring stashedBuffer;
+    bool         haveStash       = false;
+    bool         conflictDetected = false;
+    {
+        std::lock_guard<std::mutex> lk(g_unsavedBuffersMutex);
+        auto it = g_unsavedBuffers.find(CanonicaliseStashKey(path));
+        if (it != g_unsavedBuffers.end()) {
+            haveStash = true;
+            stashedBuffer = it->second.buffer;
+            // CompareFileTime returns 0 when the two times are equal. Any
+            // non-zero result means the file changed under us.
+            if (CompareFileTime(&it->second.diskMtimeAtLoad,
+                                &state->loadedDiskMtime) != 0) {
+                conflictDetected = true;
+            }
+        }
+    }
+
     std::wstring encName = EncodingChoiceToName(df.encoding, df.hadBOM);
     std::wstring msg =
-        L"{\"type\":\"load\",\"path\":\"" + JsonEscape(path) +
+        L"{\"type\":\"load\",\"path\":\""  + JsonEscape(path) +
         L"\",\"encoding\":\""              + JsonEscape(encName) +
-        L"\",\"content\":\""               + JsonEscape(df.text) + L"\"}";
+        L"\",\"content\":\""               + JsonEscape(df.text) + L"\"";
+    if (haveStash) {
+        msg += L",\"stashedContent\":\"" + JsonEscape(stashedBuffer) + L"\"";
+        if (conflictDetected) {
+            msg += L",\"conflictDetected\":true";
+        } else {
+            msg += L",\"restoredFromStash\":true";
+        }
+    }
+    msg += L"}";
     state->webview->PostWebMessageAsJson(msg.c_str());
 }
 
@@ -1480,6 +1563,43 @@ void HandleDownloadImageMessage(ViewerState* state, const std::wstring& msg) {
     reply(true, candidateName, L"");
 }
 
+// Stash the editor buffer for the file the JS message identifies. The path
+// is taken from the message rather than ViewerState because a pane switch
+// can change state->currentFilePath between a debounced stash being
+// scheduled in JS and it arriving here. Falls back to state's path if the
+// message omits one (defensive — every JS sender includes path).
+// Reply: none (fire-and-forget).
+void HandleStashBufferMessage(ViewerState* state, const std::wstring& msg) {
+    if (!state) return;
+    std::wstring path = ExtractJsonStringKey(msg, L"path");
+    if (path.empty()) path = state->currentFilePath;
+    if (path.empty()) return;
+    std::wstring content = ExtractJsonStringKey(msg, L"content");
+    std::wstring key     = CanonicaliseStashKey(path);
+    std::lock_guard<std::mutex> lk(g_unsavedBuffersMutex);
+    StashEntry& e = g_unsavedBuffers[key];
+    e.buffer = std::move(content);
+    // Preserve the existing mtime if we already had a stash for this file —
+    // it represents the on-disk version we last loaded, which is the
+    // baseline conflict detection compares against. Only set on first stash.
+    if (e.diskMtimeAtLoad.dwLowDateTime == 0 &&
+        e.diskMtimeAtLoad.dwHighDateTime == 0) {
+        e.diskMtimeAtLoad = state->loadedDiskMtime;
+    }
+}
+
+// Drop the stash entry for the JS-supplied file path. Called by JS after a
+// successful save (the file on disk is now authoritative) or when the user
+// picks "Reload from disk" in the conflict banner.
+void HandleClearStashMessage(ViewerState* state, const std::wstring& msg) {
+    std::wstring path = ExtractJsonStringKey(msg, L"path");
+    if (path.empty() && state) path = state->currentFilePath;
+    if (path.empty()) return;
+    std::wstring key = CanonicaliseStashKey(path);
+    std::lock_guard<std::mutex> lk(g_unsavedBuffersMutex);
+    g_unsavedBuffers.erase(key);
+}
+
 // Copy a picked image into the markdown file's parent directory so the
 // rendered <img> can reference it via a clean relative path. Used by the
 // Insert Image toolbar when the "Copy to file folder" checkbox is ticked.
@@ -1856,6 +1976,23 @@ HRESULT OnControllerCreated(ViewerState* state,
                     return S_OK;
                 }
 
+                // {type:"stashBuffer", content:"..."} - process-scoped stash
+                // of the current editor buffer so a pane switch + return
+                // restores in-progress edits. No reply.
+                if (msg.find(L"\"stashBuffer\"") != std::wstring::npos) {
+                    HandleStashBufferMessage(state, msg);
+                    return S_OK;
+                }
+
+                // {type:"clearStash"} - drop the stash entry for the
+                // currently-loaded file (sent after a successful save, or
+                // after the user picks "Reload from disk" in the conflict
+                // banner). No reply.
+                if (msg.find(L"\"clearStash\"") != std::wstring::npos) {
+                    HandleClearStashMessage(state, msg);
+                    return S_OK;
+                }
+
                 // {type:"openSettings"} - cog button in the top toolbar.
                 // Forwards to DVP_Configure with the viewer pane as owner so
                 // the settings dialog opens above DOpus the same way it does
@@ -1931,6 +2068,14 @@ LRESULT CALLBACK ViewerWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam
         CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
 
         InitWebView2(state);
+
+        // Disk-change polling lives on the JS side (setInterval) rather
+        // than a Win32 SetTimer here. Earlier evidence: a WM_TIMER-based
+        // poll did not surface to JS in DOpus's plugin message-pump
+        // context, while JS setInterval ticks reliably independent of
+        // host focus. The native check still exists (HandleCheckDiskChange
+        // Message); it's just invoked by JS rather than a Win32 timer.
+
         return 0;
     }
 

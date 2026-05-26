@@ -2,7 +2,7 @@
 
 #define MDWORX_VER_MAJOR  0
 #define MDWORX_VER_MINOR  1
-#define MDWORX_VER_PATCH  1
+#define MDWORX_VER_PATCH  2
 #define MDWORX_VER_BUILD  0
 
 VS_VERSION_INFO VERSIONINFO
@@ -24,12 +24,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName",      "HyperWorX"
             VALUE "FileDescription",  "mdWorX - Directory Opus markdown viewer/editor plugin"
-            VALUE "FileVersion",      "0.1.1.0"
+            VALUE "FileVersion",      "0.1.2.0"
             VALUE "InternalName",     "mdWorX"
             VALUE "LegalCopyright",   "(c) 2026 HyperWorX. MIT licensed."
             VALUE "OriginalFilename", "mdWorX.dll"
             VALUE "ProductName",      "mdWorX"
-            VALUE "ProductVersion",   "0.1.1.0"
+            VALUE "ProductVersion",   "0.1.2.0"
         END
     END
     BLOCK "VarFileInfo"
