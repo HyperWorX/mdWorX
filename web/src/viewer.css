@@ -81,6 +81,17 @@ body.theme-light {
     --code-operator:    #cf222e;
     --code-variable:    #1f2328;
     --code-punctuation: #57606a;
+
+    /* Content-specific surfaces. Each element now has its own variable so
+     * adjusting one (e.g. blockquote bg) doesn't ripple into others
+     * (table headers, code blocks). Defaults inherit the palette's --code
+     * / --rule values so existing palettes look the same out of the box;
+     * users can override each independently via settings. */
+    --blockquote-bg:    var(--code);
+    --blockquote-fg:    var(--ink-soft);
+    --table-header-bg:  var(--code);
+    --table-header-fg:  var(--ink);
+    --content-rule:     var(--rule);
 }
 
 body.theme-dark {
@@ -126,6 +137,13 @@ body.theme-dark {
     --code-operator:    #ff7b72;
     --code-variable:    #c9d1d9;
     --code-punctuation: #8b949e;
+
+    /* Content-specific surfaces — see light theme for rationale. */
+    --blockquote-bg:    var(--code);
+    --blockquote-fg:    var(--ink-soft);
+    --table-header-bg:  var(--code);
+    --table-header-fg:  var(--ink);
+    --content-rule:     var(--rule);
 }
 
 html, body {
@@ -1124,7 +1142,10 @@ body.mode-live .cm-md-rendered-hr {
     overflow-x: auto;
     font-size: 13px;
 }
-.cm-md-table thead { background: var(--code-override, var(--code)); }
+.cm-md-table thead {
+    background: var(--table-header-bg-override, var(--table-header-bg));
+    color:      var(--table-header-fg-override, var(--table-header-fg));
+}
 .cm-md-table th,
 .cm-md-table td {
     border: 1px solid var(--rule-override, var(--rule));
@@ -1613,8 +1634,11 @@ body.mode-live .cm-md-superscript { vertical-align: super; }
     margin: 1.2em 2px 12px;
     padding: var(--blockquote-padding);
     border-left: 3px solid var(--accent-override, var(--accent));
-    background: var(--code-override, var(--code));
-    color: var(--ink-soft);
+    /* Blockquote bg/fg used to share `--code` with fenced code blocks and
+     * table headers; now each has its own variable so the three can be
+     * tuned independently. */
+    background: var(--blockquote-bg-override, var(--blockquote-bg));
+    color:      var(--blockquote-fg-override, var(--blockquote-fg));
     border-radius: 5px;       /* rounded all corners, matching code block */
     /* Tighter line-height inside the quote than body prose. Body
      * line-height (default 2) leaves too much vertical air around a
@@ -1651,9 +1675,15 @@ body.mode-live .cm-md-rendered-block blockquote {
     overflow-x: auto;
     font-size: 13px;
 }
-:is(#content, .cm-md-rendered-block) thead { background: var(--code-override, var(--code)); }
+:is(#content, .cm-md-rendered-block) thead {
+    background: var(--table-header-bg-override, var(--table-header-bg));
+    color:      var(--table-header-fg-override, var(--table-header-fg));
+}
 :is(#content, .cm-md-rendered-block) th, :is(#content, .cm-md-rendered-block) td {
-    border: 1px solid var(--rule-override, var(--rule));
+    /* Content borders use --content-rule (defaults to --rule) so the
+     * "Table / image / footnote borders" setting doesn't bleed into the
+     * settings dialog's own chrome via the shared --rule variable. */
+    border: 1px solid var(--content-rule-override, var(--content-rule));
     padding: 0.35em 0.7em;
     text-align: left;
     color: var(--ink-override, var(--ink));
@@ -1694,7 +1724,7 @@ body.mode-live .cm-md-rendered-block blockquote {
 :is(#content, .cm-md-rendered-block) .footnotes {
     margin-top: 2em;
     padding-top: 1em;
-    border-top: 1px solid var(--rule-override, var(--accent-override, var(--accent)));
+    border-top: 1px solid var(--content-rule-override, var(--rule-override, var(--accent-override, var(--accent))));
     font-size: 0.9em;
     color: var(--ink-soft);
 }
@@ -2055,14 +2085,29 @@ body.mode-source .cm-highlightTab {
 #editing-toolbar-hotzone {
     display: none;
 }
+/* Each hot zone doubles as a peek marker: when its toolbar is auto-
+ * hidden, a thin accent-coloured strip stays visible at the matching
+ * edge of the viewport so the user always knows the toolbar is there.
+ * Hovering the strip expands the hit area and reveals the toolbar via
+ * the rules below. */
 body.top-toolbar-autohide #toolbar-hotzone {
     display: block;
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
-    height: 12px;
+    height: 4px;
     z-index: 200;
+    background: color-mix(in srgb, var(--accent-override, var(--accent)) 35%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--accent-override, var(--accent)) 65%, transparent);
+    cursor: pointer;
+    transition: height 120ms ease-out, background 120ms ease-out;
+}
+body.top-toolbar-autohide #toolbar-hotzone:hover {
+    /* Widen the strike zone while revealing the toolbar so the user has
+     * room to move down into the toolbar without it retracting under them. */
+    height: 18px;
+    background: color-mix(in srgb, var(--accent-override, var(--accent)) 55%, transparent);
 }
 body.edit-toolbar-autohide #editing-toolbar-hotzone {
     display: block;
@@ -2070,14 +2115,24 @@ body.edit-toolbar-autohide #editing-toolbar-hotzone {
     bottom: 0;
     left: 0;
     right: 0;
-    height: 14px;
+    height: 4px;
     z-index: 200;
+    background: color-mix(in srgb, var(--accent-override, var(--accent)) 35%, transparent);
+    border-top: 1px solid color-mix(in srgb, var(--accent-override, var(--accent)) 65%, transparent);
+    cursor: pointer;
+    transition: height 120ms ease-out, background 120ms ease-out;
+}
+body.edit-toolbar-autohide #editing-toolbar-hotzone:hover {
+    height: 18px;
+    background: color-mix(in srgb, var(--accent-override, var(--accent)) 55%, transparent);
 }
 
-/* Top toolbar: hidden state parks it just above the viewport. Reveal
- * slides it back to its default top: 8px. */
+/* Top toolbar: hidden state parks it just above the viewport. The hot-
+ * zone strip below renders the visible peek marker, so the toolbar
+ * itself goes fully off-screen (no half-cut buttons poking down).
+ * Reveal slides it back to its default top: 8px. */
 body.top-toolbar-autohide #toolbar {
-    top: -60px;
+    top: -80px;
     transition: top 200ms ease-out 400ms;
 }
 body.top-toolbar-autohide #toolbar-hotzone:hover ~ #toolbar,
@@ -2087,11 +2142,12 @@ body.top-toolbar-autohide #toolbar:focus-within {
     transition-delay: 0ms;
 }
 
-/* Edit toolbar: hidden state parks it just below the viewport. Reveal
- * slides it back to its default bottom: 14px. transform: translateX(-50%)
- * stays untouched so the toolbar keeps its horizontal centring. */
+/* Edit toolbar: hidden state parks it just below the viewport. The
+ * peek marker is the hot-zone strip at the bottom edge of the viewport.
+ * transform: translateX(-50%) stays untouched so the toolbar keeps its
+ * horizontal centring. */
 body.edit-toolbar-autohide #editing-toolbar {
-    bottom: -80px;
+    bottom: -100px;
     transition: bottom 200ms ease-out 400ms;
 }
 body.edit-toolbar-autohide #editing-toolbar-hotzone:hover ~ #editing-toolbar,

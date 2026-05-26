@@ -35,6 +35,11 @@
     "strikeColor":           null,
     "monoColor":             null,
 
+    "blockquoteBg":          null,
+    "blockquoteFg":          null,
+    "tableHeaderBg":         null,
+    "tableHeaderFg":         null,
+
     "fontFamily":          null,
     "proseFontWeight":     null,
     "fontSize":            null,

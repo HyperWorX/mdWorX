@@ -841,9 +841,22 @@ const settingsCssMap = {
     textColor:             '--ink-override',
     pageColor:             '--page-override',
     accentColor:           '--accent-override',
-    codeBg:                '--code-override',
+    // codeBg writes to the same variable the code-theme preset uses so
+    // the two are naturally last-applied-wins at the CSS level. Settings
+    // UI also clears one when the other is changed so the form mirrors
+    // what's actually active.
+    codeBg:                '--code-block-bg-override',
+    blockquoteBg:          '--blockquote-bg-override',
+    blockquoteFg:          '--blockquote-fg-override',
+    tableHeaderBg:         '--table-header-bg-override',
+    tableHeaderFg:         '--table-header-fg-override',
     linkColor:             '--link-override',
-    ruleColor:             '--rule-override',
+    // ruleColor controls TABLE / IMAGE / FOOTNOTE borders only. It used
+    // to write --rule-override, which is the generic UI rule colour
+    // shared with the settings dialog chrome. Now points at a content-
+    // specific var so editing this setting no longer changes the
+    // settings dialog's own borders.
+    ruleColor:             '--content-rule-override',
     hrColor:               '--hr-color-override',
     headingUnderlineColor: '--heading-underline-override',
     h1Color:               '--h1-color-override',
