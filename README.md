@@ -59,23 +59,59 @@ GitHub-flavoured Markdown plus footnotes, definition lists, abbreviations, highl
 
 ## Settings
 
-The Settings dialog (gear icon in the top toolbar) covers everything visual without you having to hand-edit a JSON file.
+The Settings dialog (gear icon in the top toolbar) covers every visual option without you having to hand-edit a JSON file. Every field has a hover tooltip describing what it does, and the colour preview repaints live as you scroll through palettes.
 
-![Settings dialog](img/06-settings-top.png)
+Empty fields mean "use the theme default" — leave a field blank and the active palette decides. `Reset all fields` blanks the form back to defaults, but nothing applies until you click `Apply`. Apply pushes the settings to every open viewer pane at once.
 
-Sections:
+### Theme & presets
 
-- **Theme & presets** — pick a preset palette, save the current colours as a named theme, or delete a saved theme you no longer want. Themes you save sit alongside the built-ins in the picker.
-- **Document handling** — encoding, fallback encoding, "render single newlines as line breaks", and "show formatting characters in Live mode" (CRLF / LF badges at the end of each line).
-- **Page surface** — page background, border colour and thickness, drop shadow, body text colour.
-- **Headings** — per-level heading colours (H1 through H6).
-- **Rules and dividers** — horizontal-rule colour and thickness, heading underline colour, thickness and style (`solid`, `gradient`, or `none`). Heading underline thickness is independent of HR thickness now, so you can have a thin rule and a chunky H1 underline (or the other way around).
-- **Body text** — font family, weight, size, line-height.
-- **Code** — code font, weight, size, line-height.
-- **Inline accents** — bold, italic, strike, inline-code, highlight, link colours.
-- **Layout** — content max-width and page padding.
+![Settings dialog — Theme & presets, Document handling, Page surface](img/06-settings-top.png)
 
-Empty fields mean "use the theme default". `Reset all fields` blanks the form but doesn't save until you click `Apply`. Settings apply to every open viewer pane on save.
+Pick from 29 built-in palettes (17 dark, 12 light — see [`docs/palettes.md`](docs/palettes.md) for the visual reference) or any custom theme you've saved. The picker is grouped Light / Dark / Your themes.
+
+The **Save** menu next to the picker can capture the current state three ways:
+
+- **Save as palette** — colours only. Fonts, sizes, page layout, and spacing stay as the user's other settings.
+- **Save as style** — typography and layout only (fonts, weights, sizes, line-heights, padding, max-width). Colours stay free for whatever palette is active.
+- **Save as theme** — everything: colours plus typography plus layout in one bundle.
+
+Saved entries persist between sessions and show up in the preset picker alongside the built-ins. You can delete your own saved entries; built-ins can't be deleted.
+
+### Document handling
+
+Encoding (`auto`, `utf-8`, `utf-16` / `-le` / `-be`, `system`, the `cp1250`–`cp1258` family, ISO-8859 single-byte, Shift-JIS, GBK, Big5, EUC-KR, KOI8-R / -U), fallback encoding for when auto-detection fails, "render single newlines as line breaks" (hard line breaks), and "show formatting characters in Live mode" (overlays every space, tab, and line ending; LF and CRLF lines get distinct badges).
+
+### Page surface
+
+Page background, page border colour and thickness, drop-shadow depth (`none` through `floating`), and body text colour.
+
+### Rules and dividers
+
+![Settings dialog — Rules and dividers, including heading underline thickness and style](img/08-settings-headings.png)
+
+Horizontal-rule colour and thickness, heading underline colour, **thickness, and style** (`solid`, `gradient`, or `none`). Heading underline thickness is independent of HR thickness, so a thin rule with a chunky H1 underline (or vice-versa) works fine. New default style is `gradient`.
+
+### Headings
+
+Per-level heading colours (H1 through H6). Leaving any of them blank lets the active palette's heading colours show through.
+
+### Body text & code
+
+Body font family, weight, size, line-height. Code font, weight, size, line-height. Highlight font weight is its own field so `==marked==` text can be bolder than surrounding prose without affecting bold elsewhere.
+
+### Inline accents
+
+Per-element colours for bold, italic, strikethrough, inline code, highlight (background plus foreground plus opacity), and links. Each follows the active palette by default but can be pinned to a specific colour independently.
+
+### Layout
+
+Content max-width and page padding.
+
+### Dark theme
+
+The dialog itself follows the active palette. The same form on a dark palette:
+
+![Settings dialog in dark theme](img/09-settings-dark.png)
 
 ## Palettes
 
