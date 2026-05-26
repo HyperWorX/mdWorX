@@ -26,12 +26,12 @@
         Empty fields mean "use the theme default".
       </p>
     </header>
+    <!-- Tab strip. Frozen below the header so the active tab is always
+         visible while the form scrolls. Buttons + active state are
+         populated by settings.js renderForm() from the schema's unique
+         `tab` keys, so adding a new tab is just a schema change. -->
+    <nav id="settings-tabs" class="settings-tabs" role="tablist" aria-label="Settings categories"></nav>
     <form id="settings-form" class="settings-form" autocomplete="off"></form>
-    <div class="update-row">
-      <span class="update-version">Version <span id="current-version">…</span></span>
-      <button type="button" id="btn-check-updates" class="btn">Check for updates</button>
-      <span id="update-status" class="update-status"></span>
-    </div>
     <footer class="settings-foot">
       <div id="footer-actions" class="footer-actions">
         <span id="status" class="status"></span>

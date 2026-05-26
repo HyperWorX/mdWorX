@@ -46,10 +46,72 @@ body {
     letter-spacing: -0.01em;
 }
 .settings-sub {
-    margin: 0 0 18px;
+    margin: 0 0 12px;
     font-size: 12px;
     color: var(--ink-soft);
     line-height: 1.5;
+}
+
+/* ---- Tab nav (frozen panel under the header) -----------------------
+ *
+ * Sticky so it stays visible as the form scrolls. Each .tab-button is
+ * pill-shaped, with the active one tinted by the palette accent so it
+ * matches the rest of the dialog chrome. Buttons render in display
+ * order; the order is set by TAB_META in settings.js.
+ */
+.settings-tabs {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    display: flex;
+    gap: 4px;
+    padding: 8px 0 10px;
+    margin: 0 0 14px;
+    background: var(--page-override, var(--page));
+    border-bottom: 1px solid color-mix(in srgb, var(--accent-override, var(--accent)) 25%, var(--rule-override, var(--rule)));
+}
+.tab-button {
+    appearance: none;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--ink-override, var(--ink));
+    padding: 6px 14px;
+    font: inherit;
+    font-size: 13px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+.tab-button:hover {
+    background: color-mix(in srgb, var(--accent-override, var(--accent)) 10%, transparent);
+}
+.tab-button.active {
+    background: color-mix(in srgb, var(--accent-override, var(--accent)) 22%, transparent);
+    border-color: color-mix(in srgb, var(--accent-override, var(--accent)) 55%, var(--rule-override, var(--rule)));
+    color: var(--ink-override, var(--ink));
+    font-weight: 600;
+}
+.tab-button:focus-visible {
+    outline: 2px solid var(--accent-override, var(--accent));
+    outline-offset: 2px;
+}
+
+/* Only the active tab's panel is visible. All other panels stay in the
+ * DOM (so cross-tab logic like updateResetState / applyOwnPalette can
+ * still query every row) but are display:none. */
+.tab-panel {
+    display: none;
+}
+.tab-panel.active {
+    display: block;
+}
+
+/* About-tab update-check row. Re-uses the existing .update-row styling
+ * (border-top + spacing) but sits inside its tab panel rather than as a
+ * peer of the form. */
+.about-row {
+    margin-top: 0;
+    border-top: none;
 }
 
 /* ---- Form ---------------------------------------------------------- */

@@ -2036,78 +2036,67 @@ body.mode-source .cm-highlightTab {
 
 /* ---- Auto-hide toolbars ----------------------------------------------
  *
- * When either toolbar is set to "Auto-hide on hover" (settings.js writes
- * `body.top-toolbar-autohide` / `body.edit-toolbar-autohide`):
- *   - The toolbar becomes position:fixed at the top, translates off-screen.
- *   - A shared 10px hot-zone strip at the top of the viewport is shown.
- *   - Hovering the hot-zone or any auto-hidden toolbar slides them in.
- *   - When neither the hot-zone, the toolbar, nor any descendant has
- *     keyboard focus, the toolbar retracts after a 400ms grace period.
- *   - :focus-within keeps the toolbar pinned while the user is interacting
- *     with a button or popup that lives inside the toolbar element.
+ * The top toolbar (#toolbar) is anchored at the top of the viewport with
+ * `position: fixed; top: 8px`. The edit toolbar (#editing-toolbar) is
+ * anchored at the bottom with `position: fixed; bottom: 14px`. They are
+ * already in their final positions in the default CSS, so auto-hide
+ * animates ONLY the anchor offset (top or bottom) — no position-property
+ * changes, no transform overrides. Otherwise we'd accidentally yank the
+ * edit toolbar from the bottom of the viewport to the top, which was
+ * the brown-overlay-at-the-top bug fixed here.
  *
- * The hot zone is a single <div> so both toolbars share one trigger
- * surface — moving the mouse to the top of the viewer reveals whichever
- * one(s) are in auto-hide mode.
+ * Each toolbar has its OWN hot-zone strip on the matching edge of the
+ * viewport: top strip for the top toolbar, bottom strip for the edit
+ * toolbar. Hovering the strip (or the toolbar itself, or any descendant
+ * holding keyboard focus) brings the toolbar back to its anchored
+ * position. Mouse-leave retracts after a 400ms grace.
  */
-#toolbar-hotzone {
+#toolbar-hotzone,
+#editing-toolbar-hotzone {
     display: none;
 }
-body:is(.top-toolbar-autohide, .edit-toolbar-autohide) #toolbar-hotzone {
+body.top-toolbar-autohide #toolbar-hotzone {
     display: block;
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
-    height: 10px;
+    height: 12px;
+    z-index: 200;
+}
+body.edit-toolbar-autohide #editing-toolbar-hotzone {
+    display: block;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 14px;
     z-index: 200;
 }
 
+/* Top toolbar: hidden state parks it just above the viewport. Reveal
+ * slides it back to its default top: 8px. */
 body.top-toolbar-autohide #toolbar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    z-index: 150;
-    transform: translateY(-100%);
-    transition: transform 200ms ease-out 400ms;
+    top: -60px;
+    transition: top 200ms ease-out 400ms;
 }
 body.top-toolbar-autohide #toolbar-hotzone:hover ~ #toolbar,
 body.top-toolbar-autohide #toolbar:hover,
 body.top-toolbar-autohide #toolbar:focus-within {
-    transform: translateY(0);
+    top: 8px;
     transition-delay: 0ms;
 }
 
+/* Edit toolbar: hidden state parks it just below the viewport. Reveal
+ * slides it back to its default bottom: 14px. transform: translateX(-50%)
+ * stays untouched so the toolbar keeps its horizontal centring. */
 body.edit-toolbar-autohide #editing-toolbar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    z-index: 140;
-    transform: translateY(-100%);
-    transition: transform 200ms ease-out 400ms;
+    bottom: -80px;
+    transition: bottom 200ms ease-out 400ms;
 }
-/* Edit toolbar reveals when the hot zone, OR the top toolbar, OR the
- * edit toolbar itself is hovered/focused. This keeps the two consistent —
- * hovering anywhere in the top toolbar area keeps both visible. */
-body.edit-toolbar-autohide #toolbar-hotzone:hover ~ #editing-toolbar,
-body.edit-toolbar-autohide #toolbar:hover ~ #editing-toolbar,
-body.edit-toolbar-autohide #toolbar:focus-within ~ #editing-toolbar,
+body.edit-toolbar-autohide #editing-toolbar-hotzone:hover ~ #editing-toolbar,
 body.edit-toolbar-autohide #editing-toolbar:hover,
 body.edit-toolbar-autohide #editing-toolbar:focus-within {
-    transform: translateY(0);
+    bottom: 14px;
     transition-delay: 0ms;
-}
-
-/* When BOTH are auto-hidden, stack the edit toolbar below the top one
- * so they don't overlap during the reveal slide. The exact offset is
- * the top toolbar's intrinsic height (its content drives that), so use
- * a CSS variable that index.html / viewer.js can override if it ever
- * has to. Default 44px matches the height of the icon-button row. */
-body.top-toolbar-autohide.edit-toolbar-autohide {
-    --top-toolbar-h: 44px;
-}
-body.top-toolbar-autohide.edit-toolbar-autohide #editing-toolbar {
-    top: var(--top-toolbar-h);
 }
