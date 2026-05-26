@@ -17,10 +17,12 @@
   <link rel="stylesheet" href="viewer.css">
 </head>
 <body class="theme-light mode-reading">
-  <!-- Auto-hide hot zone. CSS keeps this hidden unless either toolbar is
-       in auto-hide mode; when active, hovering this 10px strip at the top
-       of the viewport reveals the auto-hidden toolbar(s). -->
+  <!-- Auto-hide hot zones. The top strip reveals the top toolbar when
+       it is set to auto-hide; the bottom strip does the same for the
+       edit toolbar. CSS hides each strip unless its toolbar is in
+       auto-hide mode. -->
   <div id="toolbar-hotzone" aria-hidden="true"></div>
+  <div id="editing-toolbar-hotzone" aria-hidden="true"></div>
   <div id="toolbar" class="toolbar" role="toolbar" aria-label="View mode">
     <div class="toolbar-group toolbar-main">
       <button type="button" data-mode="reading" title="Reading (read-only)">Reading</button>

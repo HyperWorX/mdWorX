@@ -798,10 +798,10 @@ const schema = [
     // this header without also updating renderForm() removes that picker
     // from the dialog (the regression that caused commit 9cf896e's
     // sibling bug-fix).
-    { section: 'Theme & presets' },
+    { section: 'Theme & presets', tab: 'appearance' },
 
     // ---- Document handling (file decode + source-rendering behaviour) -
-    { section: 'Document handling' },
+    { section: 'Document handling', tab: 'document' },
     { key: 'encoding', label: 'Decode markdown as', type: 'select',
       options: ENCODINGS_FULL,
       tooltip: '"auto" sniffs BOM, then tries strict UTF-8, then falls back to the encoding below.' },
@@ -821,7 +821,10 @@ const schema = [
       tooltip: 'Minutes between automatic saves when you have unsaved edits. 0 (default) disables auto-save. Auto-save never writes to disk if nothing has changed since the last save.' },
 
     // ---- Page surface --------------------------------------------------
-    { section: 'Page surface' },
+    // Pure page-card properties. Per-element colours (text, link, code bg)
+    // moved to their own sections so each section reads as "everything
+    // about X" rather than mixing surface + content concerns.
+    { section: 'Page surface', tab: 'appearance' },
     { key: 'pageColor',           label: 'Page background',    type: 'colour',
       tooltip: 'Background colour of the centred page card. The pane background behind it stays the host theme.' },
     { key: 'pageBorderColor',     label: 'Page border',        type: 'colour',
@@ -832,67 +835,15 @@ const schema = [
     { key: 'pageShadow', label: 'Page shadow', type: 'select',
       options: ['none', 'subtle', 'soft', 'medium', 'strong', 'floating'],
       tooltip: 'Drop shadow behind the page card. Higher levels lift the page off the pane background.' },
-    { key: 'textColor',   label: 'Body text',          type: 'colour',
-      tooltip: 'Default text colour for paragraphs, list content, table cells, and any element that doesn\'t have its own colour override.' },
     { key: 'accentColor', label: 'Accent',             type: 'colour',
       tooltip: 'Used for bullet markers, list numbers, H3, ::marker, blockquote left bar, code-block left bar, ::selection.' },
-    { key: 'linkColor',   label: 'Link',               type: 'colour',
+
+    // ---- Body typography + colour --------------------------------------
+    { section: 'Body text', tab: 'appearance' },
+    { key: 'textColor',   label: 'Body text colour',   type: 'colour',
+      tooltip: 'Default text colour for paragraphs, list content, table cells, and any element that doesn\'t have its own colour override.' },
+    { key: 'linkColor',   label: 'Link colour',        type: 'colour',
       tooltip: 'Anchor colour for inline links and Reading-mode external links.' },
-    { key: 'codeBg',      label: 'Code background',    type: 'colour',
-      tooltip: 'Used for inline code, code blocks, blockquotes, and table headers. Supports rgba().' },
-
-    // ---- Highlight (mark) ----------------------------------------------
-    { section: 'Highlight (==marked text==)' },
-    { key: 'highlightBg',      label: 'Highlight background', type: 'colour',
-      tooltip: 'Background colour of <mark> highlights. Separate from accent so a yellow highlighter look stays distinct.' },
-    { key: 'highlightFg',      label: 'Highlight text colour', type: 'colour',
-      tooltip: 'Text colour inside <mark>. Stays opaque regardless of background opacity.' },
-    { key: 'highlightOpacity', label: 'Highlight background opacity', type: 'range',
-      min: 0, max: 1, step: 0.05,
-      tooltip: '0 = invisible bg (text only), 1 = fully opaque.' },
-    { key: 'highlightFontWeight', label: 'Highlight font weight', type: 'number',
-      min: 100, max: 900, step: 100,
-      tooltip: '100 = thin, 400 = normal, 700 = bold, 900 = black.' },
-
-    // ---- Heading colours -----------------------------------------------
-    // Per-heading colour overrides. Several Obsidian themes assign a
-    // different accent to each heading level (Tokyo Night: red/yellow/
-    // green/cyan/blue/magenta). When unset, each heading falls back to
-    // the theme's accent or text colour.
-    { section: 'Heading colours' },
-    { key: 'h1Color', label: 'H1 colour', type: 'colour',
-      tooltip: 'Colour for H1 headings. Falls back to the theme\'s H1 default when unset.' },
-    { key: 'h2Color', label: 'H2 colour', type: 'colour',
-      tooltip: 'Colour for H2 headings. Falls back to body text colour when unset.' },
-    { key: 'h3Color', label: 'H3 colour', type: 'colour',
-      tooltip: 'Colour for H3 headings. Falls back to body text colour when unset.' },
-    { key: 'h4Color', label: 'H4 colour', type: 'colour',
-      tooltip: 'Colour for H4 headings. Falls back to body text colour when unset.' },
-    { key: 'h5Color', label: 'H5 colour', type: 'colour',
-      tooltip: 'Colour for H5 headings. Renders in small caps with letter-spacing in Reading mode.' },
-    { key: 'h6Color', label: 'H6 colour', type: 'colour',
-      tooltip: 'Colour for H6 headings. Smallest level, paired with H5 for caption-style headings.' },
-
-    // ---- Rules and dividers --------------------------------------------
-    { section: 'Rules and dividers' },
-    { key: 'hrColor',               label: 'Horizontal rule colour', type: 'colour',
-      tooltip: 'Colour of the <hr> divider line only.' },
-    { key: 'hrThickness',           label: 'Horizontal rule thickness', type: 'number',
-      min: 1, max: 8, step: 1, suffix: 'px',
-      tooltip: 'Pixel height of the <hr> divider. Default 1px.' },
-    { key: 'headingUnderlineColor', label: 'Heading underline (H1 / H2)', type: 'colour',
-      tooltip: 'Colour of the line under H1 and H2 headings. Ignored when underline style is "gradient" (gradient uses each heading\'s own colour).' },
-    { key: 'headingUnderlineThickness', label: 'Heading underline thickness', type: 'number',
-      min: 0, max: 6, step: 1, suffix: 'px',
-      tooltip: 'Pixel thickness. 0 hides the underline.' },
-    { key: 'headingUnderlineStyle', label: 'Heading underline style', type: 'select',
-      options: ['solid', 'gradient', 'none'],
-      tooltip: '"solid" = flat line under H1 and H2. "gradient" = fading line under H1-H6 in their own colours. "none" = no underline anywhere.' },
-    { key: 'ruleColor',             label: 'Table / image / footnote borders', type: 'colour',
-      tooltip: 'Border colour for tables, images, the footnote section divider, and the page-card border (when set). Defaults to the palette accent.' },
-
-    // ---- Body typography (the main prose) ------------------------------
-    { section: 'Body text' },
     { key: 'fontFamily', label: 'Body font',  type: 'font',
       placeholder: "Start typing or pick from list. Supports fallbacks: 'Segoe UI', sans-serif",
       tooltip: 'Prose font for paragraphs, headings, lists, tables. Accepts a CSS font stack with fallbacks (e.g. \'Inter\', sans-serif).' },
@@ -906,18 +857,14 @@ const schema = [
       min: 1.0, max: 3.0, step: 0.05,
       tooltip: 'Multiplier. 1.55 = default.' },
 
-    // ---- Code typography ----------------------------------------------
-    { section: 'Code text' },
-    { key: 'codeFont',       label: 'Code font',  type: 'font',
-      placeholder: "Start typing or pick. Fallbacks: 'Cascadia Code', Consolas, monospace",
-      tooltip: 'Monospace font for inline code and code blocks. Accepts a CSS font stack with fallbacks.' },
-    { key: 'codeFontWeight', label: 'Code font weight', type: 'number',
-      min: 100, max: 900, step: 100,
-      tooltip: 'Applies to inline code and code blocks.' },
-    { key: 'codeFontSize',   label: 'Code font size', type: 'text',
-      placeholder: "0.92em (inline default), or px value e.g. 13px",
-      tooltip: 'CSS length. em = relative to body, px = absolute. Defaults: inline 0.92em, pre 12px.' },
-    { key: 'codeBlockTheme', label: 'Code block syntax theme', type: 'select',
+    // ---- Code blocks (background + typography + syntax theme) ---------
+    // Renamed from "Code text" to "Code blocks" since the section now also
+    // covers the block background and the syntax theme picker, not just
+    // the font / size / weight fields.
+    { section: 'Code blocks', tab: 'appearance' },
+    { key: 'codeBg',      label: 'Code background',    type: 'colour',
+      tooltip: 'Used for inline code, code blocks, blockquotes, and table headers. Supports rgba().' },
+    { key: 'codeBlockTheme', label: 'Syntax theme', type: 'select',
       options: [
           { value: 'match-palette',   label: 'Match palette (default)' },
           { value: 'github-light',    label: 'GitHub Light' },
@@ -931,13 +878,74 @@ const schema = [
           { value: 'tomorrow-night',  label: 'Tomorrow Night' },
           { value: 'one-dark',        label: 'One Dark' },
       ],
-      tooltip: '"Match palette" derives token colours from the active palette. Other entries override the palette colours with a classic syntax theme. The block background still comes from the palette.' },
+      tooltip: '"Match palette" derives token colours from the active palette and uses the palette\'s code background. Other entries override both with the classic syntax theme\'s native colours and background.' },
+    { key: 'codeFont',       label: 'Code font',  type: 'font',
+      placeholder: "Start typing or pick. Fallbacks: 'Cascadia Code', Consolas, monospace",
+      tooltip: 'Monospace font for inline code and code blocks. Accepts a CSS font stack with fallbacks.' },
+    { key: 'codeFontWeight', label: 'Code font weight', type: 'number',
+      min: 100, max: 900, step: 100,
+      tooltip: 'Applies to inline code and code blocks.' },
+    { key: 'codeFontSize',   label: 'Code font size', type: 'text',
+      placeholder: "0.92em (inline default), or px value e.g. 13px",
+      tooltip: 'CSS length. em = relative to body, px = absolute. Defaults: inline 0.92em, pre 12px.' },
     { key: 'codeLineHeight', label: 'Code line height', type: 'number',
       min: 1.0, max: 3.0, step: 0.05,
       tooltip: 'Multiplier for code blocks. Default 1.5.' },
 
+    // ---- Highlight (mark) ----------------------------------------------
+    { section: 'Highlight (==marked text==)', tab: 'appearance' },
+    { key: 'highlightBg',      label: 'Highlight background', type: 'colour',
+      tooltip: 'Background colour of <mark> highlights. Separate from accent so a yellow highlighter look stays distinct.' },
+    { key: 'highlightFg',      label: 'Highlight text colour', type: 'colour',
+      tooltip: 'Text colour inside <mark>. Stays opaque regardless of background opacity.' },
+    { key: 'highlightOpacity', label: 'Highlight background opacity', type: 'range',
+      min: 0, max: 1, step: 0.05,
+      tooltip: '0 = invisible bg (text only), 1 = fully opaque.' },
+    { key: 'highlightFontWeight', label: 'Highlight font weight', type: 'number',
+      min: 100, max: 900, step: 100,
+      tooltip: '100 = thin, 400 = normal, 700 = bold, 900 = black.' },
+
+    // ---- Heading colours + underline -----------------------------------
+    // Per-heading colour overrides plus the H1/H2 underline trio (colour,
+    // thickness, style). The underline fields moved here from "Rules and
+    // dividers" because they belong to headings, not separator lines.
+    { section: 'Heading colours', tab: 'appearance' },
+    { key: 'h1Color', label: 'H1 colour', type: 'colour',
+      tooltip: 'Colour for H1 headings. Falls back to the theme\'s H1 default when unset.' },
+    { key: 'h2Color', label: 'H2 colour', type: 'colour',
+      tooltip: 'Colour for H2 headings. Falls back to body text colour when unset.' },
+    { key: 'h3Color', label: 'H3 colour', type: 'colour',
+      tooltip: 'Colour for H3 headings. Falls back to body text colour when unset.' },
+    { key: 'h4Color', label: 'H4 colour', type: 'colour',
+      tooltip: 'Colour for H4 headings. Falls back to body text colour when unset.' },
+    { key: 'h5Color', label: 'H5 colour', type: 'colour',
+      tooltip: 'Colour for H5 headings. Renders in small caps with letter-spacing in Reading mode.' },
+    { key: 'h6Color', label: 'H6 colour', type: 'colour',
+      tooltip: 'Colour for H6 headings. Smallest level, paired with H5 for caption-style headings.' },
+    { key: 'headingUnderlineColor', label: 'Underline colour (H1 / H2)', type: 'colour',
+      tooltip: 'Colour of the line under H1 and H2 headings. Ignored when underline style is "gradient" (gradient uses each heading\'s own colour).' },
+    { key: 'headingUnderlineThickness', label: 'Underline thickness', type: 'number',
+      min: 0, max: 6, step: 1, suffix: 'px',
+      tooltip: 'Pixel thickness. 0 hides the underline.' },
+    { key: 'headingUnderlineStyle', label: 'Underline style', type: 'select',
+      options: ['solid', 'gradient', 'none'],
+      tooltip: '"solid" = flat line under H1 and H2. "gradient" = fading line under H1-H6 in their own colours. "none" = no underline anywhere.' },
+
+    // ---- Rules and dividers --------------------------------------------
+    // Only the actual divider properties live here now. Heading underlines
+    // moved to "Heading colours" so this section is about <hr> and
+    // table / image / footnote borders specifically.
+    { section: 'Rules and dividers', tab: 'appearance' },
+    { key: 'hrColor',               label: 'Horizontal rule colour', type: 'colour',
+      tooltip: 'Colour of the <hr> divider line only.' },
+    { key: 'hrThickness',           label: 'Horizontal rule thickness', type: 'number',
+      min: 1, max: 8, step: 1, suffix: 'px',
+      tooltip: 'Pixel height of the <hr> divider. Default 1px.' },
+    { key: 'ruleColor',             label: 'Table / image / footnote borders', type: 'colour',
+      tooltip: 'Border colour for tables, images, the footnote section divider, and the page-card border (when set). Defaults to the palette accent.' },
+
     // ---- Page layout ---------------------------------------------------
-    { section: 'Page layout' },
+    { section: 'Page layout', tab: 'appearance' },
     { key: 'maxWidth',    label: 'Page max width', type: 'number',
       min: 400, max: 2000, step: 10, suffix: 'px',
       tooltip: 'Maximum width of the centred page card in pixels. Content beyond this stays bounded.' },
@@ -946,11 +954,7 @@ const schema = [
       tooltip: 'CSS padding shorthand, or a single number (interpreted as px).' },
 
     // ---- Toolbar customisation -----------------------------------------
-    // Each toolbar can be re-ordered and individual buttons hidden. The
-    // stored value is an array of { id, visible } in display order; null /
-    // missing means "use the manifest default" (current order, all
-    // visible). Reset clears the array back to null.
-    { section: 'Toolbar customisation' },
+    { section: 'Toolbar customisation', tab: 'toolbars' },
     { key: 'topToolbarMode', label: 'Top toolbar display', type: 'select',
       options: [
           { value: 'always',    label: 'Always visible' },
@@ -962,7 +966,7 @@ const schema = [
           { value: 'always',    label: 'Always visible' },
           { value: 'auto-hide', label: 'Auto-hide on hover' },
       ],
-      tooltip: '"Always visible" keeps the formatting toolbar pinned in Live / Source modes. "Auto-hide on hover" slides it out of view until you bring the mouse to the top of the viewer.' },
+      tooltip: '"Always visible" keeps the formatting toolbar pinned in Live / Source modes. "Auto-hide on hover" slides it down out of view until you bring the mouse to the bottom of the viewer.' },
     { key: 'editToolbarLayout', label: 'Edit toolbar layout', type: 'toolbar-layout',
       manifestKey: 'edit',
       tooltip: 'Reorder or hide buttons in the formatting toolbar shown in Live / Source modes. Drag a row to a new position to reorder; untick to hide. Reset returns to defaults.' },
@@ -2020,37 +2024,142 @@ function refreshPresetPicker() {
     if (!sel.value) sel.value = 'Default Auto';
 }
 
+// Display order + label for each tab. Tabs are discovered from the
+// schema's `tab` keys; this table gives the canonical order and the
+// friendly label shown in the nav strip. About is hand-added because it
+// doesn't have schema entries — its content is the version + update-check
+// row, rendered directly into the tab panel.
+const TAB_META = [
+    { id: 'appearance', label: 'Appearance' },
+    { id: 'document',   label: 'Document' },
+    { id: 'toolbars',   label: 'Toolbars' },
+    { id: 'about',      label: 'About' },
+];
+const DEFAULT_TAB = 'appearance';
+
+function setActiveTab(id) {
+    const tabs   = document.getElementById('settings-tabs');
+    const panels = form.querySelectorAll('.tab-panel');
+    if (!tabs) return;
+    tabs.querySelectorAll('.tab-button').forEach(b => {
+        const on = b.dataset.tab === id;
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-selected', on ? 'true' : 'false');
+        b.tabIndex = on ? 0 : -1;
+    });
+    panels.forEach(p => {
+        p.classList.toggle('active', p.dataset.tab === id);
+    });
+}
+
+function buildAboutPanel() {
+    // Mirrors the layout that previously lived as a static .update-row in
+    // settings.html. Boot wiring binds to btn-check-updates / current-
+    // version / update-status by id, so as long as those IDs stay the
+    // same the existing handlers keep working unmodified.
+    const wrap = document.createElement('div');
+    wrap.className = 'update-row about-row';
+
+    const ver = document.createElement('span');
+    ver.className = 'update-version';
+    ver.innerHTML = 'Version <span id="current-version">…</span>';
+    wrap.appendChild(ver);
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.id = 'btn-check-updates';
+    btn.className = 'btn';
+    btn.textContent = 'Check for updates';
+    wrap.appendChild(btn);
+
+    const status = document.createElement('span');
+    status.id = 'update-status';
+    status.className = 'update-status';
+    wrap.appendChild(status);
+
+    return wrap;
+}
+
 function renderForm() {
     form.innerHTML = '';
 
-    // Track the current section so each row can be tagged with it via
-    // data-section. CSS uses that to override grid-template-columns per
-    // section (e.g. Document handling gets a wider label column because
-    // its labels are longer than every other section's).
-    let currentSection = null;
+    // Discover which tabs the schema actually references. About is
+    // included unconditionally so the version + update-check row always
+    // has a home. The order in TAB_META wins; any tab not in TAB_META is
+    // appended at the end so a future schema addition isn't silently
+    // dropped.
+    const seenTabs = new Set();
+    for (const entry of schema) {
+        if (entry.tab) seenTabs.add(entry.tab);
+    }
+    seenTabs.add('about');
+    const tabsInOrder = TAB_META
+        .filter(t => seenTabs.has(t.id))
+        .concat([...seenTabs].filter(id => !TAB_META.find(t => t.id === id))
+                              .map(id => ({ id, label: id })));
 
+    // Render the nav strip from the discovered tabs.
+    const navEl = document.getElementById('settings-tabs');
+    if (navEl) {
+        navEl.innerHTML = '';
+        for (const t of tabsInOrder) {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'tab-button';
+            b.dataset.tab = t.id;
+            b.setAttribute('role', 'tab');
+            b.setAttribute('aria-selected', 'false');
+            b.tabIndex = -1;
+            b.textContent = t.label;
+            b.addEventListener('click', () => setActiveTab(t.id));
+            navEl.appendChild(b);
+        }
+    }
+
+    // Create a tab-panel container per discovered tab. Each panel will
+    // collect its section heads + rows below.
+    const panels = {};
+    for (const t of tabsInOrder) {
+        const p = document.createElement('div');
+        p.className = 'tab-panel';
+        p.dataset.tab = t.id;
+        p.setAttribute('role', 'tabpanel');
+        form.appendChild(p);
+        panels[t.id] = p;
+    }
+
+    // About tab content: version + check-for-updates row. Added once,
+    // before the schema walk, so the panel is non-empty even if the
+    // schema doesn't reference 'about' (it never does).
+    if (panels.about) {
+        panels.about.appendChild(buildAboutPanel());
+    }
+
+    // Walk the schema and append section heads + rows into the panel
+    // matching each section's `tab` field. Section header drives the
+    // current-tab pointer; rows after a section follow until the next
+    // section is encountered.
+    let currentSection = null;
+    let currentTab     = DEFAULT_TAB;
     for (const entry of schema) {
         if (entry.section) {
             currentSection = entry.section.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+            currentTab     = entry.tab || DEFAULT_TAB;
+            const target = panels[currentTab] || panels[DEFAULT_TAB];
+
             const h = document.createElement('div');
             h.className = 'section-head';
             h.textContent = entry.section;
-            form.appendChild(h);
+            target.appendChild(h);
 
             // Inject the preset picker as the first row of the Theme &
-            // presets section so it sits at the top of the dialog. Save /
-            // delete actions for custom themes and palettes live in the
-            // footer "Themes ▾" menu (see settings.html + boot wire-up).
+            // presets section so it sits at the top of the Appearance
+            // tab. Save / delete actions for custom themes and palettes
+            // live in the footer "Themes ▾" menu (see settings.html +
+            // boot wire-up).
             if (entry.section === 'Theme & presets') {
                 const presetRow = makePresetRow();
-                form.appendChild(presetRow);
-                // Help text + live colour preview rolled into one
-                // paragraph. The inline syntax (bold, italic, strike,
-                // code, highlight, sub, sup, link) renders through the
-                // same .cm-md-rendered-block CSS Reading mode uses, so
-                // each coloured element repaints live as the user
-                // scrolls through palettes (applyOwnPalette updates the
-                // CSS variables this block reads).
+                target.appendChild(presetRow);
                 const helpEl = document.createElement('div');
                 helpEl.className = 'help cm-md-rendered-block preset-help';
                 helpEl.innerHTML =
@@ -2067,9 +2176,10 @@ function renderForm() {
             }
             continue;
         }
-        const row = makeRow(entry);
+        const row    = makeRow(entry);
+        const target = panels[currentTab] || panels[DEFAULT_TAB];
         if (currentSection) row.dataset.section = currentSection;
-        form.appendChild(row);
+        target.appendChild(row);
         if (entry.help) {
             const help = document.createElement('div');
             help.className = 'help';
@@ -2079,6 +2189,7 @@ function renderForm() {
     }
     populateFromState();
     syncPresetPicker();
+    setActiveTab(DEFAULT_TAB);
 }
 
 // Iterate EVERY preset-touched key. Keys present in `palette` get its
