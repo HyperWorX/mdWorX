@@ -892,6 +892,22 @@ const schema = [
       min: 1.0, max: 3.0, step: 0.05,
       tooltip: 'Multiplier for code blocks. Default 1.5.' },
 
+    // ---- Quotes & tables ----------------------------------------------
+    // Background + text colour for blockquotes and table headers are
+    // independent of the code-block background so changing one doesn't
+    // bleed into the others. Borders for tables / images / footnotes
+    // are controlled by the "Table / image / footnote borders" setting
+    // in "Rules and dividers" below.
+    { section: 'Quotes & tables', tab: 'appearance' },
+    { key: 'blockquoteBg',  label: 'Blockquote background', type: 'colour',
+      tooltip: 'Background colour for blockquotes. Independent of code-block background.' },
+    { key: 'blockquoteFg',  label: 'Blockquote text colour', type: 'colour',
+      tooltip: 'Text colour inside blockquotes. Falls back to the muted body-text colour when unset.' },
+    { key: 'tableHeaderBg', label: 'Table header background', type: 'colour',
+      tooltip: 'Background colour of <thead> cells. Independent of code-block background.' },
+    { key: 'tableHeaderFg', label: 'Table header text colour', type: 'colour',
+      tooltip: 'Text colour inside table header cells. Falls back to body text colour when unset.' },
+
     // ---- Highlight (mark) ----------------------------------------------
     { section: 'Highlight (==marked text==)', tab: 'appearance' },
     { key: 'highlightBg',      label: 'Highlight background', type: 'colour',
@@ -1022,6 +1038,21 @@ function setStatus(text, cls) {
 
 function isEmpty(v) {
     return v === undefined || v === null || v === '';
+}
+
+// Mutual-exclusion helper for codeBg <-> codeBlockTheme. They both define
+// the fenced-code-block background; whichever the user touches last wins,
+// so changing one resets the other to its "no active value" state. For
+// codeBlockTheme the resting state is 'match-palette'; for codeBg it's
+// empty (theme/preset default).
+function clearOtherCodeField(thisKey) {
+    const otherKey   = thisKey === 'codeBg' ? 'codeBlockTheme' : 'codeBg';
+    const otherEntry = schema.find(s => s.key === otherKey);
+    if (!otherEntry) return;
+    const clearValue = otherKey === 'codeBlockTheme' ? 'match-palette' : null;
+    setControlValue(otherEntry, clearValue);
+    const otherRow = form.querySelector(`.row[data-key="${otherKey}"]`);
+    if (otherRow) updateResetState(otherRow, otherEntry);
 }
 
 // Tolerant hex parser: accepts #RGB, RGB, #RRGGBB, RRGGBB, #RRGGBBAA,
@@ -1282,6 +1313,16 @@ function makeRow(entry) {
             control.checked) {
             showRowToast(row,
                 'Heads-up: with this on, unsaved edits in the DOpus viewer pane are discarded when you switch files. Save (Ctrl+S) first. Pop-out windows are independent and not affected.');
+        }
+        // codeBg and codeBlockTheme are mutually exclusive: each one
+        // controls the same fenced-code-block background. Setting either
+        // one clears the other so the form always shows which is active.
+        if (entry.key === 'codeBg') {
+            const v = getControlValue(entry);
+            if (!isEmpty(v)) clearOtherCodeField('codeBg');
+        } else if (entry.key === 'codeBlockTheme') {
+            const v = getControlValue(entry);
+            if (v && v !== 'match-palette') clearOtherCodeField('codeBlockTheme');
         }
     };
     control.addEventListener('input',  onEdit);
@@ -2364,13 +2405,17 @@ function resolveTheme() {
 // settingsCssMap. The settings dialog applies the same overrides as the
 // viewer so the form chrome (background, text, borders, accent) matches
 // the active custom palette instead of staying on the bundled defaults.
+// Live-preview map for the SETTINGS DIALOG only. Mirrors the viewer's
+// generic palette variables so the dialog chrome updates as the user
+// edits a palette. Content-specific keys (codeBg, ruleColor,
+// blockquoteBg, tableHeaderBg, etc.) are intentionally NOT mapped here
+// — those are viewer-only and shouldn't leak into the dialog's own
+// borders / surfaces while the user is still editing them.
 const settingsCssMap = {
     textColor:             '--ink-override',
     pageColor:             '--page-override',
     accentColor:           '--accent-override',
-    codeBg:                '--code-override',
     linkColor:             '--link-override',
-    ruleColor:             '--rule-override',
     fontFamily:            '--font-prose-override',
     proseFontWeight:       '--font-weight-prose-override',
     fontSize:              '--font-size-override',
