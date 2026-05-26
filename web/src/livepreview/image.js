@@ -11,14 +11,25 @@ import { RangeSetBuilder } from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
 import { decoratorStateField, isCursorInRange } from './util.js';
 import { rewriteImageUrl } from '../lib/local-url.js';
+import { parseImageAlt, applyImageAttrs } from '../lib/image-alt.js';
 
 class InlineImageWidget extends WidgetType {
-    constructor(src, alt) {
+    constructor(src, alt, attrs) {
         super();
         this.src = src;
         this.alt = alt || '';
+        // attrs is the parsed {width,height,alignment} bag from
+        // image-alt.js; cached on the widget so eq() can compare and
+        // toDOM() can apply without re-parsing.
+        this.attrs = attrs || { width: null, height: null, alignment: 'none' };
     }
-    eq(other) { return other.src === this.src && other.alt === this.alt; }
+    eq(other) {
+        return other.src === this.src &&
+               other.alt === this.alt &&
+               other.attrs.width  === this.attrs.width &&
+               other.attrs.height === this.attrs.height &&
+               other.attrs.alignment === this.attrs.alignment;
+    }
     toDOM() {
         const wrap = document.createElement('span');
         wrap.className = 'cm-md-inline-image';
@@ -36,6 +47,7 @@ class InlineImageWidget extends WidgetType {
         if (this.alt) img.alt = this.alt;
         img.loading = 'lazy';
         img.decoding = 'async';
+        applyImageAttrs(img, this.attrs);
         wrap.appendChild(img);
         return wrap;
     }
@@ -58,10 +70,11 @@ export const imageField = decoratorStateField((state) => {
             const text = state.doc.sliceString(imgFrom, imgTo);
             const m = text.match(/^!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/);
             if (!m) return;
-            const alt = m[1];
+            const rawAlt = m[1];
             const rawSrc = m[2];
+            const parsed = parseImageAlt(rawAlt);
             const rewritten = rewriteImageUrl(rawSrc);
-            const widget = new InlineImageWidget(rewritten.src, alt);
+            const widget = new InlineImageWidget(rewritten.src, parsed.alt, parsed);
             items.push({
                 from: imgFrom,
                 to: imgTo,

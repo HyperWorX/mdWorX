@@ -14,11 +14,12 @@ import abbr from 'markdown-it-abbr';
 import markIns from 'markdown-it-mark';
 import sub from 'markdown-it-sub';
 import sup from 'markdown-it-sup';
-import attrs from 'markdown-it-attrs';
 import DOMPurify from 'dompurify';
+import { parseImageAlt } from './lib/image-alt.js';
 import { createEditor } from './editor.js';
 import { COMMANDS as EDITOR_COMMANDS, insertImage } from './editor-toolbar.js';
 import { rewriteImageUrl } from './lib/local-url.js';
+import { setBreaks as setSharedBreaks } from './lib/markdown-it-shared.js';
 
 // ---------------------------------------------------------------------------
 // Markdown configuration
@@ -41,13 +42,6 @@ md.use(abbr);
 md.use(markIns);
 md.use(sub);
 md.use(sup);
-// Attribute syntax `{width=200 height=150 .class-name #id}` after inline
-// images, links, headings, code fences, etc. Used by the Insert Image
-// toolbar so sized/aligned images stay as portable markdown rather than
-// becoming raw <img> tags.
-md.use(attrs, {
-    allowedAttributes: ['id', 'class', 'width', 'height', 'title'],
-});
 
 // Image rewriting: relative paths -> virtual host the native side maps
 // to the markdown file's parent directory. Absolute paths (file:// or
@@ -57,6 +51,22 @@ const defaultImageRender = md.renderer.rules.image ||
 
 md.renderer.rules.image = (tokens, idx, options, env, slf) => {
     const token = tokens[idx];
+
+    // Parse Obsidian-style alt-text tokens (`alt|400x300|center`) and
+    // hoist dimensions/alignment to real img attributes. The token's
+    // content (text inside `[...]`) is the alt; markdown-it stores it
+    // in token.children before render.
+    const rawAlt = token.attrGet('alt') || (token.content || '');
+    const parsed = parseImageAlt(rawAlt);
+    token.attrSet('alt', parsed.alt);
+    if (parsed.width  != null) token.attrSet('width',  String(parsed.width));
+    if (parsed.height != null) token.attrSet('height', String(parsed.height));
+    if (parsed.alignment !== 'none') {
+        const existing = token.attrGet('class') || '';
+        const cls = (existing ? existing + ' ' : '') + 'md-img-' + parsed.alignment;
+        token.attrSet('class', cls);
+    }
+
     const raw = token.attrGet('src');
     if (raw) {
         const rewritten = rewriteImageUrl(raw);
@@ -342,44 +352,6 @@ function setMode(next) {
         if (mode === 'source' && splitMode) renderSplitPreview();
     }
     syncToolbar();
-    // TEMP DIAGNOSTIC: log layout sizes after the DOM settles so we can see
-    // exactly where source-mode width is being constrained.
-    requestAnimationFrame(() => requestAnimationFrame(() => logLayout('after setMode ' + mode)));
-}
-
-// TEMP DIAGNOSTIC. Prints the box position + width of every element in the
-// layout chain so we can see which one is causing the source-mode editor
-// to sit on the left instead of centring. Remove once diagnosed.
-function logLayout(label) {
-    const pick = sel => {
-        const el = typeof sel === 'string' ? document.querySelector(sel) : sel;
-        if (!el) return null;
-        const r = el.getBoundingClientRect();
-        const cs = getComputedStyle(el);
-        return {
-            sel: typeof sel === 'string' ? sel : el.tagName.toLowerCase() + (el.id ? '#' + el.id : ''),
-            x: Math.round(r.left),
-            width: Math.round(r.width),
-            display: cs.display,
-            maxW: cs.maxWidth,
-            margin: cs.marginLeft + ' / ' + cs.marginRight,
-            padding: cs.paddingLeft + ' / ' + cs.paddingRight,
-            inlineW: el.style.width || '—',
-        };
-    };
-    console.group('[layout] ' + label);
-    console.log('viewport', window.innerWidth, 'visualVP', window.visualViewport && window.visualViewport.width,
-                'docElClient', document.documentElement.clientWidth);
-    console.table([
-        pick('html'),
-        pick('body'),
-        pick('.page'),
-        pick('.editor'),
-        pick('.cm-editor'),
-        pick('.cm-scroller'),
-        pick('.cm-content'),
-    ].filter(Boolean));
-    console.groupEnd();
 }
 
 function cycleMode() {
@@ -467,8 +439,15 @@ const imgBrowseBtn   = document.getElementById('img-pop-browse');
 const imgAltInput    = document.getElementById('img-pop-alt');
 const imgWidthInput  = document.getElementById('img-pop-width');
 const imgHeightInput = document.getElementById('img-pop-height');
+const imgCopyChk     = document.getElementById('img-pop-copy');
 const imgInsertBtn   = document.getElementById('img-pop-insert');
 const imgCancelBtn   = document.getElementById('img-pop-cancel');
+
+// When the copy checkbox is ticked and the source is a local file path,
+// Insert sends a copyImage message to native and waits for the reply
+// before calling insertImage. pendingImageInsert stashes the other form
+// fields so the reply handler can call insertImage with everything.
+let pendingImageInsert = null;
 
 // Insert is enabled whenever the source input has any non-whitespace text,
 // so a typed URL counts the same as a path returned by the native Browse
@@ -483,8 +462,10 @@ function resetImagePopupState() {
     if (imgAltInput)    imgAltInput.value    = '';
     if (imgWidthInput)  imgWidthInput.value  = '';
     if (imgHeightInput) imgHeightInput.value = '';
+    if (imgCopyChk)     imgCopyChk.checked   = false;
     const noneRadio = document.querySelector('input[name="img-pop-align"][value="none"]');
     if (noneRadio) noneRadio.checked = true;
+    pendingImageInsert = null;
     updateImageInsertEnabled();
 }
 
@@ -522,13 +503,26 @@ if (imgInsertBtn) {
         const alignment = alignChosen ? alignChosen.value : 'none';
         const widthVal  = imgWidthInput  ? imgWidthInput.value.trim()  : '';
         const heightVal = imgHeightInput ? imgHeightInput.value.trim() : '';
-        insertImage(editor.view, {
-            path:      src,
+        const opts = {
             alt:       imgAltInput ? imgAltInput.value : '',
             width:     widthVal  || null,
             height:    heightVal || null,
             alignment: alignment,
-        });
+        };
+
+        // Copy mode: only meaningful for a local file path (not a URL).
+        // Send copyImage to native; reply handler will call insertImage
+        // with the returned relative path.
+        const wantsCopy = imgCopyChk && imgCopyChk.checked;
+        const looksLocal = /^[A-Za-z]:[\\/]/.test(src) || !/^[a-z]+:\/\//i.test(src);
+        if (wantsCopy && looksLocal && /^[A-Za-z]:[\\/]/.test(src)) {
+            pendingImageInsert = opts;
+            send({ type: 'copyImage', path: src });
+            imgInsertBtn.disabled = true;  // re-enabled by reply or error
+            return;
+        }
+
+        insertImage(editor.view, { ...opts, path: src });
         toggleImagePopup(false);
     });
 }
@@ -666,6 +660,14 @@ const settingsCssMap = {
     highlightBg:           '--highlight-bg-override',
     highlightFg:           '--highlight-fg-override',
     highlightOpacity:      '--highlight-opacity-override',
+    // Per-palette wrapped-content colours: bold / italic / strike / inline-code.
+    // CSS uses var(--strong-override, var(--strong)) so a palette can override
+    // each independently and the theme-light/-dark defaults from viewer.css
+    // take over when null.
+    strongColor:           '--strong-override',
+    emphasisColor:         '--emphasis-override',
+    strikeColor:           '--strike-override',
+    monoColor:             '--mono-override',
     fontFamily:            '--font-prose-override',
     proseFontWeight:       '--font-weight-prose-override',
     codeFont:              '--font-mono-override',
@@ -678,16 +680,37 @@ const settingsCssMap = {
     maxWidth:              '--page-max-override',
     pagePadding:           '--page-pad-override',
     hrThickness:           '--hr-thickness-override',
+    headingUnderlineThickness: '--heading-underline-thickness-override',
     pageBorderColor:       '--page-border-color-override',
     pageBorderThickness:   '--page-border-thickness-override',
+    pageShadow:            '--page-shadow-override',
 };
 
-const settingsPxKeys = new Set(['fontSize', 'maxWidth', 'pagePadding', 'hrThickness', 'pageBorderThickness']);
+const settingsPxKeys = new Set(['fontSize', 'maxWidth', 'pagePadding', 'hrThickness', 'headingUnderlineThickness', 'pageBorderThickness']);
+
+// Page shadow levels: the settings dialog stores a named choice; this
+// map translates it to an actual CSS box-shadow value at apply time.
+// Progression: none -> floating mirrors a typical Material/elevation
+// scale, with rgba(0,0,0,X) values that read decently on both light
+// and dark pane backgrounds.
+// Opacity values bumped per user feedback: shadows should be visibly
+// stronger without growing in size. Blur/offset unchanged; alpha values
+// roughly +50-75% across the scale so each level reads as a clear
+// elevation step against both light and dark pane backgrounds.
+const PAGE_SHADOW_MAP = {
+    'none':       'none',
+    'subtle':     '0 2px 6px rgba(0, 0, 0, 0.14)',
+    'soft':       '0 4px 14px rgba(0, 0, 0, 0.20)',
+    'medium':     '0 8px 24px rgba(0, 0, 0, 0.30)',
+    'strong':     '0 14px 36px rgba(0, 0, 0, 0.42)',
+    'floating':   '0 24px 60px rgba(0, 0, 0, 0.60)',
+};
 
 let defaultSettings = {};   // populated by loadDefaults()
 let userSettings    = {};   // populated by 'userSettings' messages
 let forcedTheme     = null; // 'light' | 'dark' | null
 let lastNativeTheme = null; // 'light' | 'dark' set by 'theme' message
+let lastHardLineBreaks = false; // tracks previous toggle state so we know when to re-render
 
 function applySettings(s) {
     const root = document.documentElement.style;
@@ -696,21 +719,31 @@ function applySettings(s) {
         const v = s[k];
         if (v === undefined || v === null || v === '') {
             root.removeProperty(varName);
-        } else {
-            // Px-typed keys: coerce numbers OR numeric strings to "<n>px".
-            // The number-only check missed text-input values like "5" that
-            // older settings.json files store as strings, producing invalid
-            // CSS (`border: 5 solid ...` instead of `5px solid ...`).
-            let out = v;
-            if (settingsPxKeys.has(k)) {
-                if (typeof v === 'number') {
-                    out = `${v}px`;
-                } else if (typeof v === 'string' && /^\s*-?\d+(\.\d+)?\s*$/.test(v)) {
-                    out = `${v.trim()}px`;
-                }
-            }
-            root.setProperty(varName, out);
+            continue;
         }
+        // Px-typed keys: coerce numbers OR numeric strings to "<n>px".
+        // The number-only check missed text-input values like "5" that
+        // older settings.json files store as strings, producing invalid
+        // CSS (`border: 5 solid ...` instead of `5px solid ...`).
+        let out = v;
+        if (settingsPxKeys.has(k)) {
+            if (typeof v === 'number') {
+                out = `${v}px`;
+            } else if (typeof v === 'string' && /^\s*-?\d+(\.\d+)?\s*$/.test(v)) {
+                out = `${v.trim()}px`;
+            }
+        } else if (k === 'pageShadow') {
+            // The select stores a named choice ('none' / 'subtle' / ...).
+            // Map to a real CSS box-shadow value here; unknown names
+            // clear the override so the theme default takes over.
+            const css = PAGE_SHADOW_MAP[String(v).toLowerCase()];
+            if (css === undefined) {
+                root.removeProperty(varName);
+                continue;
+            }
+            out = css;
+        }
+        root.setProperty(varName, out);
     }
 
     // Theme override: pin or release. Theme class is rebuilt from scratch
@@ -742,6 +775,45 @@ function applySettings(s) {
         c && !c.startsWith('theme-') && !c.startsWith('heading-underline-') && !c.startsWith('heading-text-')
     );
     document.body.className = [...preserved, themeClass, ...underlineClass.split(/\s+/).filter(Boolean)].join(' ');
+
+    // Hard line breaks toggle.
+    //
+    // OFF (default, CommonMark): single newlines inside a paragraph or list
+    // item are treated as whitespace; multi-line source flows as one
+    // wrapped paragraph in Reading. Live still shows the source layout
+    // because that's what a source-view editor does.
+    //
+    // ON: single newlines are hard breaks; markdown-it inserts <br> for
+    // each newline. Reading now shows visible line breaks matching Live's
+    // source-line layout.
+    //
+    // Implementation: flip the `breaks` option on BOTH markdown-it
+    // instances (this file's `md` used by Reading + render() and the
+    // shared `md` in lib/markdown-it-shared.js used by Live-mode block
+    // widgets). If the value changed since the last apply, trigger a
+    // re-render in Reading mode or rebuild the editor in Live/Source so
+    // the new option propagates to currently-rendered HTML.
+    const newBreaks = s.hardLineBreaks === true;
+    const breaksChanged = newBreaks !== lastHardLineBreaks;
+    md.set({ breaks: newBreaks });
+    setSharedBreaks(newBreaks);
+    lastHardLineBreaks = newBreaks;
+
+    // Show-formatting-marks toggle: viewer.css renders a small "LF" /
+    // "CRLF" badge at the end of each cm-line in Live mode when this class
+    // is set. Pure CSS — no editor rebuild needed when toggled. The
+    // formattingMarksField decorator always emits per-line classes; the
+    // body class controls only whether the ::after badges show.
+    document.body.classList.toggle('mdwx-show-formatting', s.showFormattingMarks === true);
+
+    if (breaksChanged) {
+        if (mode === 'reading') {
+            render(dirty ? editorBuffer : loadedBuffer);
+        } else if (editor) {
+            destroyEditor();
+            buildEditorFor(mode);
+        }
+    }
 }
 
 function resolveAndApply() {
@@ -785,6 +857,31 @@ function onHostMessage(event) {
             loadedBuffer   = m.content || '';
             editorBuffer   = loadedBuffer;
             loadedEncoding = m.encoding || 'utf-8';
+
+            // Build per-line EOL type array from the raw content so the
+            // formatting-marks decorator in Live mode can render the right
+            // badge per line. CodeMirror normalizes line endings internally
+            // (default to LF) — this is the only point where the original
+            // CRLF/LF/CR-only distinction is preserved. Stored on window so
+            // the decorator can read it without an EditorState facet.
+            window.mdwxEolPerLine = (() => {
+                const text = loadedBuffer;
+                const result = [];
+                let i = 0;
+                while (i < text.length) {
+                    const lf = text.indexOf('\n', i);
+                    if (lf < 0) {
+                        // Final line has no terminator.
+                        result.push('none');
+                        break;
+                    }
+                    result.push(lf > 0 && text.charCodeAt(lf - 1) === 13 ? 'crlf' : 'lf');
+                    i = lf + 1;
+                }
+                if (text.length === 0) result.push('none');
+                else if (text.endsWith('\n')) result.push('none');   // trailing-newline file has one empty line after
+                return result;
+            })();
             // Always hide the "Loading file..." placeholder once content
             // arrives, regardless of which mode we're in. (Only render()
             // used to do this; live/source modes don't call render().)
@@ -827,15 +924,34 @@ function onHostMessage(event) {
         case 'imagePicked':
             // {type:'imagePicked', cancelled:bool, path:string, relative:string}
             // Native reply to pickImage. If cancelled, leave the popup as
-            // the user left it. Otherwise fill the source input, preferring
-            // the relative path so the inserted markdown stays portable.
+            // the user left it. Otherwise fill the source input with the
+            // ABSOLUTE path by default (renderer serves any local file via
+            // the local-host _abs/ route). Users can edit it down to a
+            // relative path or URL, or tick the copy checkbox to vendor
+            // the file into the document's folder.
             if (m.cancelled) break;
             if (imgSrcInput) {
-                const chosen = (m.relative && m.relative.length) ? m.relative : (m.path || '');
+                const chosen = m.path || m.relative || '';
                 imgSrcInput.value = chosen;
                 updateImageInsertEnabled();
                 imgSrcInput.focus();
                 imgSrcInput.select();
+            }
+            break;
+        case 'imageCopied':
+            // {type:'imageCopied', cancelled, relative?, error?}
+            // Reply to copyImage. On success insert with the new relative
+            // path; on failure surface the error and leave the popup open.
+            if (m.error) {
+                setStatus('image copy failed: ' + m.error, 'error');
+                pendingImageInsert = null;
+                updateImageInsertEnabled();
+                break;
+            }
+            if (m.relative && pendingImageInsert && editor) {
+                insertImage(editor.view, { ...pendingImageInsert, path: m.relative });
+                pendingImageInsert = null;
+                toggleImagePopup(false);
             }
             break;
         case 'theme':
@@ -884,7 +1000,7 @@ if (window.chrome && window.chrome.webview) {
     // will respond with userSettings, theme, and (optionally) load — the
     // merge runs whenever either side updates.
     loadDefaults();
-    send({ type: 'ready', version: '0.1.0' });
+    send({ type: 'ready', version: '0.1.1' });
     console.log('[viewer] bridge connected, ready sent');
 } else {
     console.warn('[viewer] no chrome.webview — running outside WebView2');

@@ -57,19 +57,22 @@ export const headingField = decoratorStateField((state) => {
             const level = atx > 0 ? atx : sx;
             if (level === 0) return;
 
-            // Per-line line decoration for each line in the heading's range.
-            let pos = node.from;
-            while (pos <= node.to) {
-                const line = state.doc.lineAt(pos);
-                items.push({
-                    from: line.from,
-                    to: line.from,
-                    deco: headingLineDeco[level],
-                    block: true,
-                });
-                if (line.to >= node.to) break;
-                pos = line.to + 1;
-            }
+            // Line decoration on the TITLE line only.
+            // For ATX (`# Title`) the node spans one line, so this is the
+            // only line. For Setext (`Title\n=====`) the node spans two
+            // lines; decorating both gave the empty marker line the heading
+            // class and therefore a second border-bottom, producing a
+            // visible double underline. Restricting to node.from's line
+            // leaves the marker line as a plain cm-line: invisibleDecoration
+            // below still hides the `=====` text when the cursor isn't on
+            // it, but no heading styling (font-size, border) bleeds onto it.
+            const titleLine = state.doc.lineAt(node.from);
+            items.push({
+                from: titleLine.from,
+                to: titleLine.from,
+                deco: headingLineDeco[level],
+                block: true,
+            });
 
             // Walk HeaderMark children; hide each on lines without the cursor.
             node.node.cursor().iterate((child) => {

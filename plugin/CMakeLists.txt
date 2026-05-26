@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 project(mdWorX
-    VERSION 0.1.0
+    VERSION 0.1.1
     DESCRIPTION "mdWorX — Directory Opus markdown viewer/editor plugin"
     LANGUAGES CXX
 )
