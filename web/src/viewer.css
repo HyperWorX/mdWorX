@@ -2096,28 +2096,51 @@ body.mode-source .cm-highlightTab {
     display: none;
 }
 
-/* Top toolbar: hidden state slides up so ~6-10px of the centred toolbar-
- * group peeks below the top edge of the viewport. The wrapper itself is
- * transparent so the visible peek is just the toolbar-group pill. */
+/* Top toolbar: hidden state slides up so only the toolbar-group's edge
+ * (border + a few px of accent-tinted padding) peeks below the top edge.
+ * Button glyphs / labels stay hidden. An accent-coloured glow on the
+ * pill leaks into the viewport so the peek is easy to find without the
+ * content giving away which toolbar it is. */
 body.top-toolbar-autohide #toolbar {
-    top: -24px;
+    top: -32px;
     transition: top 200ms ease-out 400ms;
+}
+body.top-toolbar-autohide .toolbar-group {
+    box-shadow:
+        0 6px 22px color-mix(in srgb, var(--accent-override, var(--accent)) 50%, transparent),
+        0 2px 8px  color-mix(in srgb, var(--accent-override, var(--accent)) 30%, transparent);
+    transition: box-shadow 200ms ease-out 400ms;
 }
 body.top-toolbar-autohide #toolbar:hover,
 body.top-toolbar-autohide #toolbar:focus-within {
     top: 8px;
     transition-delay: 0ms;
 }
+body.top-toolbar-autohide #toolbar:hover .toolbar-group,
+body.top-toolbar-autohide #toolbar:focus-within .toolbar-group {
+    /* Reverts to the default pill shadow (defined on `.toolbar-group`
+     * above) once revealed, so the glow is purely a "hidden" affordance. */
+    box-shadow:
+        0 2px 10px color-mix(in srgb, var(--accent-override, var(--accent)) 18%, transparent),
+        var(--shadow);
+    transition-delay: 0ms;
+}
 
-/* Edit toolbar: hidden state slides down so ~8px of the centred pill
- * peeks above the bottom edge. transform: translateX(-50%) stays untouched
- * so the toolbar keeps its horizontal centring. */
+/* Edit toolbar: same pattern, mirrored to the bottom edge. Hide enough
+ * that button glyphs are below the viewport; the glow leaks upward so
+ * the peek is findable. */
 body.edit-toolbar-autohide #editing-toolbar {
-    bottom: -32px;
-    transition: bottom 200ms ease-out 400ms;
+    bottom: -36px;
+    transition:
+        bottom     200ms ease-out 400ms,
+        box-shadow 200ms ease-out 400ms;
+    box-shadow:
+        0 -6px 22px color-mix(in srgb, var(--accent-override, var(--accent)) 50%, transparent),
+        0 -2px 8px  color-mix(in srgb, var(--accent-override, var(--accent)) 30%, transparent);
 }
 body.edit-toolbar-autohide #editing-toolbar:hover,
 body.edit-toolbar-autohide #editing-toolbar:focus-within {
     bottom: 14px;
     transition-delay: 0ms;
+    box-shadow: var(--shadow);
 }
