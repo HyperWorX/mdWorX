@@ -2325,6 +2325,42 @@ function onHostMessage(event) {
             pendingLoadMode = null;
             break;
         }
+        case 'appVersion': {
+            // {type:'appVersion', current:'0.1.2'} — sent once on init so
+            // the "Version X" label in the update row can populate.
+            const el = document.getElementById('current-version');
+            if (el && m.current) el.textContent = m.current;
+            break;
+        }
+        case 'updateCheckResult': {
+            // {type:'updateCheckResult', current:'0.1.2', latest:'0.1.3',
+            //  url:'https://...', newer:true|false, error?:'...'}
+            const btn = document.getElementById('btn-check-updates');
+            const out = document.getElementById('update-status');
+            if (btn) btn.disabled = false;
+            if (!out) break;
+            if (m.error) {
+                out.textContent = 'Update check failed: ' + m.error;
+                break;
+            }
+            if (m.newer) {
+                out.innerHTML = '';
+                const span = document.createElement('span');
+                span.textContent = `v${m.latest} is available — `;
+                const link = document.createElement('a');
+                link.textContent = 'open release page';
+                link.href = '#';
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    send({ type: 'openExternal', url: m.url });
+                });
+                out.appendChild(span);
+                out.appendChild(link);
+            } else {
+                out.textContent = `You're on the latest version (v${m.current}).`;
+            }
+            break;
+        }
         default:
             // settings page ignores theme / load messages
             break;
@@ -2373,6 +2409,20 @@ async function boot() {
     document.getElementById('btn-close').addEventListener('click', () => {
         send({ type: 'closeSettings' });
     });
+
+    // Check-for-updates button. Native handles the GitHub releases API
+    // call (HTTPS, JSON parsing, version comparison) and posts back an
+    // updateCheckResult message we render here. Button stays disabled
+    // while the request is in flight to prevent spamming.
+    const updateBtn    = document.getElementById('btn-check-updates');
+    const updateStatus = document.getElementById('update-status');
+    if (updateBtn) {
+        updateBtn.addEventListener('click', () => {
+            updateBtn.disabled = true;
+            if (updateStatus) updateStatus.textContent = 'Checking…';
+            send({ type: 'checkForUpdates' });
+        });
+    }
     // Footer "Themes ▾" menu: trigger button + popup + click-outside-to-
     // close. Menu items dispatch by data-action: save-theme | save-palette
     // | delete. The name-entry that appears after Save-as is wired below.
