@@ -74,7 +74,8 @@ The `release/Install.cmd` script in the repo does this automatically (self-eleva
 2. Delete `C:\Program Files\GPSoftware\Directory Opus\Viewers\mdWorX.dll`.
 3. Delete `C:\Program Files\GPSoftware\Directory Opus\Viewers\mdWorX_assets\`.
 4. Optionally delete `%LOCALAPPDATA%\HyperWorX\mdWorX\` (WebView2 user data folder and any plugin cache).
-5. Restart DOpus.
+5. Optionally delete `%APPDATA%\HyperWorX\mdWorX\` (user settings file and saved custom themes).
+6. Restart DOpus.
 
 The `release/Uninstall.cmd` script does the same automatically.
 

@@ -15,6 +15,14 @@
 
 :root {
     color-scheme: light dark;
+
+    /* ---- Shared block-padding variables ---------------------------------
+     * Used by BOTH Live (.cm-md-codeblock, blockquote widget) and Reading
+     * (:is(#content, .cm-md-rendered-block) pre/blockquote) so the visual
+     * inset is guaranteed identical across modes and a future settings
+     * field can change one variable to update both views. */
+    --code-block-padding: 12px 14px;
+    --blockquote-padding: 10px 14px;
 }
 
 body.theme-light {
@@ -37,8 +45,8 @@ body.theme-light {
      * highlighter swipe rather than purple-accent-with-white-text. When
      * a palette is selected it overrides via --highlight-bg-override and
      * --highlight-fg-override; this is just the no-palette default. */
-    --mark-bg:  #ffeb8a;
-    --mark-fg:  #1a1a1a;
+    --mark-bg:  #fff5bb;
+    --mark-fg:  #000000;
     --shadow:   0 1px 2px rgba(0,0,0,0.05), 0 2px 12px rgba(0,0,0,0.04);
     /* UI chrome text: always high-contrast against an accent-tinted toolbar
      * background, regardless of what the active palette uses for `textColor`.
@@ -47,6 +55,17 @@ body.theme-light {
      * unreadable toolbar buttons because the 25–35% accent tint shrinks the
      * effective text contrast below WCAG AA. */
     --ui-text:  #1a1a1a;
+    /* Wrapped-content colours for the four inline emphasis kinds. Each is
+     * coloured distinctly so the prose reads like a syntax-highlighted view
+     * (mirroring the screenshot reference the user supplied). Palettes
+     * override these via --strong-override / --emphasis-override etc., which
+     * settings.js maps from the per-palette strongColor / emphasisColor /
+     * strikeColor / monoColor keys. Defaults below are tuned for the
+     * built-in light theme background (#f0f0f0). */
+    --strong:    #7c3aed;    /* deep purple — distinct from muted purple accent #6b4e7d */
+    --emphasis:  #0d9488;    /* teal — different family from accent and strong */
+    --strike:    #9ca3af;    /* cool grey — strike reads as "removed" */
+    --mono:      #b45309;    /* amber-brown — inline code conventional warm tone */
 }
 
 body.theme-dark {
@@ -55,8 +74,8 @@ body.theme-dark {
     --ink:      #ececec;
     --ink-soft: #b8b8b8;
     --rule:     #38383c;
-    --code:     rgba(255, 255, 255, 0.07);
-    --code-inline: rgba(255, 255, 255, 0.10);   /* inline-only, slightly brighter than pre/quote */
+    --code:     #353539;                       /* blockquote / pre / code background */
+    --code-inline: #353539;                    /* inline code background — matches block for consistency */
     --link:     #7ab7ff;
     --accent:   #f4a261;
     --accent-faded: rgba(244, 162, 97, 0.35);
@@ -66,10 +85,18 @@ body.theme-dark {
     /* Highlighter pair for the dark theme — warm yellow + dark text is the
      * same convention as light theme, picked darker (#d29922) so the swipe
      * reads clearly against the dark page. */
-    --mark-bg:  #d29922;
-    --mark-fg:  #1a1a1a;
+    --mark-bg:  #f0c870;
+    --mark-fg:  #000000;
     --shadow:   0 1px 2px rgba(0,0,0,0.2), 0 2px 12px rgba(0,0,0,0.25);
     --ui-text:  #f5f5f5;
+    /* Wrapped-content colours for the four inline emphasis kinds — dark
+     * theme defaults, tuned for the built-in #26262a background. Same
+     * --strong / --emphasis / --strike / --mono variable names so palette
+     * overrides flow through the same pipeline. */
+    --strong:    #e9c46a;    /* warm yellow — distinct from orange accent #f4a261 */
+    --emphasis:  #c084fc;    /* muted purple — cool counter to warm yellow */
+    --strike:    #6b7280;    /* muted mid-grey — strike reads as "removed" */
+    --mono:      #7dd3a8;    /* seafoam green — inline code distinct cool tone */
 }
 
 html, body {
@@ -104,7 +131,7 @@ body {
         'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif);
     font-size: var(--font-size-override, 14px);
     font-weight: var(--font-weight-prose-override, 400);
-    line-height: var(--line-height-override, 1.55);
+    line-height: var(--line-height-override, 2);
     color: var(--ink-override, var(--ink-soft));   /* body text in the lighter ink */
     background: var(--pane-bg, var(--pane));
     /* Uniform padding so top/bottom gaps between pane edge and page edge match. */
@@ -122,13 +149,17 @@ body {
      * because both modes render inside this container. */
     padding: var(--page-pad-override, 36px 36px);
     /* Border colour + thickness are independently settable (--page-border-
-     * color-override, --page-border-thickness-override). Both fall back to
-     * the rule colour / 1px when unset, preserving previous default look. */
+     * color-override, --page-border-thickness-override). Colour falls back
+     * to the palette accent so the border is always palette-coloured when
+     * visible. Default thickness is 0 (no border); raise via the setting. */
     border:
-        var(--page-border-thickness-override, 1px)
+        var(--page-border-thickness-override, 0)
         solid
-        var(--page-border-color-override, var(--rule-override, var(--rule)));
-    box-shadow: var(--shadow);
+        var(--page-border-color-override, var(--accent-override, var(--accent)));
+    /* Page shadow: user-overridable via --page-shadow-override (settings:
+     * Page shadow). Falls back to --shadow which is the per-theme default
+     * (subtle on light, slightly stronger on dark). */
+    box-shadow: var(--page-shadow-override, var(--shadow));
     border-radius: 12px;
     box-sizing: border-box;
     /* min-height matches body padding (20 top + 20 bottom = 40) so page fills
@@ -460,22 +491,33 @@ body {
     font-weight: 600;
 }
 
-/* Image alignment classes emitted by the Insert Image toolbar via
- * markdown-it-attrs. Center is a block-level centred image; left/right
- * float so surrounding text wraps. Margin chosen to keep wrapped text
- * from butting up against the image. */
-img.md-img-center {
+/* Image alignment classes emitted by the Insert Image toolbar via the
+ * Obsidian `![alt|WxH|center](src)` pipe syntax. All three are block
+ * elements on their own line; the alignment shifts the block within the
+ * available width. No float, so the image stays where the user put it in
+ * the markdown rather than wrapping into adjacent paragraphs.
+ *
+ * The :is(#content, ...) ancestor selector is REQUIRED for specificity:
+ * the Reading-mode base rule `:is(#content, .cm-md-rendered-block) img`
+ * has a #content ID in its :is() group which gives it (1,0,1). A plain
+ * `img.md-img-right` is only (0,1,1) and gets overridden, which is why
+ * unscoped alignment classes silently lost. Scoping ours under the same
+ * :is() group bumps us to (1,1,1) and we win. The third member
+ * .cm-md-inline-image covers Live-mode widgets too. */
+:is(#content, .cm-md-rendered-block, .cm-md-inline-image) img.md-img-center {
     display: block;
     margin-left: auto;
     margin-right: auto;
 }
-img.md-img-left {
-    float: left;
-    margin: 0.25em 1em 0.5em 0;
+:is(#content, .cm-md-rendered-block, .cm-md-inline-image) img.md-img-left {
+    display: block;
+    margin-left: 0;
+    margin-right: auto;
 }
-img.md-img-right {
-    float: right;
-    margin: 0.25em 0 0.5em 1em;
+:is(#content, .cm-md-rendered-block, .cm-md-inline-image) img.md-img-right {
+    display: block;
+    margin-left: auto;
+    margin-right: 0;
 }
 
 /* Editor mount. CodeMirror manages internal layout. We give it a flex item
@@ -620,9 +662,15 @@ body.mode-reading .editor { display: none; }
  * inserts in place of hidden marker tokens. */
 
 .cm-md-hidden { display: none; }
-.cm-md-bold   { font-weight: 600; color: var(--ink-override, var(--ink)); }
-.cm-md-italic { font-style: italic; }
-.cm-md-strike { text-decoration: line-through; color: var(--ink-soft); }
+/* Wrapped-content colour: each inline emphasis kind reads in its own
+ * palette-derived colour, distinct from the marker accent and from each
+ * other. Pipeline: settings.js per-palette strongColor / emphasisColor /
+ * strikeColor / monoColor -> --*-override on :root -> these rules. The
+ * non-override fallback comes from --strong / --emphasis / --strike / --mono
+ * defined per-theme on body.theme-light / body.theme-dark. */
+.cm-md-bold   { font-weight: 600; color: var(--strong-override, var(--strong)); }
+.cm-md-italic { font-style: italic; color: var(--emphasis-override, var(--emphasis)); }
+.cm-md-strike { text-decoration: line-through; color: var(--strike-override, var(--strike)); }
 .cm-md-inline-code {
     font-family: var(--font-mono-override, ui-monospace, Consolas, monospace);
     font-size: var(--font-size-code-override, 0.92em);
@@ -630,7 +678,7 @@ body.mode-reading .editor { display: none; }
     background: var(--code-inline);
     padding: 0.15em 0.35em;
     border-radius: 3px;
-    color: var(--ink-override, var(--ink));
+    color: var(--mono-override, var(--mono));
 }
 .cm-md-link {
     color: var(--link-override, var(--link));
@@ -639,28 +687,19 @@ body.mode-reading .editor { display: none; }
     transition: opacity 100ms ease;
 }
 .cm-md-link:hover { opacity: 0.75; }
-/* Blockquote line decoration in Live. Each line gets the per-line bg +
- * accent border-left, matching the reading-mode <blockquote> visual
- * (accent colour, code-coloured bg, vertical padding). Border-radius is
- * applied per line; a multi-line blockquote will show banded segments
- * rather than a single rounded box. Wrapper-widget for single-box look
- * is deferred to follow-up. */
-/* Blockquote per-line styling — DEPRECATED. Blockquote uses a block widget
- * again (single <blockquote> via markdown-it). These classes are kept in
- * case any code still emits them but are not currently used by blockquote.js. */
-.cm-md-quote-line {
-    color: var(--ink-soft);
-    border-left: 3px solid var(--accent-override, var(--accent));
-    background: var(--code-override, var(--code));
-    padding: 4px 14px;
-}
-
 /* Headings: line-level decoration in Live mirrors Reading prose sizing.
  * Per-level colour overrides match the same fallback chain Reading uses
  * (see :is(#content, .cm-md-rendered-block) hN rules below); H3 inherits the accent fallback so it
  * reads as accent-coloured at rest, matching Reading.
  */
-.cm-md-heading-line { font-weight: 600; line-height: 1.25; letter-spacing: 0.01em; }
+/* `body.mode-live .cm-line.cm-md-heading-line` raises specificity to (0,0,3,1)
+ * so the tight heading line-height wins over `body.mode-live .cm-line
+ * { line-height: inherit }` (0,0,2,1). Otherwise headings would inherit
+ * .cm-content's prose line-height and stretch vertically. */
+/* See the Reading-mode h1..h6 rule below for why this line-height is
+ * fixed at 1.25 instead of following --line-height-override - headings
+ * need to stay tight regardless of the user's body line-height. */
+body.mode-live .cm-line.cm-md-heading-line { font-weight: 600; line-height: 1.25; letter-spacing: 0.01em; }
 /* defaultHighlightStyle (re-registered in editor.js so the fenced-code
  * widget's spans get coloured CSS) sets `text-decoration: underline` on
  * tags.heading. In Live mode that lands on the span inside
@@ -673,32 +712,8 @@ body.mode-live .cm-md-heading-line,
 body.mode-live .cm-md-heading-line * {
     text-decoration: none;
 }
-body.mode-live .cm-md-heading-1 {
-    font-size: 1.71em;
-    color: var(--h1-color-override, var(--h1-override, var(--h1)));
-}
-body.mode-live .cm-md-heading-2 {
-    font-size: 1.29em;
-    color: var(--h2-color-override, var(--ink-override, var(--ink)));
-}
-body.mode-live .cm-md-heading-3 {
-    font-size: 1.11em;
-    color: var(--h3-color-override, var(--accent-override, var(--accent)));
-}
-body.mode-live .cm-md-heading-4 {
-    font-size: 1.04em;
-    color: var(--h4-color-override, var(--ink-override, var(--ink)));
-}
-body.mode-live .cm-md-heading-5 {
-    font-size: 0.86em;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--h5-color-override, var(--ink-soft));
-}
-body.mode-live .cm-md-heading-6 {
-    font-size: 0.86em;
-    color: var(--h6-color-override, var(--ink-soft));
-}
+/* (Live-mode .cm-md-heading-1..6 spacing is folded into the shared rules
+ * at the Reading-mode block below — same selector list, single source.) */
 
 /* Bullet replacement widget. Sized to match Reading's native ::marker disc
  * visually (font-size bumped because the text BULLET char renders smaller
@@ -723,22 +738,33 @@ body.mode-live .cm-md-heading-6 {
  * Each line of a ListItem gets the .cm-md-list-item class; nesting depth is
  * encoded in -L0..-L3 for indent levels.
  *
- * Indent values are compensated by the bullet's in-line width + margin
- * (~0.8em) so the TEXT after the bullet ends up at the same x-position as
- * Reading's `:is(#content, .cm-md-rendered-block) li` content (which has
- * padding-left 1.6em with the marker outside that padding box). Each
- * subsequent level steps by 1.6em to match Reading's nested-ul cascade.
+ * Layout goal: match Reading's `:is(#content, ...) ul` (padding-left: 1.6em
+ * with marker rendered OUTSIDE the li content box) so a paragraph that wraps
+ * to N lines in Reading also wraps to N lines in Live.
+ *
+ *   - padding-left: 1.6em on the cm-line gives text content edge at the same
+ *     column as Reading's li content box.
+ *   - position: relative on the cm-line creates the positioning context for
+ *     the absolutely positioned bullet (set on .cm-md-bullet below).
+ *   - The bullet widget itself is taken OUT of inline flow (position:
+ *     absolute) so it sits in the padding zone exactly like Reading's
+ *     ::marker without consuming line width. Without this, the bullet's
+ *     ~1.45em inline footprint (width 1ch + margin-right 0.5em at
+ *     font-size: 1.45em) eats into the first line of every list item,
+ *     wrapping ~9-20px narrower than Reading and accumulating extra wrap
+ *     lines in long paragraphs.
  *
  * `!important` required: the `body.mode-live .cm-line { padding: 0 }` rule
  * (later in source order) has identical specificity (0,0,2,1) and the
  * shorthand padding: 0 zeros our padding-left without !important. */
 body.mode-live .cm-md-list-item    {
     color: var(--ink-soft);
-    /* Match Reading's `li { margin: 0.15em 0 }` — pull successive list
-     * lines closer together so multi-item lists don't look airier than
-     * Reading. line-height stays inherited from cm-content so wrapped
-     * lines within a single item still look right. */
-    line-height: 1.4;
+    /* Follow the user's line-height setting so Live bullets wrap at the
+     * same rhythm as Reading. Falls back to 1.7 to match Reading's prose
+     * default. Each cm-line in a list item carries .cm-md-list-item via
+     * Decoration.line; lineWrapping propagates the line-height across
+     * wrapped sublines too. */
+    line-height: var(--line-height-override, 2);
 }
 body.mode-live .cm-md-list-item-L0 { padding-left: 0.8em !important; }
 body.mode-live .cm-md-list-item-L1 { padding-left: 2.4em !important; }
@@ -750,10 +776,18 @@ body.mode-live .cm-md-list-item-L3 { padding-left: 5.6em !important; }
  * the page hue (Catppuccin Mocha, Obsidianite, etc.). The thin default
  * weight made digits in particular hard to spot against similar-hue
  * backgrounds even when WCAG luminance contrast was nominally fine. */
-.cm-md-list-number {
-    color: var(--accent-override, var(--accent));
+/* Live-mode ordered-list marker ("1.", "2.", etc.). Prefixed with
+ * body.mode-live to match the specificity of `body.mode-live .cm-md-list-item
+ * { color: var(--ink-soft) }` so this colour always wins over any inherited
+ * ink-soft on the cm-line. Without this prefix the previous rule was
+ * (0,0,1,0) and could be overridden by per-line decorator rules added
+ * later. Reading mode uses the ol > li::marker rule below for the same
+ * accent colour. */
+body.mode-live .cm-md-list-number {
+    color: var(--accent-override, var(--accent)) !important;
     font-weight: 700;
 }
+
 /* Reading-mode list markers (<ul>/<ol> ::marker) — match the weight bump
  * so Reading and Live look consistent. */
 :is(#content, .cm-md-rendered-block) ul > li::marker,
@@ -928,10 +962,18 @@ body.mode-live .cm-md-rendered-hr {
 .cm-md-inline-image img {
     display: block;
     max-width: 100%;
-    height: auto;
     border-radius: 4px;
-    margin: 0.5em auto;
-    border: 1px solid var(--rule-override, var(--rule));
+    /* Match the Reading-mode image margin exactly so Live and Reading
+     * render images with identical spacing. Border removed (was 1px
+     * --rule) per user direction to drop outlines on images. */
+    margin: 0.5em auto 1.2em;
+    border: none;
+}
+/* Match the Reading-mode rule: only auto-scale height when the user
+ * hasn't specified an explicit width or height via the Obsidian pipe
+ * syntax (which the widget hoists onto the img element). */
+.cm-md-inline-image img:not([width]):not([height]) {
+    height: auto;
 }
 .cm-md-image-placeholder {
     display: inline-block;
@@ -954,7 +996,7 @@ body.mode-live .cm-md-rendered-hr {
      * line after a widget must remain hit-testable). 0.7em ≈ 10px which
      * is small enough that an accidental click in the gap is unlikely. */
     margin: 0.7em 0 0;
-    padding: 12px 14px;
+    padding: var(--code-block-padding);
     background: var(--code-override, var(--code));
     border-radius: 5px;
     /* min-width: 0 + max-width: 100% breaks the min-content propagation
@@ -971,7 +1013,7 @@ body.mode-live .cm-md-rendered-hr {
     min-width: 0;
     max-width: 100%;
     overflow-x: auto;
-    line-height: var(--line-height-code-override, 1.5);
+    line-height: var(--line-height-code-override, var(--line-height-override, 1.5));
     border-left: 3px solid var(--accent-override, var(--accent));
     font-family: var(--font-mono-override, ui-monospace, Consolas, monospace);
     font-size: var(--font-size-code-override, 0.92em);
@@ -1033,7 +1075,7 @@ body.mode-live .cm-editor {
         'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif);
     font-size: var(--font-size-override, 14px);
     font-weight: var(--font-weight-prose-override, 400);
-    line-height: var(--line-height-override, 1.55);
+    line-height: var(--line-height-override, 2);
     outline: none;
 }
 body.mode-live .cm-scroller   { font-family: inherit; overflow: visible; }
@@ -1059,7 +1101,31 @@ body.mode-live .cm-scroller   { font-family: inherit; overflow: visible; }
  *
  * Without this line, the wrap toggle in Live mode appears to "break
  * everything" the moment any unwrappable widget exists in the document. */
-body.mode-live .cm-content    { padding: 0; min-width: 0; }
+/* line-height MUST be set here so it overrides CodeMirror 6's baseTheme
+ * `.cm-content { line-height: 1.4 }` (specificity 0,0,1,0). Without this,
+ * `.cm-line { line-height: inherit }` below propagates CM6's hardcoded 1.4
+ * down to every visible line and the user's Body line-height setting is
+ * silently ignored in Live mode. 1.7 fallback matches Reading's `p` rule
+ * so Live and Reading body text share the same default rhythm.
+ *
+ * word-break / overflow-wrap forced to `normal` here so Live's wrap
+ * algorithm matches Reading's. CodeMirror's lineWrapping extension adds
+ * class `.cm-lineWrapping` to .cm-content with `word-break: break-word`
+ * and `overflow-wrap: anywhere`, which introduce character-level break
+ * opportunities at hyphens, slashes, dotted words, and similar punctuation
+ * that Reading's `<p>` (using `normal`) treats as a single token. Same
+ * container width but different break-opportunity set => different wrap
+ * column on text that contains those characters, which the user reads as
+ * "Live wraps shorter than Reading". white-space stays as `break-spaces`
+ * (inherited from .cm-lineWrapping) so source-text whitespace is preserved
+ * for editing - we only normalise the *break selection* algorithm. */
+body.mode-live .cm-content    {
+    padding: 0;
+    min-width: 0;
+    line-height: var(--line-height-override, 2);
+    word-break: normal;
+    overflow-wrap: normal;
+}
 body.mode-live .cm-line       { padding: 0; line-height: inherit; }
 body.mode-live .cm-focused    { outline: none; }
 body.mode-live .cm-gutters    { display: none; }
@@ -1102,10 +1168,21 @@ body.mode-live .cm-activeLine { background: transparent; }
 :is(#content, .cm-md-rendered-block) h1, :is(#content, .cm-md-rendered-block) h2, :is(#content, .cm-md-rendered-block) h3,
 :is(#content, .cm-md-rendered-block) h4, :is(#content, .cm-md-rendered-block) h5, :is(#content, .cm-md-rendered-block) h6 {
     color: var(--ink-override, var(--ink));
+    /* Headings deliberately use a fixed tight line-height (1.25), not the
+     * user's body lineHeight setting. Display headings look stretched and
+     * weak at body line-heights (2.0 etc.) - tight headings + spacious
+     * body is the conventional reading-typography pair. If a user wants
+     * to drive heading line-height separately, that needs its own
+     * settings field; reusing --line-height-override here breaks the
+     * heading appearance for anyone who increased body line-height. */
     line-height: 1.25;
     font-weight: 600;
     letter-spacing: 0.01em;
-    margin: 2em 0 0.6em;
+    /* Bottom margin: 1em so the gap between a heading's underline and
+     * the next text matches the breathing room a blank source line gives
+     * in Live mode. 0.6em was visibly tight at any non-trivial body
+     * line-height. */
+    margin: 2em 0 1em;
 }
 
 /* Heading font sizes use em (relative to body's 14px) so they scale
@@ -1118,37 +1195,83 @@ body.mode-live .cm-activeLine { background: transparent; }
  * so themes can colour-code heading levels (Obsidian Tokyo Night does
  * this — red/yellow/green/cyan/blue/magenta). Defaults preserve our
  * original behaviour. */
+/* Reading rules carry all visual properties INCLUDING vertical margins.
+ *
+ * Live rules are split out (below) because putting `margin-top` on a
+ * `.cm-line` element distorts CodeMirror's per-line click-to-position
+ * mapping: CM6 hit-tests via cm-line bounding rects, which do NOT include
+ * CSS margin, so clicks in the margin zone route to the wrong line. Live
+ * mode therefore inherits Reading's font-size and colour but uses zero
+ * margin on cm-line; the small rhythm difference between Live and Reading
+ * is the cost of a working cursor. */
 :is(#content, .cm-md-rendered-block) h1 {
     font-size: 1.71em;              /* ~24px at 14px body */
-    margin: 0 0 0.75em;             /* ~18px at H1's font-size */
+    margin: 0 0 1em;
     padding-bottom: 0.35em;
     color: var(--h1-color-override, var(--h1-override, var(--h1)));
 }
 :is(#content, .cm-md-rendered-block) h2 {
     font-size: 1.29em;              /* ~18px */
-    margin-top: 1.8em;
+    margin-top: 2em;
     padding-bottom: 0.3em;
     color: var(--h2-color-override, var(--ink-override, var(--ink)));
 }
 :is(#content, .cm-md-rendered-block) h3 {
     font-size: 1.11em;              /* ~15.5px */
-    margin-top: 1.8em;
-    color: var(--h3-color-override, var(--accent-override, var(--accent)));
+    margin-top: 1.9em;
+    color: var(--h3-color-override, var(--ink-override, var(--ink)));
 }
 :is(#content, .cm-md-rendered-block) h4 {
     font-size: 1.04em;              /* ~14.5px */
+    margin-top: 1.8em;
     color: var(--h4-color-override, var(--ink-override, var(--ink)));
 }
 :is(#content, .cm-md-rendered-block) h5 {
     font-size: 0.86em;              /* ~12px */
+    margin-top: 1.8em;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: var(--h5-color-override, var(--ink-soft));
 }
 :is(#content, .cm-md-rendered-block) h6 {
     font-size: 0.86em;              /* ~12px */
+    margin-top: 1.8em;
     color: var(--h6-color-override, var(--ink-soft));
 }
+
+/* Live-mode heading lines: font-size + colour + padding-bottom only.
+ * NO margin-top, NO margin-bottom — CM6 click-routing breaks otherwise. */
+body.mode-live .cm-md-heading-1 {
+    font-size: 1.71em;
+    padding-bottom: 0.35em;
+    color: var(--h1-color-override, var(--h1-override, var(--h1)));
+}
+body.mode-live .cm-md-heading-2 {
+    font-size: 1.29em;
+    padding-bottom: 0.3em;
+    color: var(--h2-color-override, var(--ink-override, var(--ink)));
+}
+body.mode-live .cm-md-heading-3 {
+    font-size: 1.11em;
+    color: var(--h3-color-override, var(--ink-override, var(--ink)));
+}
+body.mode-live .cm-md-heading-4 {
+    font-size: 1.04em;
+    color: var(--h4-color-override, var(--ink-override, var(--ink)));
+}
+body.mode-live .cm-md-heading-5 {
+    font-size: 0.86em;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--h5-color-override, var(--ink-soft));
+}
+body.mode-live .cm-md-heading-6 {
+    font-size: 0.86em;
+    color: var(--h6-color-override, var(--ink-soft));
+}
+
+/* Live mode: match the Reading-mode heading top spacing on cm-line
+ * heading lines so switching modes doesn't change the visual rhythm. */
 
 /* Heading underline style. Toggled via body class (set from settings):
  *   .heading-underline-solid    (default) — flat line under H1/H2 only
@@ -1163,22 +1286,21 @@ body.mode-live .cm-activeLine { background: transparent; }
  * every theme. Each heading level gets the gradient in its own
  * --hN-color-override colour. */
 
-/* Default (no body class) and explicit solid: H1/H2 get an Obsidian-style
- * fading rule — accent on the left, fading to transparent on the right.
- * The fade colour is derived from the active palette accent via color-mix
- * (palette-aware, unlike the hardcoded --accent-faded). 1px instead of
- * Obsidian's 2px so it reads as a refined hairline rather than a chunky
- * bar. A user-set --heading-underline-override is honoured as the starting
- * colour of the fade; otherwise the accent is used. */
+/* Default (no body class) and explicit 'solid' style: H1/H2 get a true
+ * flat solid underline (NOT a gradient). Colour falls back through:
+ *   1. --heading-underline-override (user's "Heading underline" setting)
+ *   2. --accent (palette accent — full strength, was --accent-faded)
+ *
+ * Thickness from --heading-underline-thickness-override (default 2px).
+ * Setting 0 hides the line because `0 solid` renders as no border.
+ *
+ * The 'gradient' style overrides this rule below with linear-gradient
+ * border-image (so a body.heading-underline-gradient class wins on
+ * specificity). The 'none' style removes border-bottom entirely. */
 :is(#content, .cm-md-rendered-block) h1, :is(#content, .cm-md-rendered-block) h2,
 body.mode-live .cm-md-heading-1, body.mode-live .cm-md-heading-2 {
-    border-bottom: 2px solid transparent;
-    border-image: linear-gradient(to right,
-        var(--heading-underline-override,
-            color-mix(in srgb, var(--accent-override, var(--accent)) 60%, transparent)) 0%,
-        var(--heading-underline-override,
-            color-mix(in srgb, var(--accent-override, var(--accent)) 35%, transparent)) 45%,
-        transparent 100%) 1;
+    border-bottom: var(--heading-underline-thickness-override, 2px) solid
+        var(--heading-underline-override, var(--accent-override, var(--accent)));
     padding-bottom: 0.3em;
 }
 body.heading-underline-none :is(#content, .cm-md-rendered-block) h1,
@@ -1195,25 +1317,33 @@ body.heading-underline-none.mode-live .cm-md-heading-2 {
  * heading level. When it's unset, each heading level falls back to its
  * own per-heading colour (so Tokyo-Night-style rainbow gradients still
  * work in palettes that intend them). */
+/* Gradient style heading underlines. Thickness:
+ *   H1-H3 use the full --heading-underline-thickness-override value
+ *   (default 2px). H4-H6 use half (rounded down via calc), matching
+ *   the visual hierarchy of the original hardcoded 2px/1px split. */
 body.heading-underline-gradient :is(#content, .cm-md-rendered-block) h1,
 body.heading-underline-gradient.mode-live .cm-md-heading-1 {
-    border-bottom: 2px solid;
+    border-bottom: var(--heading-underline-thickness-override, 2px) solid;
+    /* H1 underline gradient: defaults to the palette accent (per user
+     * direction). h1Color override still wins if explicitly set. */
     border-image: linear-gradient(to right,
-        var(--heading-underline-override, var(--h1-color-override, var(--h1-override, var(--h1)))) 30%,
+        var(--heading-underline-override, var(--h1-color-override, var(--accent-override, var(--accent)))) 30%,
         transparent 70%) 1;
     padding-bottom: 0.35em;
 }
 body.heading-underline-gradient :is(#content, .cm-md-rendered-block) h2,
 body.heading-underline-gradient.mode-live .cm-md-heading-2 {
-    border-bottom: 2px solid;
+    border-bottom: var(--heading-underline-thickness-override, 2px) solid;
+    /* H2 underline gradient: same accent fallback as H1. h2Color still
+     * wins if explicitly set. */
     border-image: linear-gradient(to right,
-        var(--heading-underline-override, var(--h2-color-override, var(--ink-override, var(--ink)))) 30%,
+        var(--heading-underline-override, var(--h2-color-override, var(--accent-override, var(--accent)))) 30%,
         transparent 70%) 1;
     padding-bottom: 0.3em;
 }
 body.heading-underline-gradient :is(#content, .cm-md-rendered-block) h3,
 body.heading-underline-gradient.mode-live .cm-md-heading-3 {
-    border-bottom: 2px solid;
+    border-bottom: var(--heading-underline-thickness-override, 2px) solid;
     border-image: linear-gradient(to right,
         var(--heading-underline-override, var(--h3-color-override, var(--accent-override, var(--accent)))) 30%,
         transparent 70%) 1;
@@ -1221,7 +1351,7 @@ body.heading-underline-gradient.mode-live .cm-md-heading-3 {
 }
 body.heading-underline-gradient :is(#content, .cm-md-rendered-block) h4,
 body.heading-underline-gradient.mode-live .cm-md-heading-4 {
-    border-bottom: 1px solid;
+    border-bottom: calc(var(--heading-underline-thickness-override, 2px) / 2) solid;
     border-image: linear-gradient(to right,
         var(--heading-underline-override, var(--h4-color-override, var(--ink-override, var(--ink)))) 30%,
         transparent 70%) 1;
@@ -1229,7 +1359,7 @@ body.heading-underline-gradient.mode-live .cm-md-heading-4 {
 }
 body.heading-underline-gradient :is(#content, .cm-md-rendered-block) h5,
 body.heading-underline-gradient.mode-live .cm-md-heading-5 {
-    border-bottom: 1px solid;
+    border-bottom: calc(var(--heading-underline-thickness-override, 2px) / 2) solid;
     border-image: linear-gradient(to right,
         var(--heading-underline-override, var(--h5-color-override, var(--ink-soft))) 30%,
         transparent 70%) 1;
@@ -1237,7 +1367,7 @@ body.heading-underline-gradient.mode-live .cm-md-heading-5 {
 }
 body.heading-underline-gradient :is(#content, .cm-md-rendered-block) h6,
 body.heading-underline-gradient.mode-live .cm-md-heading-6 {
-    border-bottom: 1px solid;
+    border-bottom: calc(var(--heading-underline-thickness-override, 2px) / 2) solid;
     border-image: linear-gradient(to right,
         var(--heading-underline-override, var(--h6-color-override, var(--ink-soft))) 30%,
         transparent 70%) 1;
@@ -1247,7 +1377,7 @@ body.heading-underline-gradient.mode-live .cm-md-heading-6 {
 :is(#content, .cm-md-rendered-block) p {
     margin: 0 0 12px;
     color: var(--ink-soft);
-    line-height: 1.7;       /* a touch more open than the body default */
+    line-height: var(--line-height-override, 2);
 }
 
 :is(#content, .cm-md-rendered-block) a {
@@ -1258,8 +1388,8 @@ body.heading-underline-gradient.mode-live .cm-md-heading-6 {
 }
 :is(#content, .cm-md-rendered-block) a:hover { opacity: 0.75; }
 
-:is(#content, .cm-md-rendered-block) strong { font-weight: 600; color: var(--ink-override, var(--ink)); }
-:is(#content, .cm-md-rendered-block) em     { font-style: italic; }
+:is(#content, .cm-md-rendered-block) strong { font-weight: 600; color: var(--strong-override, var(--strong)); }
+:is(#content, .cm-md-rendered-block) em     { font-style: italic; color: var(--emphasis-override, var(--emphasis)); }
 
 :is(#content, .cm-md-rendered-block) mark,
 body.mode-live .cm-md-highlight {
@@ -1274,7 +1404,7 @@ body.mode-live .cm-md-highlight {
     background: color-mix(
         in srgb,
         var(--highlight-bg-override, var(--mark-bg))
-        calc(var(--highlight-opacity-override, 0.9) * 100%),
+        calc(var(--highlight-opacity-override, 0.75) * 100%),
         transparent
     );
     color: var(--highlight-fg-override, var(--mark-fg));
@@ -1283,7 +1413,7 @@ body.mode-live .cm-md-highlight {
     font-weight: var(--font-weight-highlight-override, 500);
 }
 
-:is(#content, .cm-md-rendered-block) del { color: var(--ink-soft); }
+:is(#content, .cm-md-rendered-block) del { color: var(--strike-override, var(--strike)); text-decoration: line-through; }
 
 :is(#content, .cm-md-rendered-block) sub, :is(#content, .cm-md-rendered-block) sup,
 body.mode-live .cm-md-subscript, body.mode-live .cm-md-superscript {
@@ -1295,7 +1425,9 @@ body.mode-live .cm-md-superscript { vertical-align: super; }
 
 :is(#content, .cm-md-rendered-block) ul, :is(#content, .cm-md-rendered-block) ol {
     margin: 0 0 18px;       /* more breathing room after a list */
-    padding-left: 1.6em;
+    padding-left: 1.8em;    /* identical for ul, ol, and task lists so
+                             * markers (bullet, "1.", checkbox) line up
+                             * vertically regardless of list kind */
     color: var(--ink-soft);
 }
 /* Pull top-level lists slightly closer to the element immediately before
@@ -1312,37 +1444,41 @@ body.mode-live .cm-md-superscript { vertical-align: super; }
     margin: 0.15em 0;
 }
 
-/* List markers (bullets and numbers) in the accent colour. Weight is
- * NOT set explicitly so markers inherit the body font-weight — if the
- * user bumps body weight to 700, markers follow. */
-:is(#content, .cm-md-rendered-block) ul > li::marker,
-:is(#content, .cm-md-rendered-block) ol > li::marker,
-:is(#content, .cm-md-rendered-block) ul ul li::marker,
-:is(#content, .cm-md-rendered-block) ol ul li::marker {
+/* List markers (bullets and numbers) in the accent colour. Catch-all
+ * for every li::marker descendant — covers top-level bullets, top-level
+ * numbers, nested bullets (hollow circle, square), and nested numbers
+ * inside ordered lists. Weight is NOT set so markers inherit body
+ * font-weight. */
+:is(#content, .cm-md-rendered-block) li::marker {
     color: var(--accent-override, var(--accent));
 }
 
 /* Task list (GFM) — custom checkbox so we control bg + tick colour
- * explicitly (accent-color alone doesn't guarantee a white tick on every
- * browser/theme combination). */
+ * explicitly. Layout is now aligned with regular ul/ol: same padding-
+ * left (1.8em) and the checkbox is positioned absolutely inside the
+ * padding zone so its horizontal start matches where the bullet glyph
+ * or "1." number would appear in a non-task list. */
 :is(#content, .cm-md-rendered-block) ul.contains-task-list {
     list-style: none;
-    padding-left: 1.2em;
+    padding-left: 1.8em;
 }
-:is(#content, .cm-md-rendered-block) ul.contains-task-list .task-list-item { text-indent: -1.4em; }
+:is(#content, .cm-md-rendered-block) ul.contains-task-list .task-list-item {
+    position: relative;
+    text-indent: 0;
+}
 :is(#content, .cm-md-rendered-block) ul.contains-task-list .task-list-item-checkbox {
     appearance: none;
     -webkit-appearance: none;
+    position: absolute;
+    left: -1.5em;
+    top: 0.3em;
     width: 13px;
     height: 13px;
     border: 1.5px solid var(--accent-override, var(--accent));
     background: var(--page-override, var(--page));
     border-radius: 3px;
-    margin-right: 0.5em;
-    vertical-align: middle;
+    margin-right: 0;
     cursor: default;
-    position: relative;
-    transform: translateY(-0.05em);
     box-sizing: border-box;
 }
 :is(#content, .cm-md-rendered-block) ul.contains-task-list .task-list-item-checkbox:checked {
@@ -1372,15 +1508,15 @@ body.mode-live .cm-md-superscript { vertical-align: super; }
     background: var(--code-inline);
     padding: 0.15em 0.35em;
     border-radius: 3px;
-    color: var(--ink-override, var(--ink));
+    color: var(--mono-override, var(--mono));
 }
 :is(#content, .cm-md-rendered-block) pre {
     margin: 1.2em 0 14px;
-    padding: 12px 14px;
+    padding: var(--code-block-padding);
     background: var(--code-override, var(--code));
     border-radius: 5px;
     overflow-x: auto;
-    line-height: var(--line-height-code-override, 1.5);
+    line-height: var(--line-height-code-override, var(--line-height-override, 1.5));
     border-left: 3px solid var(--accent-override, var(--accent));
 }
 :is(#content, .cm-md-rendered-block) pre code {
@@ -1393,14 +1529,36 @@ body.mode-live .cm-md-superscript { vertical-align: super; }
 
 :is(#content, .cm-md-rendered-block) blockquote {
     margin: 1.2em 2px 12px;
-    padding: 8px 14px;
+    padding: var(--blockquote-padding);
     border-left: 3px solid var(--accent-override, var(--accent));
     background: var(--code-override, var(--code));
     color: var(--ink-soft);
     border-radius: 5px;       /* rounded all corners, matching code block */
+    /* Tighter line-height inside the quote than body prose. Body
+     * line-height (default 2) leaves too much vertical air around a
+     * single-line quote; 1.5 reads naturally and prevents the inner
+     * text from feeling stranded inside the quote box. */
+    line-height: 1.5;
 }
 :is(#content, .cm-md-rendered-block) blockquote > :first-child { margin-top: 0; }
 :is(#content, .cm-md-rendered-block) blockquote > :last-child  { margin-bottom: 0; }
+/* The inner <p> normally inherits body p margins (0 0 12px). First-/last-
+ * child rules above zero the outer margins; this rule zeros internal
+ * paragraph margins inside the quote so multi-paragraph quotes don't
+ * have extra gaps either. */
+:is(#content, .cm-md-rendered-block) blockquote p {
+    margin: 0 0 0.4em;
+    line-height: inherit;
+}
+:is(#content, .cm-md-rendered-block) blockquote p:last-child { margin-bottom: 0; }
+
+/* Live mode override: blockquote widgets render inline among cm-line
+ * source rows, so they need tighter vertical padding to avoid towering
+ * over surrounding source lines. Reading mode gets the comfortable
+ * default padding (--blockquote-padding) for prose presentation. */
+body.mode-live .cm-md-rendered-block blockquote {
+    padding: 0 14px;
+}
 
 :is(#content, .cm-md-rendered-block) table {
     border-collapse: collapse;
@@ -1423,17 +1581,25 @@ body.mode-live .cm-md-superscript { vertical-align: super; }
 :is(#content, .cm-md-rendered-block) hr {
     border: 0;
     height: var(--hr-thickness-override, 1px);
-    background: var(--hr-color-override, var(--accent-faded));
+    background: var(--hr-color-override, var(--accent-override, var(--accent)));
     margin: 1.8em 0;
 }
 
 :is(#content, .cm-md-rendered-block) img {
     max-width: 100%;
-    height: auto;
     border-radius: 4px;
     display: block;
-    margin: 0.5em auto;
-    border: 1px solid var(--rule-override, var(--rule));
+    /* Extra bottom margin so a paragraph following an image gets a
+     * comfortable visual break, not flushed up against the image edge. */
+    margin: 0.5em auto 1.2em;
+    border: none;
+}
+/* Only force auto height when the image has no explicit width/height.
+ * Without the :not() guards, CSS height:auto wins over the HTML
+ * height attribute and `<img height="100">` would render at natural
+ * aspect-ratio height instead of 100px. */
+:is(#content, .cm-md-rendered-block) img:not([width]):not([height]) {
+    height: auto;
 }
 :is(#content, .cm-md-rendered-block) figure { margin: 1em 0; text-align: center; }
 :is(#content, .cm-md-rendered-block) figure img { margin: 0 auto; }
@@ -1446,7 +1612,7 @@ body.mode-live .cm-md-superscript { vertical-align: super; }
 :is(#content, .cm-md-rendered-block) .footnotes {
     margin-top: 2em;
     padding-top: 1em;
-    border-top: 1px solid var(--rule-override, var(--rule));
+    border-top: 1px solid var(--rule-override, var(--accent-override, var(--accent)));
     font-size: 0.9em;
     color: var(--ink-soft);
 }
@@ -1656,3 +1822,91 @@ body.mode-live .cm-md-rendered-block > * { margin: 0 !important; }
 ::-webkit-scrollbar-corner  { background: transparent; }
 /* Firefox / non-webkit fallback */
 * { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--rule-override, var(--rule)) 70%, transparent) transparent; }
+
+/* Formatting marks: when body.mdwx-show-formatting is set, render a small
+ * "LF"/"CRLF" badge at the end of each cm-line in Live mode so the file's
+ * line-ending convention is visible per line. The formattingMarksField
+ * decorator (livepreview/formatting-marks.js) adds cm-md-eol-{lf,crlf,none}
+ * classes to every line based on the per-line EOL info captured from the
+ * raw file content at load. The body class gates visibility — toggling
+ * the setting flips CSS only, no editor rebuild required. */
+body.mdwx-show-formatting.mode-live .cm-md-eol-lf::after,
+body.mdwx-show-formatting.mode-live .cm-md-eol-crlf::after {
+    display: inline-block;
+    margin-left: 0.4em;
+    padding: 0 5px;
+    font-size: 0.7em;
+    font-family: var(--font-mono-override, 'Cascadia Code', 'Consolas', ui-monospace, monospace);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--ink-soft);
+    background: var(--code-override, var(--code));
+    border-radius: 3px;
+    vertical-align: middle;
+    opacity: 0.7;
+    user-select: none;
+    pointer-events: none;
+}
+body.mdwx-show-formatting.mode-live .cm-md-eol-lf::after   { content: 'LF'; }
+body.mdwx-show-formatting.mode-live .cm-md-eol-crlf::after { content: 'CRLF'; }
+/* cm-md-eol-none = last line with no trailing newline. No badge: the
+ * absence of one in the line above's stream is the information. */
+
+/* In-line whitespace markers. The CodeMirror highlightWhitespace
+ * extension adds .cm-highlightSpace + .cm-highlightTab classes to every
+ * space/tab character and renders glyphs via background-image (a
+ * radial-gradient dot for spaces, an SVG arrow for tabs). The previous
+ * attempt overrode those with ::before content + absolute positioning,
+ * which couldn't anchor to individual whitespace spans, so the markers
+ * weren't visible. This version keeps the extension's layout-safe
+ * background-image strategy: spaces and tabs only show their glyphs
+ * when body.mdwx-show-formatting is set. */
+body.mode-live:not(.mdwx-show-formatting) .cm-highlightSpace,
+body.mode-live:not(.mdwx-show-formatting) .cm-highlightTab,
+body.mode-live:not(.mdwx-show-formatting) .cm-trailingSpace {
+    background-image: none !important;
+    background-color: transparent !important;
+}
+
+/* When ON: palette-aware glyphs.
+ *   space  -> radial-gradient dot at the centre of the space character
+ *   tab    -> SVG arrow rendered via mask-image so the colour follows
+ *             the palette (background-color fills the mask shape with
+ *             --ink-soft, the rest is transparent). The previous attempt
+ *             relied on CodeMirror's default tab styling, which wasn't
+ *             rendering reliably for users; this explicit rule
+ *             guarantees the arrow shape.
+ *   trailing-space -> red tint background. Palette-independent because
+ *             trailing whitespace is always a warning. */
+body.mdwx-show-formatting.mode-live .cm-highlightSpace {
+    background-image: radial-gradient(circle at 50% 55%,
+        var(--ink-soft) 1.4px, transparent 1.9px) !important;
+}
+body.mdwx-show-formatting.mode-live .cm-highlightTab {
+    background-image: none !important;
+    background-color: var(--ink-soft) !important;
+    -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 12'><path d='M2 6h20m-4-3 4 3-4 3' stroke='black' fill='none' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+            mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 12'><path d='M2 6h20m-4-3 4 3-4 3' stroke='black' fill='none' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+    -webkit-mask-repeat: no-repeat;
+            mask-repeat: no-repeat;
+    -webkit-mask-position: left center;
+            mask-position: left center;
+    -webkit-mask-size: auto 55%;
+            mask-size: auto 55%;
+    opacity: 0.7;
+}
+body.mdwx-show-formatting.mode-live .cm-trailingSpace {
+    background-color: color-mix(in srgb, #ff5555 35%, transparent) !important;
+}
+
+/* Source mode: CodeMirror's highlightWhitespace extension renders space
+ * dots and tab arrows by default. Reduce their visibility by half so they
+ * sit quietly in the background instead of competing with the prose. */
+body.mode-source .cm-highlightSpace {
+    background-image: radial-gradient(circle at 50% 55%,
+        color-mix(in srgb, var(--ink-soft) 50%, transparent) 1.4px,
+        transparent 1.9px) !important;
+}
+body.mode-source .cm-highlightTab {
+    opacity: 0.5;
+}

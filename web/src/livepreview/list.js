@@ -82,12 +82,16 @@ function hasTaskMarker(itemNode) {
 }
 
 const lineDecoCache = new Map();
-function lineDecoForDepth(depth) {
+function lineDecoFor(depth, isCont) {
     const d = Math.min(depth, 3);
-    let deco = lineDecoCache.get(d);
+    const key = `${d}-${isCont ? 'cont' : 'first'}`;
+    let deco = lineDecoCache.get(key);
     if (!deco) {
-        deco = Decoration.line({ class: `cm-md-list-item cm-md-list-item-L${d}` });
-        lineDecoCache.set(d, deco);
+        const cls = isCont
+            ? `cm-md-list-item cm-md-list-item-cont cm-md-list-item-L${d}`
+            : `cm-md-list-item cm-md-list-item-L${d}`;
+        deco = Decoration.line({ class: cls });
+        lineDecoCache.set(key, deco);
     }
     return deco;
 }
@@ -103,20 +107,26 @@ export const listField = decoratorStateField((state) => {
             if (node.name !== 'ListItem') return;
             const itemNode = node.node;
             const depth    = listDepth(itemNode);
-            const lineDeco = lineDecoForDepth(depth);
             const inBullet = isInBulletList(itemNode);
             const isTask   = inBullet && hasTaskMarker(itemNode);
 
-            // Per-line line decoration for indent.
+            // Per-line line decoration for indent. Track whether each line
+            // is the FIRST line of the ListItem (containing the marker) or a
+            // CONTINUATION line (markdown's lazy-continuation, where bullet
+            // text wraps across source lines indented to align under the
+            // first line's text). Continuation lines get class
+            // .cm-md-list-item-cont so CSS can apply hanging-indent rules.
             let pos = node.from;
+            let isFirstLine = true;
             while (pos <= node.to) {
                 const line = state.doc.lineAt(pos);
                 items.push({
                     from: line.from,
                     to: line.from,
-                    deco: lineDeco,
+                    deco: lineDecoFor(depth, !isFirstLine),
                     block: true,
                 });
+                isFirstLine = false;
                 if (line.to >= node.to) break;
                 pos = line.to + 1;
             }

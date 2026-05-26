@@ -614,12 +614,6 @@ DecodedFile ReadFileDecoded(const std::wstring& path) {
     return out;
 }
 
-// Backwards-compatible wrapper for code paths that don't care about the
-// chosen encoding (none right now, but kept as a convenience).
-std::wstring ReadFileWithEncoding(const std::wstring& path) {
-    return ReadFileDecoded(path).text;
-}
-
 // Map file extension to MIME type for the handful of formats markdown
 // images normally use. Anything else falls back to octet-stream and the
 // browser tries to sniff.
@@ -1230,6 +1224,76 @@ void HandlePickImageMessage(ViewerState* state) {
     }
 }
 
+// Copy a picked image into the markdown file's parent directory so the
+// rendered <img> can reference it via a clean relative path. Used by the
+// Insert Image toolbar when the "Copy to file folder" checkbox is ticked.
+//
+// If a file with the same name already exists in the destination, append
+// _1, _2, ... before the extension until we find an unused name. Returns
+// the basename actually used (relative path = just the name) on success.
+// Reply shape:
+//   {type:'imageCopied', cancelled:false, relative:'foo.png'}
+//   {type:'imageCopied', cancelled:false, error:'<message>'}
+void HandleCopyImageMessage(ViewerState* state, const std::wstring& msg) {
+    auto reply = [&](bool ok, const std::wstring& relative, const std::wstring& err) {
+        if (!state || !state->webview) return;
+        std::wstring out;
+        if (ok) {
+            out = L"{\"type\":\"imageCopied\",\"cancelled\":false,\"relative\":\""
+                + JsonEscape(relative) + L"\"}";
+        } else {
+            out = L"{\"type\":\"imageCopied\",\"cancelled\":false,\"error\":\""
+                + JsonEscape(err) + L"\"}";
+        }
+        state->webview->PostWebMessageAsJson(out.c_str());
+    };
+
+    if (!state) return;
+    if (state->currentFileDir.empty()) {
+        reply(false, L"", L"No current file to copy beside (save the document first).");
+        return;
+    }
+    std::wstring source = ExtractJsonStringKey(msg, L"path");
+    if (source.empty()) {
+        reply(false, L"", L"Missing source path.");
+        return;
+    }
+
+    // Basename + extension split for collision-suffix construction.
+    size_t slash = source.find_last_of(L"\\/");
+    std::wstring leaf = (slash == std::wstring::npos) ? source : source.substr(slash + 1);
+    if (leaf.empty()) {
+        reply(false, L"", L"Source path has no filename.");
+        return;
+    }
+    size_t dot = leaf.find_last_of(L'.');
+    std::wstring stem = (dot == std::wstring::npos) ? leaf : leaf.substr(0, dot);
+    std::wstring ext  = (dot == std::wstring::npos) ? L""   : leaf.substr(dot);
+
+    std::wstring candidateName = leaf;
+    std::wstring candidatePath = state->currentFileDir + L"\\" + candidateName;
+    int suffix = 0;
+    while (GetFileAttributesW(candidatePath.c_str()) != INVALID_FILE_ATTRIBUTES) {
+        ++suffix;
+        if (suffix > 1000) {
+            reply(false, L"", L"Too many name collisions (1000) in destination folder.");
+            return;
+        }
+        wchar_t buf[16];
+        StringCchPrintfW(buf, 16, L"_%d", suffix);
+        candidateName = stem + buf + ext;
+        candidatePath = state->currentFileDir + L"\\" + candidateName;
+    }
+
+    if (!CopyFileW(source.c_str(), candidatePath.c_str(), TRUE)) {
+        wchar_t errBuf[64];
+        StringCchPrintfW(errBuf, 64, L"CopyFileW failed (code %lu)", GetLastError());
+        reply(false, L"", errBuf);
+        return;
+    }
+    reply(true, candidateName, L"");
+}
+
 // ---------------------------------------------------------------------------
 // WebView2 lifecycle
 
@@ -1370,14 +1434,40 @@ HRESULT OnControllerCreated(ViewerState* state,
                     if (resp) args->put_Response(resp.Get());
                 };
 
-                if (rel.empty() || !IsSafeRelativePath(rel) ||
-                    state->currentFileDir.empty()) {
+                std::wstring fullPath;
+
+                // Absolute-path route: URLs of the form
+                //   https://local.mdworx.test/_abs/C:/Users/.../foo.png
+                // serve the file at that absolute path directly, bypassing
+                // the currentFileDir constraint. Used by the Insert Image
+                // toolbar when the user picks a file outside the markdown
+                // file's subtree and didn't opt in to copy.
+                if (rel.size() > 4 &&
+                    rel[0] == L'_' && rel[1] == L'a' &&
+                    rel[2] == L'b' && rel[3] == L's' &&
+                    rel[4] == L'/') {
+                    std::wstring abs = rel.substr(5);
+                    // Reject path traversal in the abs payload.
+                    if (abs.find(L"..") != std::wstring::npos) {
+                        respond404();
+                        return S_OK;
+                    }
+                    // Must look like a Windows absolute path: <drive>:/...
+                    if (abs.size() < 3 || abs[1] != L':' ||
+                        (abs[2] != L'/' && abs[2] != L'\\')) {
+                        respond404();
+                        return S_OK;
+                    }
+                    for (auto& c : abs) if (c == L'/') c = L'\\';
+                    fullPath = abs;
+                } else if (rel.empty() || !IsSafeRelativePath(rel) ||
+                           state->currentFileDir.empty()) {
                     respond404();
                     return S_OK;
+                } else {
+                    for (auto& c : rel) if (c == L'/') c = L'\\';
+                    fullPath = state->currentFileDir + L"\\" + rel;
                 }
-
-                for (auto& c : rel) if (c == L'/') c = L'\\';
-                std::wstring fullPath = state->currentFileDir + L"\\" + rel;
 
                 std::vector<BYTE> bytes = ReadFileBytes(fullPath);
                 if (bytes.empty()) {
@@ -1490,6 +1580,14 @@ HRESULT OnControllerCreated(ViewerState* state,
                 // with {type:'imagePicked', cancelled, path, relative}.
                 if (msg.find(L"\"pickImage\"") != std::wstring::npos) {
                     HandlePickImageMessage(state);
+                    return S_OK;
+                }
+
+                // {type:"copyImage", path:'C:\\...'} - copy a picked
+                // image into the markdown file's parent directory; reply
+                // with {type:'imageCopied', relative} or error.
+                if (msg.find(L"\"copyImage\"") != std::wstring::npos) {
+                    HandleCopyImageMessage(state, msg);
                     return S_OK;
                 }
 
