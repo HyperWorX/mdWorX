@@ -109,6 +109,7 @@ target_link_libraries(mdWorX PRIVATE
     advapi32
     comctl32
     comdlg32   # GetSaveFileNameW for editor Save As
+    urlmon     # URLDownloadToFileW for "Copy to file folder" of URL sources
     version
 )
 

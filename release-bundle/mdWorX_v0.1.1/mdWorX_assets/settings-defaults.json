@@ -54,6 +54,7 @@
 
     "hardLineBreaks": false,
     "showFormattingMarks": false,
+    "allowRemoteImages": false,
 
     "activeCustomTheme": null,
     "activePalette":     null
