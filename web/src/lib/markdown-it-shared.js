@@ -20,6 +20,7 @@ import sup from 'markdown-it-sup';
 import DOMPurify from 'dompurify';
 import { rewriteImageUrl } from './local-url.js';
 import { parseImageAlt } from './image-alt.js';
+import { highlightToHtml } from './code-highlight.js';
 
 export const md = new MarkdownIt({
     html: false,
@@ -93,6 +94,20 @@ md.renderer.rules.image = (tokens, idx, options, env, slf) => {
         }
     }
     return defaultImageRender(tokens, idx, options, env, slf);
+};
+
+// Fenced code block rendering. Override the default fence rule so the
+// rendered HTML carries `<span class="tok-...">` token spans produced by
+// the shared code-highlight module. Same tokens, same classes Live mode
+// emits, so a single `.tok-*` stylesheet skins both modes identically.
+md.renderer.rules.fence = (tokens, idx) => {
+    const token = tokens[idx];
+    const info  = (token.info || '').trim();
+    const lang  = info.split(/\s+/)[0];
+    const code  = token.content;
+    const inner = highlightToHtml(code, lang);
+    const cls   = lang ? ` class="language-${lang}"` : '';
+    return `<pre><code${cls}>${inner}</code></pre>\n`;
 };
 
 // External link routing (matches viewer.js): add data-external attribute so

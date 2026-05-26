@@ -20,6 +20,7 @@ import { createEditor } from './editor.js';
 import { COMMANDS as EDITOR_COMMANDS, insertImage } from './editor-toolbar.js';
 import { rewriteImageUrl } from './lib/local-url.js';
 import { setBreaks as setSharedBreaks } from './lib/markdown-it-shared.js';
+import { highlightToHtml } from './lib/code-highlight.js';
 
 // ---------------------------------------------------------------------------
 // Markdown configuration
@@ -82,6 +83,19 @@ md.renderer.rules.image = (tokens, idx, options, env, slf) => {
         }
     }
     return defaultImageRender(tokens, idx, options, env, slf);
+};
+
+// Fenced code blocks: run the body through the shared code-highlight
+// module so Reading mode emits the same `<span class="tok-...">` tokens
+// Live mode renders. A single `.tok-*` stylesheet in viewer.css skins both.
+md.renderer.rules.fence = (tokens, idx) => {
+    const token = tokens[idx];
+    const info  = (token.info || '').trim();
+    const lang  = info.split(/\s+/)[0];
+    const code  = token.content;
+    const inner = highlightToHtml(code, lang);
+    const cls   = lang ? ` class="language-${lang}"` : '';
+    return `<pre><code${cls}>${inner}</code></pre>\n`;
 };
 
 // Links: open external (http/https) in the user's default browser via the

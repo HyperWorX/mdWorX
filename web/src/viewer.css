@@ -66,6 +66,21 @@ body.theme-light {
     --emphasis:  #0d9488;    /* teal — different family from accent and strong */
     --strike:    #9ca3af;    /* cool grey — strike reads as "removed" */
     --mono:      #b45309;    /* amber-brown — inline code conventional warm tone */
+
+    /* Fenced-code-block token colours. Nine roles, each pulled into the
+     * `.tok-*` rules at the bottom of this file. Defaults are tuned for the
+     * built-in light theme background; per-palette overrides are pushed by
+     * settings.js as `--code-<role>-override`. Code-theme presets (Solarized,
+     * Monokai, etc.) replace these values wholesale when picked. */
+    --code-keyword:     #cf222e;
+    --code-string:      #0a3069;
+    --code-comment:     #6e7781;
+    --code-number:      #0550ae;
+    --code-function:    #8250df;
+    --code-type:        #953800;
+    --code-operator:    #cf222e;
+    --code-variable:    #1f2328;
+    --code-punctuation: #57606a;
 }
 
 body.theme-dark {
@@ -97,6 +112,20 @@ body.theme-dark {
     --emphasis:  #c084fc;    /* muted purple — cool counter to warm yellow */
     --strike:    #6b7280;    /* muted mid-grey — strike reads as "removed" */
     --mono:      #7dd3a8;    /* seafoam green — inline code distinct cool tone */
+
+    /* Fenced-code-block token colours — dark theme defaults, tuned for the
+     * built-in #26262a background. Same `--code-<role>` variable names so
+     * palette overrides and code-theme presets flow through the same path
+     * as the light defaults above. */
+    --code-keyword:     #ff7b72;
+    --code-string:      #a5d6ff;
+    --code-comment:     #8b949e;
+    --code-number:      #79c0ff;
+    --code-function:    #d2a8ff;
+    --code-type:        #ffa657;
+    --code-operator:    #ff7b72;
+    --code-variable:    #c9d1d9;
+    --code-punctuation: #8b949e;
 }
 
 html, body {
@@ -1954,4 +1983,45 @@ body.mode-source .cm-highlightSpace {
 }
 body.mode-source .cm-highlightTab {
     opacity: 0.5;
+}
+
+/* ---- Fenced code block syntax token colours -------------------------
+ *
+ * Class names are emitted by lib/code-highlight.js (custom tagHighlighter)
+ * and apply to:
+ *   - Reading-mode HTML produced by markdown-it's overridden fence rule
+ *   - Live-mode CodeBlockWidget spans rendered into the editor
+ *   - CM6 source-mode highlighting of nested-language tokens inside ```
+ *     fences (via syntaxHighlighting(codeHighlighter) in editor.js)
+ *
+ * Each role indirects through a `--code-<role>-override` so settings.js
+ * can push per-palette token colours, with the theme default as the
+ * fallback. A code-theme preset (Solarized, Monokai, etc.) writes the
+ * override variables to swap the whole scheme without touching the
+ * surrounding palette.
+ */
+.tok-keyword     { color: var(--code-keyword-override,     var(--code-keyword)); }
+.tok-string      { color: var(--code-string-override,      var(--code-string)); }
+.tok-comment     { color: var(--code-comment-override,     var(--code-comment));     font-style: italic; }
+.tok-number      { color: var(--code-number-override,      var(--code-number)); }
+.tok-function    { color: var(--code-function-override,    var(--code-function)); }
+.tok-type        { color: var(--code-type-override,        var(--code-type)); }
+.tok-operator    { color: var(--code-operator-override,    var(--code-operator)); }
+.tok-variable    { color: var(--code-variable-override,    var(--code-variable)); }
+.tok-punctuation { color: var(--code-punctuation-override, var(--code-punctuation)); }
+
+/* Diff/patch rows. Inserted/deleted use a tinted background so a long
+ * diff block reads at a glance instead of relying on the leading `+`/`-`.
+ * Colours derive from the existing check / strike palette vars so they
+ * blend with the active theme. */
+.tok-inserted    { background: color-mix(in srgb, #22c55e 18%, transparent); }
+.tok-deleted     { background: color-mix(in srgb, #ef4444 18%, transparent); }
+.tok-changed     { background: color-mix(in srgb, #f59e0b 18%, transparent); }
+
+/* Lexer flagged the token as invalid (unterminated string, bad character,
+ * etc.). A soft red underline reads as "something is wrong here" without
+ * shouting. */
+.tok-invalid {
+    text-decoration: underline wavy var(--code-keyword);
+    text-underline-offset: 2px;
 }
