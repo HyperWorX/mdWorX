@@ -21,6 +21,7 @@ Focused incremental release covering the image-insert workflow and the new save 
 
 ## Fixes
 
+- Settings dialog opened via Directory Opus Preferences → Plugins → mdWorX → Configure now closes cleanly ([#3](https://github.com/HyperWorX/mdWorX/issues/3), thanks to [@iamlimeng](https://github.com/iamlimeng) for the report and [@PolarGoose](https://github.com/PolarGoose) for the fix pattern).
 - Live-mode image widget renders immediately after Insert — the caret sitting exactly at the closing `)` no longer counts as "inside" the image syntax, so the placeholder syntax doesn't linger on screen.
 - Setext-style headings (`Title\n====`) no longer paint a double underline.
 
