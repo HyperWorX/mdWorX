@@ -21,6 +21,8 @@ import { COMMANDS as EDITOR_COMMANDS, insertImage } from './editor-toolbar.js';
 import { rewriteImageUrl } from './lib/local-url.js';
 import { setBreaks as setSharedBreaks } from './lib/markdown-it-shared.js';
 import { highlightToHtml } from './lib/code-highlight.js';
+import { applyCodeTheme }  from './lib/code-themes.js';
+import { applyToolbarLayout } from './lib/toolbar-layout.js';
 
 // ---------------------------------------------------------------------------
 // Markdown configuration
@@ -1017,6 +1019,26 @@ function applySettings(s) {
 
     // Auto-save: optional periodic Ctrl+S equivalent. 0 disables.
     applyAutoSave(s.autoSaveMinutes);
+
+    // Code-block syntax theme. 'match-palette' (default) clears overrides
+    // so the palette's --code-* defaults win; any other id writes the
+    // preset's nine colours into --code-<role>-override on :root.
+    applyCodeTheme(s.codeBlockTheme);
+
+    // Toolbar layouts. Null/missing falls back to the manifest default
+    // (every button visible, original HTML order, group separators
+    // intact). A custom layout reorders and/or hides buttons; the apply
+    // function reconciles stored ids against the current manifest so
+    // newly-added buttons in future versions appear automatically.
+    applyToolbarLayout('top',  s.topToolbarLayout);
+    applyToolbarLayout('edit', s.editToolbarLayout);
+
+    // Toolbar display modes. The body classes are read by viewer.css to
+    // overlay each toolbar over the content and slide it off-screen unless
+    // the shared hot-zone strip at the top of the viewport (or the toolbar
+    // itself, or any descendant that holds keyboard focus) is hovered.
+    document.body.classList.toggle('top-toolbar-autohide',  s.topToolbarMode  === 'auto-hide');
+    document.body.classList.toggle('edit-toolbar-autohide', s.editToolbarMode === 'auto-hide');
 
     if (breaksChanged || remoteChanged) {
         if (mode === 'reading') {

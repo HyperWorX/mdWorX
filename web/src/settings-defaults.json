@@ -44,6 +44,7 @@
     "codeFontWeight":      null,
     "codeFontSize":        null,
     "codeLineHeight":      null,
+    "codeBlockTheme":      "match-palette",
 
     "highlightFontWeight": null,
 
@@ -57,6 +58,11 @@
     "allowRemoteImages": false,
     "alwaysReloadExternal": false,
     "autoSaveMinutes": 0,
+
+    "topToolbarLayout": null,
+    "editToolbarLayout": null,
+    "topToolbarMode":  "always",
+    "editToolbarMode": "always",
 
     "activeCustomTheme": null,
     "activePalette":     null

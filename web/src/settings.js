@@ -14,6 +14,8 @@
 //   5. Close: post {type:'closeSettings'} so native DestroyWindow's the
 //      dialog. (Plain X button works too via DOpus' window chrome.)
 
+import { TOOLBAR_MANIFESTS, reconcileLayout, defaultLayoutFor } from './lib/toolbar-manifest.js';
+
 // ---------------------------------------------------------------------------
 // Preset palettes
 //
@@ -915,6 +917,21 @@ const schema = [
     { key: 'codeFontSize',   label: 'Code font size', type: 'text',
       placeholder: "0.92em (inline default), or px value e.g. 13px",
       tooltip: 'CSS length. em = relative to body, px = absolute. Defaults: inline 0.92em, pre 12px.' },
+    { key: 'codeBlockTheme', label: 'Code block syntax theme', type: 'select',
+      options: [
+          { value: 'match-palette',   label: 'Match palette (default)' },
+          { value: 'github-light',    label: 'GitHub Light' },
+          { value: 'github-dark',     label: 'GitHub Dark' },
+          { value: 'solarized-light', label: 'Solarized Light' },
+          { value: 'solarized-dark',  label: 'Solarized Dark' },
+          { value: 'monokai',         label: 'Monokai' },
+          { value: 'dracula',         label: 'Dracula' },
+          { value: 'nord',            label: 'Nord' },
+          { value: 'tomorrow',        label: 'Tomorrow' },
+          { value: 'tomorrow-night',  label: 'Tomorrow Night' },
+          { value: 'one-dark',        label: 'One Dark' },
+      ],
+      tooltip: '"Match palette" derives token colours from the active palette. Other entries override the palette colours with a classic syntax theme. The block background still comes from the palette.' },
     { key: 'codeLineHeight', label: 'Code line height', type: 'number',
       min: 1.0, max: 3.0, step: 0.05,
       tooltip: 'Multiplier for code blocks. Default 1.5.' },
@@ -927,6 +944,31 @@ const schema = [
     { key: 'pagePadding', label: 'Page padding',   type: 'text',
       placeholder: "e.g. '32px 40px' or 24",
       tooltip: 'CSS padding shorthand, or a single number (interpreted as px).' },
+
+    // ---- Toolbar customisation -----------------------------------------
+    // Each toolbar can be re-ordered and individual buttons hidden. The
+    // stored value is an array of { id, visible } in display order; null /
+    // missing means "use the manifest default" (current order, all
+    // visible). Reset clears the array back to null.
+    { section: 'Toolbar customisation' },
+    { key: 'topToolbarMode', label: 'Top toolbar display', type: 'select',
+      options: [
+          { value: 'always',    label: 'Always visible' },
+          { value: 'auto-hide', label: 'Auto-hide on hover' },
+      ],
+      tooltip: '"Always visible" keeps the top toolbar pinned. "Auto-hide on hover" slides it out of view until you bring the mouse to the top edge of the viewer.' },
+    { key: 'editToolbarMode', label: 'Edit toolbar display', type: 'select',
+      options: [
+          { value: 'always',    label: 'Always visible' },
+          { value: 'auto-hide', label: 'Auto-hide on hover' },
+      ],
+      tooltip: '"Always visible" keeps the formatting toolbar pinned in Live / Source modes. "Auto-hide on hover" slides it out of view until you bring the mouse to the top of the viewer.' },
+    { key: 'topToolbarLayout', label: 'Top toolbar layout', type: 'toolbar-layout',
+      manifestKey: 'top',
+      tooltip: 'Reorder or hide buttons in the top toolbar (mode switches, save, wrap, settings). The arrows move a row up or down, the tick hides or shows. Reset returns to defaults.' },
+    { key: 'editToolbarLayout', label: 'Edit toolbar layout', type: 'toolbar-layout',
+      manifestKey: 'edit',
+      tooltip: 'Reorder or hide buttons in the formatting toolbar shown in Live / Source modes. Same controls as the top toolbar above.' },
 
 ];
 
@@ -1098,8 +1140,16 @@ function makeRow(entry) {
         control.id = 'input-' + entry.key;
         for (const opt of entry.options) {
             const o = document.createElement('option');
-            o.value = opt;
-            o.textContent = opt;
+            // Options can be either bare strings (value === label) or
+            // { value, label } objects. The object form lets us show a
+            // friendly display name while persisting a stable id.
+            if (opt && typeof opt === 'object') {
+                o.value = opt.value;
+                o.textContent = opt.label;
+            } else {
+                o.value = opt;
+                o.textContent = opt;
+            }
             control.appendChild(o);
         }
         // Wrap selects so we can render a palette-coloured caret via the
@@ -1110,6 +1160,18 @@ function makeRow(entry) {
         selectWrap.className = 'select-wrap';
         selectWrap.appendChild(control);
         row.appendChild(selectWrap);
+    } else if (entry.type === 'toolbar-layout') {
+        // Toolbar layout: a custom multi-row control. Each manifest
+        // button gets a row with up / down / visibility-checkbox plus the
+        // button's display name. setControlValue populates the rows from
+        // the stored layout; getControlValue reads them back as a
+        // { id, visible } array in display order.
+        control = document.createElement('div');
+        control.id = 'input-' + entry.key;
+        control.className = 'toolbar-layout-list';
+        control.dataset.manifestKey = entry.manifestKey;
+        row.classList.add('row-toolbar-layout');
+        row.appendChild(control);
     } else if (entry.type === 'colour') {
         // Colour rows use a swatch + text input pair so users can either
         // pick visually or paste an rgba() / hsl() / named-colour / hex value.
@@ -1304,12 +1366,82 @@ function themeDefaultFor(key) {
     return themeDefaultStatic[key] || null;
 }
 
+function buildToolbarLayoutRow(list, item, def) {
+    const r = document.createElement('div');
+    r.className = 'tbl-row';
+    r.dataset.id = def.id;
+
+    const up = document.createElement('button');
+    up.type = 'button';
+    up.className = 'tbl-btn tbl-up';
+    up.title = 'Move up';
+    up.setAttribute('aria-label', 'Move ' + def.label + ' up');
+    up.textContent = '▲'; // ▲
+    up.addEventListener('click', () => {
+        const prev = r.previousElementSibling;
+        if (prev && prev.classList.contains('tbl-row')) {
+            list.insertBefore(r, prev);
+            list.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+    });
+
+    const down = document.createElement('button');
+    down.type = 'button';
+    down.className = 'tbl-btn tbl-down';
+    down.title = 'Move down';
+    down.setAttribute('aria-label', 'Move ' + def.label + ' down');
+    down.textContent = '▼'; // ▼
+    down.addEventListener('click', () => {
+        const next = r.nextElementSibling;
+        if (next && next.classList.contains('tbl-row')) {
+            list.insertBefore(next, r);
+            list.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+    });
+
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.className = 'tbl-cb';
+    cb.checked = item.visible !== false;
+    cb.addEventListener('change', () => {
+        list.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+
+    const labelEl = document.createElement('label');
+    labelEl.className = 'tbl-label';
+    labelEl.appendChild(cb);
+    const txt = document.createElement('span');
+    txt.textContent = def.label;
+    labelEl.appendChild(txt);
+
+    r.appendChild(up);
+    r.appendChild(down);
+    r.appendChild(labelEl);
+    return r;
+}
+
 function setControlValue(entry, value) {
+    if (entry.type === 'toolbar-layout') {
+        const list = document.getElementById('input-' + entry.key);
+        if (!list) return;
+        const manifestKey = list.dataset.manifestKey;
+        const manifest    = TOOLBAR_MANIFESTS[manifestKey];
+        const layout      = reconcileLayout(manifestKey, value);
+        list.innerHTML = '';
+        for (const item of layout) {
+            const def = manifest.find(b => b.id === item.id);
+            if (!def) continue;
+            list.appendChild(buildToolbarLayoutRow(list, item, def));
+        }
+        return;
+    }
     if (entry.type === 'select') {
         const sel = document.getElementById('input-' + entry.key);
         if (!sel) return;
-        const defVal = defaultSettings[entry.key];
-        sel.value = isEmpty(value) ? (defVal ?? entry.options[0]) : String(value);
+        const defVal   = defaultSettings[entry.key];
+        const firstOpt = entry.options[0];
+        const fallback = (firstOpt && typeof firstOpt === 'object') ? firstOpt.value : firstOpt;
+        sel.value = isEmpty(value) ? (defVal ?? fallback) : String(value);
     } else if (entry.type === 'colour') {
         const text   = document.getElementById('input-' + entry.key);
         const swatch = document.getElementById('input-' + entry.key + '-swatch');
@@ -1376,6 +1508,26 @@ function setControlValue(entry, value) {
 }
 
 function getControlValue(entry) {
+    if (entry.type === 'toolbar-layout') {
+        const list = document.getElementById('input-' + entry.key);
+        if (!list) return null;
+        const manifestKey = list.dataset.manifestKey;
+        const out = [];
+        list.querySelectorAll('.tbl-row').forEach(r => {
+            const id = r.dataset.id;
+            const cb = r.querySelector('input[type=checkbox]');
+            out.push({ id, visible: cb ? cb.checked : true });
+        });
+        // Persist null when the user has not deviated from the default
+        // layout, so settings.json stays clean and forward-compat with
+        // future manifest additions (they appear automatically).
+        const defLayout = defaultLayoutFor(manifestKey);
+        if (out.length === defLayout.length &&
+            out.every((e, i) => e.id === defLayout[i].id && e.visible === true)) {
+            return null;
+        }
+        return out;
+    }
     if (entry.type === 'select') {
         return document.getElementById('input-' + entry.key)?.value || null;
     } else if (entry.type === 'colour') {

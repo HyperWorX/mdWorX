@@ -22,7 +22,10 @@ const distDir   = path.join(root, 'dist');
 const isWatch = process.argv.includes('--watch');
 
 const commonOptions = {
-    entryPoints: { viewer: path.join(srcDir, 'viewer.js') },
+    entryPoints: {
+        viewer:   path.join(srcDir, 'viewer.js'),
+        settings: path.join(srcDir, 'settings.js'),
+    },
     bundle: true,
     minify: !isWatch,
     sourcemap: isWatch ? 'inline' : false,
@@ -45,7 +48,7 @@ async function copyStatic() {
     await copyFile(path.join(srcDir, 'settings-defaults.json'), path.join(distDir, 'settings-defaults.json'));
     await copyFile(path.join(srcDir, 'settings.html'),          path.join(distDir, 'settings.html'));
     await copyFile(path.join(srcDir, 'settings.css'),           path.join(distDir, 'settings.css'));
-    await copyFile(path.join(srcDir, 'settings.js'),            path.join(distDir, 'settings.js'));
+    // settings.js is built by esbuild from settings.js entry point — no copy.
 }
 
 async function writeManifest() {
