@@ -759,75 +759,83 @@ body.theme-dark .row select {
 .row-toolbar-layout .reset-link {
     margin-left: auto;
 }
-/* Horizontal strip that mirrors the actual edit toolbar. Each tile shows
- * the live button glyph + a visibility toggle. Dragging tiles re-orders
- * the layout; tiles with visibility off render translucent but stay in
- * the strip so the user can re-enable them without going hunting. */
+/* Single horizontal strip mirroring the actual edit toolbar pill. Tiles
+ * are icon-only with a native-tooltip label on hover. Click a tile to
+ * toggle visibility (no separate toggle button); drag-and-drop within
+ * the strip to reorder. Hidden tiles stay in place but render dim with
+ * a strike-through over the glyph so they're easy to re-enable. */
 .toolbar-layout-list {
     flex: 1 1 100%;
     display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 3px;
     margin-top: 6px;
-    padding: 10px 8px;
+    padding: 8px 10px;
     border: 1px solid color-mix(in srgb, var(--accent-override, var(--accent)) 20%, var(--rule-override, var(--rule)));
-    border-radius: 6px;
+    border-radius: 8px;
     background: color-mix(in srgb, var(--page-override, var(--page)) 90%, var(--accent-override, var(--accent)));
+    overflow-x: auto;
+    /* Hide the horizontal scrollbar — overflow:auto enables scroll, this
+     * just keeps the scrollbar visually quiet on Chromium / WebView2. */
+    scrollbar-width: thin;
 }
 
-/* Individual tile = one button (or separator) in the layout preview. */
+/* Each button gets a 32px square tile. Separator gets a narrow tile.
+ * No label, no overlay — just the icon. Click toggles; drag moves. */
 .tbl-tile {
     position: relative;
-    display: flex;
-    flex-direction: column;
+    display: inline-flex;
     align-items: center;
-    justify-content: flex-start;
-    gap: 2px;
-    width: 56px;
-    padding: 6px 4px 4px;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
     border-radius: 6px;
     background: var(--page-override, var(--page));
     border: 1px solid color-mix(in srgb, var(--accent-override, var(--accent)) 30%, var(--rule-override, var(--rule)));
-    cursor: grab;
+    cursor: pointer;
     user-select: none;
     flex-shrink: 0;
-    /* Reserve the drop-indicator margin so tiles don't shift on hover. */
-    margin-left: 2px;
-    margin-right: 2px;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+    color: var(--ui-text);
 }
 .tbl-tile:hover {
-    background: color-mix(in srgb, var(--accent-override, var(--accent)) 8%, var(--page-override, var(--page)));
+    background: color-mix(in srgb, var(--accent-override, var(--accent)) 18%, var(--page-override, var(--page)));
+    border-color: color-mix(in srgb, var(--accent-override, var(--accent)) 60%, var(--rule-override, var(--rule)));
+}
+.tbl-tile:active {
+    cursor: grabbing;
 }
 .tbl-tile.dragging {
     opacity: 0.4;
     cursor: grabbing;
 }
-/* Drop indicators: accent-coloured line on the dragged-over side. */
-.tbl-tile.drop-left {
-    box-shadow: -3px 0 0 var(--accent-override, var(--accent));
-}
-.tbl-tile.drop-right {
-    box-shadow: 3px 0 0 var(--accent-override, var(--accent));
-}
-/* Hidden state: tile stays in place but dimmed + crossed icon. */
+
+/* Drop indicators: 3px accent-coloured edge on the dragged-over side. */
+.tbl-tile.drop-left  { box-shadow: -3px 0 0 var(--accent-override, var(--accent)); }
+.tbl-tile.drop-right { box-shadow:  3px 0 0 var(--accent-override, var(--accent)); }
+
+/* Hidden state: tile stays in place but goes translucent with the glyph
+ * crossed out. Click anywhere to flip back. */
 .tbl-tile.tbl-tile-off {
-    opacity: 0.4;
+    opacity: 0.35;
     background: transparent;
+    border-style: dashed;
 }
 .tbl-tile.tbl-tile-off .tbl-tile-glyph {
     text-decoration: line-through;
+    text-decoration-color: color-mix(in srgb, var(--ink-override, var(--ink)) 60%, transparent);
+    text-decoration-thickness: 1.5px;
 }
 
-/* Glyph: the icon/letter the toolbar uses. Inherits .etb-icon / .etb-glyph
- * sizing from viewer.css since the dialog includes that stylesheet. */
+/* The icon itself: inherits .etb-icon / .etb-glyph from viewer.css. */
 .tbl-tile-glyph {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 24px;
-    color: var(--ui-text);
+    width: 20px;
+    height: 20px;
+    pointer-events: none;  /* clicks flow through to the tile */
 }
 .tbl-tile-glyph .etb-icon {
     width: 16px;
@@ -841,62 +849,20 @@ body.theme-dark .row select {
     line-height: 1;
 }
 
-/* Tile label sits below the glyph. Small, centred, ellipsised. */
-.tbl-tile-label {
-    font-size: 10px;
-    color: color-mix(in srgb, var(--ink-override, var(--ink)) 75%, transparent);
-    text-align: center;
-    max-width: 50px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    line-height: 1.2;
-}
-
-/* Visibility toggle: small circular dot in the top-right corner of the
- * tile. ● = visible, ○ = hidden. Click flips. */
-.tbl-tile-toggle {
-    position: absolute;
-    top: 2px;
-    right: 2px;
-    width: 16px;
-    height: 16px;
-    padding: 0;
-    border: none;
-    background: transparent;
-    color: var(--accent-override, var(--accent));
-    font-size: 10px;
-    line-height: 1;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-}
-.tbl-tile-toggle:hover {
-    background: color-mix(in srgb, var(--accent-override, var(--accent)) 18%, transparent);
-}
-.tbl-tile-toggle[data-checked="0"] {
-    color: color-mix(in srgb, var(--ink-override, var(--ink)) 50%, transparent);
-}
-
-/* Separator tile: narrower, with a vertical line in the middle and no
- * label/toggle. Stays draggable. */
+/* Separator tile: narrow, dashed border, single vertical accent line.
+ * Same click-to-toggle behaviour as button tiles. */
 .tbl-tile.tbl-separator {
-    width: 14px;
-    padding: 6px 0;
+    width: 12px;
     background: transparent;
     border: 1px dashed color-mix(in srgb, var(--accent-override, var(--accent)) 30%, var(--rule-override, var(--rule)));
 }
 .tbl-tile.tbl-separator:hover {
     background: color-mix(in srgb, var(--accent-override, var(--accent)) 12%, transparent);
 }
-.tbl-tile.tbl-separator.tbl-tile-off .tbl-separator-line {
-    border-color: color-mix(in srgb, var(--ink-override, var(--ink)) 25%, transparent);
-}
 .tbl-separator-line {
     display: inline-block;
     width: 1px;
-    height: 22px;
+    height: 18px;
+    pointer-events: none;
     border-left: 1px solid color-mix(in srgb, var(--accent-override, var(--accent)) 65%, var(--rule-override, var(--rule)));
 }
