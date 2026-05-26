@@ -128,7 +128,7 @@ User settings live at `%APPDATA%\HyperWorX\mdWorX\settings.json`; saved custom t
 - In Source mode, click Source again to toggle the split preview. Drag the handle to resize; click the link icon in the middle of the handle to unlink scrolling.
 - The disk icons save the file. The icon next to them toggles word wrap on code blocks and long URLs.
 - Click the copy button in the corner of any rendered code block to copy the snippet.
-- In the viewer pane: unsaved edits are stashed in the DOpus session when you switch to another file. Click back to the original and a banner asks whether to keep your edits or reload the disk version. The stash lives only for the current DOpus run and is cleared on save — close DOpus and it's gone. If the file was modified externally while you were away the banner says so explicitly. Set "Always reload external changes" in settings to skip the banner and always use the disk version, or set an "Auto-save every (minutes)" interval for periodic safety saves. The pop-out window edits a single file and isn't affected by file-switch behaviour.
+- In the viewer pane: unsaved edits are stashed when you switch to another file. Click back and a banner asks whether to keep them or reload from disk. The stash lasts only for the current DOpus session and clears on save. Tick "Always reload external changes" in settings to skip the banner, or set an auto-save interval. Pop-out windows edit a single file and aren't affected.
 
 ## Building from source
 

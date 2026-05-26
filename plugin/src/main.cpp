@@ -57,7 +57,7 @@ constexpr GUID kPluginGuid =
       { 0x91, 0x07, 0xf9, 0x3e, 0x3a, 0x32, 0x2c, 0xd8 } };
 
 constexpr wchar_t kHandledExts[]     = L".md;.markdown;.mdown;.mkd;.mkdn;.mdwn";
-constexpr wchar_t kName[]            = L"Markdown";
+constexpr wchar_t kName[]            = L"mdWorX";
 constexpr wchar_t kDescription[]     = L"mdWorX - markdown viewer/editor "
                                        L"(images, themes, in-place editing, split view)";
 constexpr wchar_t kCopyright[]       = L"(c) 2026 HyperWorX. MIT licensed.";
@@ -2206,16 +2206,18 @@ LRESULT CALLBACK ViewerWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam
     case DVPLUGINMSG_REINITIALIZE: {
         // DOpus broadcasts this to every viewer instance whenever the
         // plugin posts REINITIALIZE to hWndDOpusMsgWindow (typically after
-        // a config change). Re-read the user settings file and re-push to
-        // this viewer's webview so visual overrides + theme refresh in
-        // place. If a file is currently loaded, also re-read it so the
-        // 'encoding' / 'fallbackEncoding' settings take effect on the
-        // visible document instead of only on the next file load.
+        // a config change in our settings dialog). Re-push user settings
+        // so visual overrides + theme refresh in place.
+        //
+        // We deliberately do NOT re-read the file content here, even
+        // though that would let an encoding/fallbackEncoding change take
+        // effect on the visible doc. A re-read would route through
+        // PushFileToWebView's stash-check path and surface the
+        // file-switch conflict banner over an Apply that the user
+        // expects to be invisible. Encoding settings instead apply to
+        // the next file load. Reported by user 2026-05-27.
         if (auto* state = GetState(hwnd)) {
             PushUserSettingsToWebView(state);
-            if (!state->filePath.empty()) {
-                PushFileToWebView(state, state->filePath);
-            }
         }
         return 0;
     }
