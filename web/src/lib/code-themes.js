@@ -24,6 +24,8 @@ export const CODE_THEMES = {
     'github-light': {
         label:  'GitHub Light',
         isDark: false,
+        bg:     '#f6f8fa',
+        fg:     '#1f2328',
         colors: {
             keyword:     '#cf222e',
             string:      '#0a3069',
@@ -39,6 +41,8 @@ export const CODE_THEMES = {
     'github-dark': {
         label:  'GitHub Dark',
         isDark: true,
+        bg:     '#161b22',
+        fg:     '#c9d1d9',
         colors: {
             keyword:     '#ff7b72',
             string:      '#a5d6ff',
@@ -54,6 +58,8 @@ export const CODE_THEMES = {
     'solarized-light': {
         label:  'Solarized Light',
         isDark: false,
+        bg:     '#fdf6e3',
+        fg:     '#586e75',
         colors: {
             keyword:     '#859900',
             string:      '#2aa198',
@@ -69,6 +75,8 @@ export const CODE_THEMES = {
     'solarized-dark': {
         label:  'Solarized Dark',
         isDark: true,
+        bg:     '#002b36',
+        fg:     '#839496',
         colors: {
             keyword:     '#859900',
             string:      '#2aa198',
@@ -84,6 +92,8 @@ export const CODE_THEMES = {
     'monokai': {
         label:  'Monokai',
         isDark: true,
+        bg:     '#272822',
+        fg:     '#f8f8f2',
         colors: {
             keyword:     '#f92672',
             string:      '#e6db74',
@@ -99,6 +109,8 @@ export const CODE_THEMES = {
     'dracula': {
         label:  'Dracula',
         isDark: true,
+        bg:     '#282a36',
+        fg:     '#f8f8f2',
         colors: {
             keyword:     '#ff79c6',
             string:      '#f1fa8c',
@@ -114,6 +126,8 @@ export const CODE_THEMES = {
     'nord': {
         label:  'Nord',
         isDark: true,
+        bg:     '#2e3440',
+        fg:     '#d8dee9',
         colors: {
             keyword:     '#81a1c1',
             string:      '#a3be8c',
@@ -129,6 +143,8 @@ export const CODE_THEMES = {
     'tomorrow': {
         label:  'Tomorrow',
         isDark: false,
+        bg:     '#ffffff',
+        fg:     '#4d4d4c',
         colors: {
             keyword:     '#8959a8',
             string:      '#718c00',
@@ -144,6 +160,8 @@ export const CODE_THEMES = {
     'tomorrow-night': {
         label:  'Tomorrow Night',
         isDark: true,
+        bg:     '#1d1f21',
+        fg:     '#c5c8c6',
         colors: {
             keyword:     '#b294bb',
             string:      '#b5bd68',
@@ -159,6 +177,8 @@ export const CODE_THEMES = {
     'one-dark': {
         label:  'One Dark',
         isDark: true,
+        bg:     '#282c34',
+        fg:     '#abb2bf',
         colors: {
             keyword:     '#c678dd',
             string:      '#98c379',
@@ -177,9 +197,14 @@ export const CODE_THEMES = {
 const ROLES = ['keyword','string','comment','number','function',
                'type','operator','variable','punctuation'];
 
-// Apply a code theme by writing nine `--code-<role>-override` CSS variables
-// on the document root. Calling with "match-palette" (or null/empty/unknown
-// id) clears every override so the active palette's defaults win again.
+// Apply a code theme by writing the nine `--code-<role>-override` CSS
+// variables plus `--code-block-bg-override` / `--code-block-fg-override`
+// on the document root. The block-level bg/fg overrides only apply to
+// fenced code blocks (not blockquote, not inline code) — viewer.css
+// scopes them via dedicated selectors so the rest of the palette stays
+// intact when a theme is picked. Calling with "match-palette" (or
+// null/empty/unknown id) clears every override so the active palette's
+// defaults win again.
 export function applyCodeTheme(themeId, target = document.documentElement) {
     const id = themeId || MATCH_PALETTE;
     const theme = CODE_THEMES[id];
@@ -189,6 +214,10 @@ export function applyCodeTheme(themeId, target = document.documentElement) {
         if (useOverride) target.style.setProperty(varName, theme.colors[role]);
         else             target.style.removeProperty(varName);
     }
+    if (useOverride && theme.bg) target.style.setProperty('--code-block-bg-override', theme.bg);
+    else                         target.style.removeProperty('--code-block-bg-override');
+    if (useOverride && theme.fg) target.style.setProperty('--code-block-fg-override', theme.fg);
+    else                         target.style.removeProperty('--code-block-fg-override');
 }
 
 // Convenience: settings UI can build the dropdown options from this list.

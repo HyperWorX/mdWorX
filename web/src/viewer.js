@@ -1025,12 +1025,13 @@ function applySettings(s) {
     // preset's nine colours into --code-<role>-override on :root.
     applyCodeTheme(s.codeBlockTheme);
 
-    // Toolbar layouts. Null/missing falls back to the manifest default
+    // Edit toolbar layout. Null/missing falls back to the manifest default
     // (every button visible, original HTML order, group separators
     // intact). A custom layout reorders and/or hides buttons; the apply
     // function reconciles stored ids against the current manifest so
     // newly-added buttons in future versions appear automatically.
-    applyToolbarLayout('top',  s.topToolbarLayout);
+    // (Top toolbar isn't customisable — it only has a handful of fixed
+    // mode + action buttons that don't benefit from reordering.)
     applyToolbarLayout('edit', s.editToolbarLayout);
 
     // Toolbar display modes. The body classes are read by viewer.css to

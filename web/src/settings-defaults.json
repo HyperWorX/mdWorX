@@ -59,7 +59,6 @@
     "alwaysReloadExternal": false,
     "autoSaveMinutes": 0,
 
-    "topToolbarLayout": null,
     "editToolbarLayout": null,
     "topToolbarMode":  "always",
     "editToolbarMode": "always",
