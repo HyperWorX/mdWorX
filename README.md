@@ -59,59 +59,23 @@ GitHub-flavoured Markdown plus footnotes, definition lists, abbreviations, highl
 
 ## Settings
 
-The Settings dialog (gear icon in the top toolbar) covers every visual option without you having to hand-edit a JSON file. Every field has a hover tooltip describing what it does, and the colour preview repaints live as you scroll through palettes.
+The Settings dialog (gear icon in the top toolbar) covers every visual option without you having to hand-edit a JSON file. Every field has a hover tooltip, the colour preview repaints live as you scroll through palettes, and the dialog itself follows whatever palette is active.
+
+![Settings dialog](img/06-settings-top.png)
 
 Empty fields mean "use the theme default" — leave a field blank and the active palette decides. `Reset all fields` blanks the form back to defaults, but nothing applies until you click `Apply`. Apply pushes the settings to every open viewer pane at once.
 
-### Theme & presets
+What it covers:
 
-![Settings dialog — Theme & presets, Document handling, Page surface](img/06-settings-top.png)
-
-Pick from 29 built-in palettes (17 dark, 12 light — see [`docs/palettes.md`](docs/palettes.md) for the visual reference) or any custom theme you've saved. The picker is grouped Light / Dark / Your themes.
-
-The **Save** menu next to the picker can capture the current state three ways:
-
-- **Save as palette** — colours only. Fonts, sizes, page layout, and spacing stay as the user's other settings.
-- **Save as style** — typography and layout only (fonts, weights, sizes, line-heights, padding, max-width). Colours stay free for whatever palette is active.
-- **Save as theme** — everything: colours plus typography plus layout in one bundle.
-
-Saved entries persist between sessions and show up in the preset picker alongside the built-ins. You can delete your own saved entries; built-ins can't be deleted.
-
-### Document handling
-
-Encoding (`auto`, `utf-8`, `utf-16` / `-le` / `-be`, `system`, the `cp1250`–`cp1258` family, ISO-8859 single-byte, Shift-JIS, GBK, Big5, EUC-KR, KOI8-R / -U), fallback encoding for when auto-detection fails, "render single newlines as line breaks" (hard line breaks), and "show formatting characters in Live mode" (overlays every space, tab, and line ending; LF and CRLF lines get distinct badges).
-
-### Page surface
-
-Page background, page border colour and thickness, drop-shadow depth (`none` through `floating`), and body text colour.
-
-### Rules and dividers
-
-![Settings dialog — Rules and dividers, including heading underline thickness and style](img/08-settings-headings.png)
-
-Horizontal-rule colour and thickness, heading underline colour, **thickness, and style** (`solid`, `gradient`, or `none`). Heading underline thickness is independent of HR thickness, so a thin rule with a chunky H1 underline (or vice-versa) works fine. New default style is `gradient`.
-
-### Headings
-
-Per-level heading colours (H1 through H6). Leaving any of them blank lets the active palette's heading colours show through.
-
-### Body text & code
-
-Body font family, weight, size, line-height. Code font, weight, size, line-height. Highlight font weight is its own field so `==marked==` text can be bolder than surrounding prose without affecting bold elsewhere.
-
-### Inline accents
-
-Per-element colours for bold, italic, strikethrough, inline code, highlight (background plus foreground plus opacity), and links. Each follows the active palette by default but can be pinned to a specific colour independently.
-
-### Layout
-
-Content max-width and page padding.
-
-### Dark theme
-
-The dialog itself follows the active palette. The same form on a dark palette:
-
-![Settings dialog in dark theme](img/09-settings-dark.png)
+- **Theme and preset picker** — 29 built-in palettes (17 dark, 12 light — see [`docs/palettes.md`](docs/palettes.md) for the visual reference) plus any custom entries you've saved. Picker grouped Light / Dark / Your themes.
+- **Save menu** — capture the current state three ways: **Save as palette** keeps just the colours, **Save as style** keeps just typography and layout (fonts, weights, sizes, line-heights, padding, max-width), **Save as theme** bundles everything. Saved entries appear in the picker alongside the built-ins; your own can be deleted, built-ins can't.
+- **Document handling** — encoding (`auto`, `utf-8`, `utf-16` / `-le` / `-be`, `system`, the `cp1250`–`cp1258` family, ISO-8859 single-byte, Shift-JIS, GBK, Big5, EUC-KR, KOI8-R / -U), fallback encoding for when auto-detection fails, "render single newlines as line breaks" (hard line breaks), and "show formatting characters in Live mode" (overlays every space, tab, and line ending; LF and CRLF lines get distinct badges).
+- **Page surface** — background, border colour and thickness, drop-shadow depth (`none` through `floating`), body text colour.
+- **Rules and dividers** — horizontal-rule colour and thickness, heading underline colour, thickness, and style (`solid`, `gradient`, or `none`). Heading underline thickness is independent of HR thickness, so a thin rule with a chunky H1 underline (or vice-versa) works fine. Default style is `gradient`.
+- **Per-level heading colours** — H1 through H6, each independent.
+- **Body and code typography** — font family, weight, size, line-height for body prose and for code blocks. Highlight font weight is its own field so `==marked==` text can be bolder than surrounding prose without affecting bold elsewhere.
+- **Inline accents** — per-element colours for bold, italic, strikethrough, inline code, highlight (background plus foreground plus opacity), and links. Each follows the active palette by default; pin a specific colour to override.
+- **Layout** — content max-width and page padding.
 
 ## Palettes
 
