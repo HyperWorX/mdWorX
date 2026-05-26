@@ -46,13 +46,30 @@ What it does
   strikethrough, inline code, link, footnote, H1 / H2 / H3, bulleted /
   numbered / task lists, outdent / indent, blockquote, fenced code block, and
   image insert.
-- Image insert popup: pick a file with Browse..., set alt text, optional width
-  and height in px, alignment (none / left / centre / right), and a "Copy
-  file to this document's folder" option that vendors the picked file next to
-  the markdown and inserts a relative path.
+- Image insert popup: pick a local file with Browse..., or paste any
+  http(s) URL into the source field. Set alt text, optional width and
+  height in px, alignment (none / left / centre / right), and a "Copy
+  file to this document's folder" option. For local files this vendors
+  the picked file next to the markdown and inserts a relative path; for
+  URL sources it downloads the image into the document's folder, sniffs
+  the actual image format from the file's magic bytes (PNG / JPEG / GIF /
+  WebP / BMP / ICO / SVG / AVIF / HEIC), corrects the extension if the URL
+  lied about it, rejects responses that aren't really images (HTML error
+  pages, redirects), and falls back to a collision-safe filename when a
+  file with the same name already exists.
+- Remote-image privacy gate: by default, ![alt](https://...) URLs render
+  as a placeholder icon in both Reading and Live modes and no network
+  request is made, so the hosting server cannot learn you opened a
+  document referencing it. The "Allow remote images" setting (off by
+  default) flips this for documents from trusted sources. The Insert
+  Image popup auto-ticks "Copy to file folder" the moment you paste a
+  URL so saved markdown stays self-contained by default.
 - Obsidian-compatible image alt-text syntax: ![alt|640](path),
   ![alt|400x300](path), and ![alt|400x300|center](path) work in both Reading
   and Live mode. Windows absolute paths (C:\images\photo.png) resolve.
+- Toolbar wheel scroll: when either toolbar overflows the viewport on a
+  narrow window, a normal vertical mouse wheel scrolls the toolbar
+  horizontally instead of leaking through to scroll the page.
 - Settings dialog (gear icon in top toolbar): full visual editor for every
   colour, font, size, margin, page surface, and layout option. No JSON
   hand-editing required.

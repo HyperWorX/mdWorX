@@ -75,6 +75,17 @@ md.renderer.rules.image = (tokens, idx, options, env, slf) => {
             token.attrSet('alt',
                 (token.attrGet('alt') || '') +
                 ` (unsupported scheme: ${rewritten.unsupportedScheme})`);
+        } else if (rewritten.isExternal &&
+                   typeof window !== 'undefined' &&
+                   !window.mdwxAllowRemoteImages) {
+            // Remote-image gate: external URLs are blocked unless the
+            // 'Allow remote images' setting is on. Empty src + a hint in
+            // alt so the reader knows to flip the setting if they expected
+            // an image here.
+            token.attrSet('src', '');
+            token.attrSet('alt',
+                (token.attrGet('alt') || '') +
+                ' (remote image blocked — enable in settings)');
         } else {
             token.attrSet('src', rewritten.src);
             token.attrSet('loading', 'lazy');

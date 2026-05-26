@@ -9,9 +9,25 @@
 import { Decoration, WidgetType } from '@codemirror/view';
 import { RangeSetBuilder } from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
-import { decoratorStateField, isCursorInRange } from './util.js';
+import { decoratorStateField } from './util.js';
 import { rewriteImageUrl } from '../lib/local-url.js';
 import { parseImageAlt, applyImageAttrs } from '../lib/image-alt.js';
+
+// Half-open cursor-in-range check for the image widget.
+//
+// The shared `isCursorInRange` treats a caret exactly on the boundary as
+// inside the range (so arrowing to the end of a marker keeps the source
+// visible). For images that's the wrong UX: insertImage parks the caret
+// at imgTo right after `(url)`, and a boundary-inclusive check would keep
+// the raw `![alt](url)` syntax visible instead of rendering the image
+// widget. Strict half-open: only INSIDE the parens-and-text counts; sitting
+// exactly at imgFrom or imgTo lets the widget render.
+function caretStrictlyInside(state, from, to) {
+    for (const r of state.selection.ranges) {
+        if (r.from < to && r.to > from) return true;
+    }
+    return false;
+}
 
 class InlineImageWidget extends WidgetType {
     constructor(src, alt, attrs) {
@@ -61,7 +77,7 @@ export const imageField = decoratorStateField((state) => {
             if (node.name !== 'Image') return;
             const imgFrom = node.from;
             const imgTo   = node.to;
-            if (isCursorInRange(state, [imgFrom, imgTo])) return;
+            if (caretStrictlyInside(state, imgFrom, imgTo)) return;
 
             // Extract alt + url. The node text is `![alt](url)` — parsing
             // by regex is more robust than walking children because the
@@ -74,7 +90,13 @@ export const imageField = decoratorStateField((state) => {
             const rawSrc = m[2];
             const parsed = parseImageAlt(rawAlt);
             const rewritten = rewriteImageUrl(rawSrc);
-            const widget = new InlineImageWidget(rewritten.src, parsed.alt, parsed);
+            // Remote-image gate: drop src for external http(s) URLs unless
+            // the user opted into them via the 'Allow remote images' setting.
+            // Empty src triggers InlineImageWidget's placeholder branch.
+            const blockRemote =
+                rewritten.isExternal && !window.mdwxAllowRemoteImages;
+            const finalSrc = blockRemote ? '' : rewritten.src;
+            const widget = new InlineImageWidget(finalSrc, parsed.alt, parsed);
             items.push({
                 from: imgFrom,
                 to: imgTo,

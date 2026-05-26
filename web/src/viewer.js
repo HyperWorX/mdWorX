@@ -422,6 +422,29 @@ if (editingToolbarEl) {
     });
 }
 
+// Translate vertical mouse-wheel input into horizontal scroll on toolbars
+// that overflow horizontally. The toolbars use overflow-x: auto + overflow-y:
+// hidden, so a normal scroll wheel's deltaY otherwise produces no toolbar
+// scroll and bubbles to the page. preventDefault unconditionally when the
+// toolbar has overflow so the page never also scrolls; passive: false is
+// required for preventDefault on wheel.
+function wireHorizontalWheelScroll(el) {
+    if (!el) return;
+    el.addEventListener('wheel', (e) => {
+        // Trackpad horizontal swipes set deltaX; let the browser handle those.
+        if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+        if (el.scrollWidth <= el.clientWidth) return;
+        e.preventDefault();
+        el.scrollLeft += e.deltaY;
+    }, { passive: false });
+}
+wireHorizontalWheelScroll(editingToolbarEl);
+// Top toolbar's actual scroll container is each .toolbar-group child; the
+// outer #toolbar is just a centred positioning shell with pointer-events: none.
+if (toolbarEl) {
+    toolbarEl.querySelectorAll('.toolbar-group').forEach(wireHorizontalWheelScroll);
+}
+
 // --- Image insert popup ----------------------------------------------------
 //
 // User clicks the image button -> popup opens. Browse... posts pickImage
@@ -457,6 +480,43 @@ function updateImageInsertEnabled() {
     imgInsertBtn.disabled = imgSrcInput.value.trim() === '';
 }
 
+// Copy-to-folder behaviour for URLs, conditional on the "Allow remote
+// images" setting:
+//
+//   Allow remote images OFF (default):
+//     The saved markdown MUST reference a local file, because an external
+//     URL reference would be blocked by the remote-image gate and render
+//     as a placeholder. Force-tick and lock the checkbox — no choice.
+//
+//   Allow remote images ON:
+//     The user has opted into remote loading, so either path is valid.
+//     Auto-tick on the first URL transition (private default) but leave
+//     the box interactive so it can be unticked to keep the URL.
+let copyAutoTickedForUrl = false;
+function syncCopyForUrl() {
+    if (!imgCopyChk || !imgSrcInput) return;
+    const isUrl = /^https?:\/\//i.test(imgSrcInput.value.trim());
+    const allowRemote = !!window.mdwxAllowRemoteImages;
+    if (isUrl) {
+        if (!allowRemote) {
+            imgCopyChk.checked  = true;
+            imgCopyChk.disabled = true;
+            imgCopyChk.title    = 'Remote images are disabled in settings, so URLs must be downloaded into the document folder. Enable "Allow remote images" in settings to unlock this.';
+        } else {
+            imgCopyChk.disabled = false;
+            if (!copyAutoTickedForUrl) {
+                imgCopyChk.checked   = true;
+                copyAutoTickedForUrl = true;
+            }
+            imgCopyChk.title = 'Recommended for URLs: downloads the image into the document folder so the markdown stays self-contained and no third-party host is hit when the document is opened later.';
+        }
+    } else {
+        imgCopyChk.disabled  = false;
+        copyAutoTickedForUrl = false;
+        imgCopyChk.title     = '';
+    }
+}
+
 function resetImagePopupState() {
     if (imgSrcInput)    imgSrcInput.value    = '';
     if (imgAltInput)    imgAltInput.value    = '';
@@ -465,7 +525,8 @@ function resetImagePopupState() {
     if (imgCopyChk)     imgCopyChk.checked   = false;
     const noneRadio = document.querySelector('input[name="img-pop-align"][value="none"]');
     if (noneRadio) noneRadio.checked = true;
-    pendingImageInsert = null;
+    pendingImageInsert    = null;
+    copyAutoTickedForUrl  = false;
     updateImageInsertEnabled();
 }
 
@@ -478,7 +539,10 @@ function toggleImagePopup(force) {
 }
 
 if (imgSrcInput) {
-    imgSrcInput.addEventListener('input', updateImageInsertEnabled);
+    imgSrcInput.addEventListener('input', () => {
+        updateImageInsertEnabled();
+        syncCopyForUrl();
+    });
     imgSrcInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && imgInsertBtn && !imgInsertBtn.disabled) {
             e.preventDefault();
@@ -510,14 +574,24 @@ if (imgInsertBtn) {
             alignment: alignment,
         };
 
-        // Copy mode: only meaningful for a local file path (not a URL).
-        // Send copyImage to native; reply handler will call insertImage
-        // with the returned relative path.
-        const wantsCopy = imgCopyChk && imgCopyChk.checked;
-        const looksLocal = /^[A-Za-z]:[\\/]/.test(src) || !/^[a-z]+:\/\//i.test(src);
-        if (wantsCopy && looksLocal && /^[A-Za-z]:[\\/]/.test(src)) {
+        // Copy mode routes:
+        //   - Local absolute path  -> copyImage   (file copy)
+        //   - http(s) URL          -> downloadImage (URL fetch to disk)
+        //   - anything else        -> insert as-is (relative path, data: URI, etc.)
+        // Both copy paths reply with the same imageCopied message shape,
+        // so the reply handler routes both through one branch.
+        const wantsCopy   = imgCopyChk && imgCopyChk.checked;
+        const isAbsLocal  = /^[A-Za-z]:[\\/]/.test(src);
+        const isHttpUrl   = /^https?:\/\//i.test(src);
+        if (wantsCopy && isAbsLocal) {
             pendingImageInsert = opts;
             send({ type: 'copyImage', path: src });
+            imgInsertBtn.disabled = true;  // re-enabled by reply or error
+            return;
+        }
+        if (wantsCopy && isHttpUrl) {
+            pendingImageInsert = opts;
+            send({ type: 'downloadImage', path: src });
             imgInsertBtn.disabled = true;  // re-enabled by reply or error
             return;
         }
@@ -806,7 +880,16 @@ function applySettings(s) {
     // body class controls only whether the ::after badges show.
     document.body.classList.toggle('mdwx-show-formatting', s.showFormattingMarks === true);
 
-    if (breaksChanged) {
+    // Remote-image gate. Read by lib/markdown-it-shared.js (Reading mode
+    // renderer) and livepreview/image.js (Live mode widget) when deciding
+    // whether to honour an http(s) URL in an ![alt](url) reference. When
+    // false, those callsites swap in a placeholder so no external request
+    // is made and the host can't learn the document was opened.
+    const newAllowRemote = s.allowRemoteImages === true;
+    const remoteChanged  = newAllowRemote !== !!window.mdwxAllowRemoteImages;
+    window.mdwxAllowRemoteImages = newAllowRemote;
+
+    if (breaksChanged || remoteChanged) {
         if (mode === 'reading') {
             render(dirty ? editorBuffer : loadedBuffer);
         } else if (editor) {
@@ -934,6 +1017,7 @@ function onHostMessage(event) {
                 const chosen = m.path || m.relative || '';
                 imgSrcInput.value = chosen;
                 updateImageInsertEnabled();
+                syncCopyForUrl();
                 imgSrcInput.focus();
                 imgSrcInput.select();
             }

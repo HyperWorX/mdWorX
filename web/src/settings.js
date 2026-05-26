@@ -810,6 +810,8 @@ const schema = [
       tooltip: 'ON: each newline shows as a visible break in Reading. OFF (default): newlines flow as whitespace.' },
     { key: 'showFormattingMarks', label: 'Show formatting characters in Live mode', type: 'check',
       tooltip: 'Shows an LF or CRLF badge at the end of each line in Live mode. Spaces appear as · and tabs as → so whitespace is visible too.' },
+    { key: 'allowRemoteImages', label: 'Allow remote images', type: 'check',
+      tooltip: 'OFF (default): markdown images with http(s) URLs render as a placeholder icon, no network request is made. ON: external URLs load directly, which lets the hosting server learn each time you open a document that references them (IP, time, user agent). Turn ON only if you trust the document and the hosts. If you see a broken-image placeholder for a URL you trust, this is the setting to flip — or use the Insert Image popup, which always downloads URLs into the document folder so the markdown never references third-party hosts.' },
 
     // ---- Page surface --------------------------------------------------
     { section: 'Page surface' },
