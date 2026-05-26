@@ -79,6 +79,7 @@ static constexpr DWORD kInternalConfigureFlag = 0xC0DE0001u;
 // Forward declaration: implemented down in the settings section.
 struct SettingsState;
 void HandleCheckForUpdatesMessage(SettingsState* s);
+void HandleInstallUpdateMessage(SettingsState* s, const std::wstring& url);
 
 // Build the WebView2 user data folder under %LOCALAPPDATA% so multiple
 // plugin instances and Windows users don't fight over a single state dir.
@@ -2578,6 +2579,11 @@ HRESULT OnSettingsControllerCreated(SettingsState* s,
                     HandleCheckForUpdatesMessage(s);
                     return S_OK;
                 }
+                if (msg.find(L"\"installUpdate\"") != std::wstring::npos) {
+                    std::wstring url = ExtractJsonStringKey(msg, L"url");
+                    HandleInstallUpdateMessage(s, url);
+                    return S_OK;
+                }
                 if (msg.find(L"\"openExternal\"") != std::wstring::npos) {
                     std::wstring url = ExtractJsonStringKey(msg, L"url");
                     // Only http(s); never shell-execute arbitrary schemes.
@@ -2824,6 +2830,9 @@ void HandleCheckForUpdatesMessage(SettingsState* s) {
 
     std::wstring tagName = ExtractJsonStringKey(body, L"tag_name");
     std::wstring htmlUrl = ExtractJsonStringKey(body, L"html_url");
+    // browser_download_url only appears under assets[]; first occurrence
+    // is the release zip (mdWorX ships exactly one asset per release).
+    std::wstring assetUrl = ExtractJsonStringKey(body, L"browser_download_url");
     if (tagName.empty()) {
         reply(L"{\"type\":\"updateCheckResult\",\"error\":\"Couldn't read release tag from response.\"}");
         return;
@@ -2838,9 +2847,166 @@ void HandleCheckForUpdatesMessage(SettingsState* s) {
     std::wstring out = L"{\"type\":\"updateCheckResult\",\"current\":\""
         + JsonEscape(current) + L"\",\"latest\":\""
         + JsonEscape(latest)  + L"\",\"url\":\""
-        + JsonEscape(htmlUrl) + L"\",\"newer\":"
+        + JsonEscape(htmlUrl) + L"\",\"assetUrl\":\""
+        + JsonEscape(assetUrl) + L"\",\"newer\":"
         + (newer ? L"true" : L"false") + L"}";
     reply(out);
+}
+
+// Install pipeline triggered by {type:'installUpdate', url:'<zip url>'}.
+// Pipeline:
+//   1. Download the asset zip to %TEMP%\mdworx-update.zip
+//   2. Extract via PowerShell Expand-Archive to %TEMP%\mdworx-update\
+//   3. Locate Install.cmd in the extracted folder (release zips have it
+//      one directory deep inside mdWorX_v<version>\)
+//   4. ShellExecuteEx the Install.cmd. Install.cmd self-elevates via
+//      UAC, closes DOpus (dopusrt /closeprogram with taskkill fallback),
+//      replaces DLL + assets, relaunches DOpus.
+//
+// Posts progress messages so the JS layer can render stages:
+//   {type:'installProgress', stage:'downloading'|'extracting'|'launching'}
+//   {type:'installResult',   ok:true|false, error?:'<message>'}
+// Note: DOpus is closed by Install.cmd shortly after launching, so the
+// installResult reply may not reach the user UI. We post it anyway in
+// case launch fails before the closer kicks in.
+void HandleInstallUpdateMessage(SettingsState* s, const std::wstring& url) {
+    if (!s || !s->webview) return;
+    auto reply = [&](const std::wstring& body) {
+        if (s && s->webview) s->webview->PostWebMessageAsJson(body.c_str());
+    };
+    auto progress = [&](const wchar_t* stage) {
+        reply(std::wstring(L"{\"type\":\"installProgress\",\"stage\":\"") + stage + L"\"}");
+    };
+    auto fail = [&](const std::wstring& errMsg) {
+        reply(L"{\"type\":\"installResult\",\"ok\":false,\"error\":\"" + JsonEscape(errMsg) + L"\"}");
+    };
+
+    // Only allow HTTPS / HTTP github URLs through; never shell-execute
+    // an arbitrary scheme.
+    if (url.empty() ||
+        (url.compare(0, 8, L"https://") != 0 && url.compare(0, 7, L"http://") != 0)) {
+        fail(L"Invalid update URL.");
+        return;
+    }
+
+    wchar_t tmpDir[MAX_PATH] = {0};
+    if (GetTempPathW(MAX_PATH, tmpDir) == 0) {
+        fail(L"Could not locate temp folder.");
+        return;
+    }
+    std::wstring zipPath    = std::wstring(tmpDir) + L"mdworx-update.zip";
+    std::wstring extractDir = std::wstring(tmpDir) + L"mdworx-update";
+
+    // Clean up any prior run. Failures here are tolerated — the
+    // subsequent download/extract will overwrite or fail loudly.
+    DeleteFileW(zipPath.c_str());
+    {
+        std::wstring cmd = L"cmd /c rmdir /S /Q \"" + extractDir + L"\"";
+        STARTUPINFOW si = {}; si.cb = sizeof(si);
+        si.dwFlags = STARTF_USESHOWWINDOW; si.wShowWindow = SW_HIDE;
+        PROCESS_INFORMATION pi = {};
+        std::vector<wchar_t> cmdBuf(cmd.begin(), cmd.end()); cmdBuf.push_back(0);
+        if (CreateProcessW(nullptr, cmdBuf.data(), nullptr, nullptr, FALSE,
+                           CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi)) {
+            WaitForSingleObject(pi.hProcess, INFINITE);
+            CloseHandle(pi.hProcess);
+            CloseHandle(pi.hThread);
+        }
+    }
+
+    progress(L"downloading");
+    HRESULT hr = URLDownloadToFileW(nullptr, url.c_str(), zipPath.c_str(), 0, nullptr);
+    if (FAILED(hr)) {
+        wchar_t err[96];
+        StringCchPrintfW(err, 96, L"Download failed (HRESULT 0x%08lX)",
+                         static_cast<unsigned long>(hr));
+        fail(err);
+        return;
+    }
+
+    progress(L"extracting");
+    // Expand-Archive is bundled with Windows 10+ PowerShell and handles
+    // zips without an external tool. -Force overwrites if extractDir
+    // exists from a half-cleaned prior run.
+    {
+        std::wstring psCmd = L"powershell -NoProfile -ExecutionPolicy Bypass -Command "
+                             L"\"Expand-Archive -LiteralPath '"
+            + zipPath + L"' -DestinationPath '" + extractDir + L"' -Force\"";
+        STARTUPINFOW si = {}; si.cb = sizeof(si);
+        si.dwFlags = STARTF_USESHOWWINDOW; si.wShowWindow = SW_HIDE;
+        PROCESS_INFORMATION pi = {};
+        std::vector<wchar_t> cmdBuf(psCmd.begin(), psCmd.end()); cmdBuf.push_back(0);
+        if (!CreateProcessW(nullptr, cmdBuf.data(), nullptr, nullptr, FALSE,
+                            CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi)) {
+            fail(L"Could not start zip extractor (PowerShell).");
+            return;
+        }
+        WaitForSingleObject(pi.hProcess, INFINITE);
+        DWORD exitCode = 0;
+        GetExitCodeProcess(pi.hProcess, &exitCode);
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+        if (exitCode != 0) {
+            wchar_t err[96];
+            StringCchPrintfW(err, 96, L"Extraction failed (exit code %lu).",
+                             static_cast<unsigned long>(exitCode));
+            fail(err);
+            return;
+        }
+    }
+
+    // Locate Install.cmd. Release zips contain a single top-level folder
+    // (mdWorX_v<version>) holding Install.cmd. Check the root first
+    // (defensive: future zip layouts may flatten), then look one level
+    // deep across any subfolders.
+    std::wstring installCmd;
+    {
+        std::wstring rootCmd = extractDir + L"\\Install.cmd";
+        if (GetFileAttributesW(rootCmd.c_str()) != INVALID_FILE_ATTRIBUTES) {
+            installCmd = rootCmd;
+        } else {
+            WIN32_FIND_DATAW fd = {};
+            HANDLE h = FindFirstFileW((extractDir + L"\\*").c_str(), &fd);
+            if (h != INVALID_HANDLE_VALUE) {
+                do {
+                    std::wstring name = fd.cFileName;
+                    if (name == L"." || name == L"..") continue;
+                    if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) continue;
+                    std::wstring candidate = extractDir + L"\\" + name + L"\\Install.cmd";
+                    if (GetFileAttributesW(candidate.c_str()) != INVALID_FILE_ATTRIBUTES) {
+                        installCmd = candidate;
+                        break;
+                    }
+                } while (FindNextFileW(h, &fd));
+                FindClose(h);
+            }
+        }
+    }
+    if (installCmd.empty()) {
+        fail(L"Install.cmd not found in the downloaded release.");
+        return;
+    }
+
+    progress(L"launching");
+    // ShellExecuteEx runs the script. Install.cmd does its own
+    // self-elevation (powershell Start-Process -Verb RunAs) so we don't
+    // pass lpVerb=L"runas" here — letting the script handle it keeps
+    // the UAC dialog text consistent with what users see if they run
+    // the script manually from the zip.
+    SHELLEXECUTEINFOW sei = {};
+    sei.cbSize = sizeof(sei);
+    sei.fMask  = SEE_MASK_NOCLOSEPROCESS;
+    sei.lpVerb = L"open";
+    sei.lpFile = installCmd.c_str();
+    sei.lpDirectory = nullptr;
+    sei.nShow  = SW_SHOWNORMAL;
+    if (!ShellExecuteExW(&sei)) {
+        fail(L"Failed to launch installer.");
+        return;
+    }
+    if (sei.hProcess) CloseHandle(sei.hProcess);
+
+    reply(L"{\"type\":\"installResult\",\"ok\":true}");
 }
 
 void TeardownSettingsWebView2(SettingsState* s) {

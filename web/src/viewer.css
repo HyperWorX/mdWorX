@@ -96,10 +96,16 @@ body.theme-light {
      * (table headers, code blocks). Defaults inherit the palette's --code
      * / --rule values so existing palettes look the same out of the box;
      * users can override each independently via settings. */
-    --blockquote-bg:    var(--code);
+    /* Cascade through the override variants so palette-driven codeBg /
+     * textColor changes propagate to blockquote + table-header surfaces
+     * automatically, instead of these defaults staying frozen on the
+     * theme-default --code / --ink. User overrides for the dedicated
+     * blockquote-* / table-header-* keys still win via the
+     * -override-on-self chain at the consuming rule. */
+    --blockquote-bg:    var(--code-block-bg-override, var(--code));
     --blockquote-fg:    var(--ink-soft);
-    --table-header-bg:  var(--code);
-    --table-header-fg:  var(--ink);
+    --table-header-bg:  var(--code-block-bg-override, var(--code));
+    --table-header-fg:  var(--ink-override, var(--ink));
     --content-rule:     var(--rule);
 }
 
@@ -148,10 +154,16 @@ body.theme-dark {
     --code-punctuation: #8b949e;
 
     /* Content-specific surfaces — see light theme for rationale. */
-    --blockquote-bg:    var(--code);
+    /* Cascade through the override variants so palette-driven codeBg /
+     * textColor changes propagate to blockquote + table-header surfaces
+     * automatically, instead of these defaults staying frozen on the
+     * theme-default --code / --ink. User overrides for the dedicated
+     * blockquote-* / table-header-* keys still win via the
+     * -override-on-self chain at the consuming rule. */
+    --blockquote-bg:    var(--code-block-bg-override, var(--code));
     --blockquote-fg:    var(--ink-soft);
-    --table-header-bg:  var(--code);
-    --table-header-fg:  var(--ink);
+    --table-header-bg:  var(--code-block-bg-override, var(--code));
+    --table-header-fg:  var(--ink-override, var(--ink));
     --content-rule:     var(--rule);
 }
 
@@ -435,6 +447,20 @@ body {
 .editing-toolbar:hover, .editing-toolbar:focus-within { opacity: 1; }
 .editing-toolbar[hidden] { display: none; }
 
+/* HTML `hidden` attribute on a toolbar button needs to be explicit:
+ * the user-agent `[hidden] { display: none }` rule is overridden by
+ * the `.editing-toolbar button { display: inline-flex }` and
+ * `.toolbar button { ... }` rules above (higher specificity). Without
+ * these overrides, calling `node.hidden = true` from
+ * lib/toolbar-layout.js sets the attribute but the button stays
+ * visible because the inline-flex rule still wins. */
+.editing-toolbar button[hidden],
+.toolbar button[hidden],
+.editing-toolbar .etb-sep[hidden],
+.toolbar .tbm-sep[hidden] {
+    display: none;
+}
+
 .etb-group {
     display: flex;
     align-items: center;
@@ -489,6 +515,8 @@ body {
 .etb-glyph-bold   { font-weight: 800; letter-spacing: -0.5px; }
 .etb-glyph-italic { font-style: italic; font-weight: 600; font-family: 'Cambria', 'Georgia', serif; }
 .etb-glyph-strike { text-decoration: line-through; text-decoration-thickness: 1.75px; font-weight: 600; }
+.etb-glyph-h      { font-weight: 700; letter-spacing: -0.5px; display: inline-flex; align-items: baseline; }
+.etb-glyph-h .etb-glyph-num { font-size: 11px; font-weight: 700; margin-left: 1px; }
 
 .etb-sep {
     width: 1px;

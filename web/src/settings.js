@@ -1386,6 +1386,14 @@ const themeDefaultVarMap = {
     h6Color:               '--ink-soft',
     highlightBg:           '--mark-bg',
     highlightFg:           '--mark-fg',
+    // viewer.css defaults --blockquote-bg / --table-header-bg through
+    // the code-block override chain and --table-header-fg through the
+    // ink override chain, so these dialog placeholders pick up the
+    // active palette's codeBg / textColor automatically.
+    blockquoteBg:          '--blockquote-bg',
+    blockquoteFg:          '--blockquote-fg',
+    tableHeaderBg:         '--table-header-bg',
+    tableHeaderFg:         '--table-header-fg',
 };
 const themeDefaultStatic = {
     maxWidth:                  '760px',
@@ -1411,12 +1419,23 @@ const themeDefaultStatic = {
 function themeDefaultFor(key) {
     const varName = themeDefaultVarMap[key];
     if (varName) {
-        // CRITICAL: theme variables (--ink, --page, --accent, ...) are
-        // declared on body.theme-light / body.theme-dark in viewer.css,
-        // NOT on :root. getComputedStyle(documentElement) returns ''
-        // for them. Must read from document.body. Override variables
-        // (--ink-override, etc) ARE on documentElement (set by
-        // applyOwnPalette) but those are USER values, not theme defaults.
+        // Mirror the CSS cascade used in viewer.css: values resolve via
+        // var(--X-override, var(--X)). For a settings field that falls
+        // back through --X (e.g. headingUnderlineColor -> --accent), the
+        // "default" the dialog shows must reflect --X-override when the
+        // active palette has set it via applyOwnPalette. Without this,
+        // selecting a palette that omits headingUnderlineColor (Tokyo
+        // Night, PLN Dark, PLN Light, AnuPpuccin Frappe, Tokyo Night Day)
+        // showed the bundled theme accent in the swatch instead of the
+        // palette's own accent, even though the viewer rendered the
+        // underline in the correct palette accent via the cascade.
+        const o = getComputedStyle(document.documentElement)
+            .getPropertyValue(varName + '-override').trim();
+        if (o) return o;
+        // Theme variables (--ink, --page, --accent, ...) are declared on
+        // body.theme-light / body.theme-dark in viewer.css, NOT on :root,
+        // so getComputedStyle(documentElement) returns '' for them. Must
+        // read from document.body.
         const v = getComputedStyle(document.body).getPropertyValue(varName).trim();
         if (v) return v;
     }
@@ -2004,6 +2023,7 @@ function validateThemeName(name) {
 // PALETTE_KEYS + STYLE_KEYS + 'theme' should equal THEMABLE_KEYS.
 const PALETTE_KEYS = [
     'pageColor', 'textColor', 'accentColor', 'linkColor', 'codeBg',
+    'blockquoteBg', 'blockquoteFg', 'tableHeaderBg', 'tableHeaderFg',
     'ruleColor', 'hrColor', 'headingUnderlineColor',
     'h1Color', 'h2Color', 'h3Color', 'h4Color', 'h5Color', 'h6Color',
     'highlightBg', 'highlightFg', 'highlightOpacity',
@@ -2072,6 +2092,11 @@ function applyCustomTheme(themeData) {
         if (row) updateResetState(row, entry);
     }
     applyOwnTheme();
+    // Same stale-placeholder issue as applyPreset / applyDefault: the
+    // first loop computed colour placeholders against the previous
+    // theme's overrides. Re-render empty colour fields now that
+    // applyOwnTheme has refreshed --*-override on documentElement.
+    refreshEmptyColourPlaceholders();
 }
 
 // True if the current form state differs from the most recently applied
@@ -2130,9 +2155,9 @@ function setActiveTab(id) {
 
 function buildAboutPanel() {
     // Mirrors the layout that previously lived as a static .update-row in
-    // settings.html. Boot wiring binds to btn-check-updates / current-
-    // version / update-status by id, so as long as those IDs stay the
-    // same the existing handlers keep working unmodified.
+    // settings.html. Boot wiring binds to btn-check-updates /
+    // btn-install-update / current-version / update-status by id, so as
+    // long as those IDs stay the same the existing handlers keep working.
     const wrap = document.createElement('div');
     wrap.className = 'update-row about-row';
 
@@ -2147,6 +2172,19 @@ function buildAboutPanel() {
     btn.className = 'btn';
     btn.textContent = 'Check for updates';
     wrap.appendChild(btn);
+
+    // Install button stays disabled until a check returns newer:true with
+    // a download URL. The click handler (boot()) confirms with the user,
+    // sends installUpdate, and the native side closes DOpus shortly
+    // after, so the settings dialog disappears as part of the install.
+    const install = document.createElement('button');
+    install.type = 'button';
+    install.id = 'btn-install-update';
+    install.className = 'btn';
+    install.textContent = 'Install update';
+    install.disabled = true;
+    install.title = 'Available after a check finds a newer release';
+    wrap.appendChild(install);
 
     const status = document.createElement('span');
     status.id = 'update-status';
@@ -2286,6 +2324,13 @@ function applyPreset(palette) {
         if (row) updateResetState(row, entry);
     }
     applyOwnTheme();
+    // applyOwnTheme just refreshed --*-override on documentElement to
+    // reflect the new palette. The setControlValue calls above computed
+    // their placeholder / swatch against the PREVIOUS palette's
+    // overrides, so any colour field that the new palette left empty
+    // still displays a stale colour. Re-render empty colour fields now
+    // that themeDefaultFor will see the new overrides.
+    refreshEmptyColourPlaceholders();
 }
 
 // "Default <theme>" preset: clear every palette override back to the
@@ -2304,6 +2349,23 @@ function applyDefault(theme) {
         if (row) updateResetState(row, entry);
     }
     applyOwnTheme();
+    // Same stale-placeholder issue as applyPreset: the first loop ran
+    // before the overrides were cleared. Re-render so empty colour
+    // fields show the bundled theme defaults (no palette override).
+    refreshEmptyColourPlaceholders();
+}
+
+// Re-run setControlValue(null) on every empty colour field so the
+// placeholder + swatch are recomputed against the current --*-override
+// state on documentElement. Called by applyPreset / applyDefault after
+// applyOwnTheme has refreshed the overrides.
+function refreshEmptyColourPlaceholders() {
+    for (const key of PRESET_KEYS) {
+        if (key === 'theme') continue;
+        const entry = schema.find(s => s.key === key);
+        if (!entry || entry.type !== 'colour') continue;
+        if (isEmpty(getControlValue(entry))) setControlValue(entry, null);
+    }
 }
 
 // Reconcile the preset picker with the currently-loaded settings.
@@ -2442,15 +2504,27 @@ function resolveTheme() {
 // the active custom palette instead of staying on the bundled defaults.
 // Live-preview map for the SETTINGS DIALOG only. Mirrors the viewer's
 // generic palette variables so the dialog chrome updates as the user
-// edits a palette. Content-specific keys (codeBg, ruleColor,
-// blockquoteBg, tableHeaderBg, etc.) are intentionally NOT mapped here
-// — those are viewer-only and shouldn't leak into the dialog's own
-// borders / surfaces while the user is still editing them.
+// edits a palette. Most content-specific keys (ruleColor, blockquoteBg,
+// tableHeaderBg, hrColor, headingUnderlineColor, the heading colours,
+// etc.) are NOT mapped here on purpose — they're viewer-only and
+// shouldn't leak into the dialog's own borders / surfaces while the
+// user is still editing them.
+//
+// codeBg IS mapped because the viewer.css blockquote / table-header
+// defaults cascade through --code-block-bg-override (so picking a
+// palette propagates the palette's code background into the blockquote
+// and table-header surfaces). themeDefaultFor reads the resolved
+// cascade out of getComputedStyle to populate the blockquote /
+// table-header swatch placeholders, which needs the override to be
+// visible on documentElement when the user has a codeBg value set.
+// No rule in settings.css consumes --code-block-bg-override directly,
+// so this propagation doesn't bleed into the dialog's own chrome.
 const settingsCssMap = {
     textColor:             '--ink-override',
     pageColor:             '--page-override',
     accentColor:           '--accent-override',
     linkColor:             '--link-override',
+    codeBg:                '--code-block-bg-override',
     fontFamily:            '--font-prose-override',
     proseFontWeight:       '--font-weight-prose-override',
     fontSize:              '--font-size-override',
@@ -2720,13 +2794,20 @@ function onHostMessage(event) {
         }
         case 'updateCheckResult': {
             // {type:'updateCheckResult', current:'0.1.2', latest:'0.1.3',
-            //  url:'https://...', newer:true|false, error?:'...'}
-            const btn = document.getElementById('btn-check-updates');
-            const out = document.getElementById('update-status');
+            //  url:'https://...', assetUrl:'https://.../mdWorX_v...zip',
+            //  newer:true|false, error?:'...'}
+            const btn       = document.getElementById('btn-check-updates');
+            const installBt = document.getElementById('btn-install-update');
+            const out       = document.getElementById('update-status');
             if (btn) btn.disabled = false;
             if (!out) break;
             if (m.error) {
                 out.textContent = 'Update check failed: ' + m.error;
+                if (installBt) {
+                    installBt.disabled = true;
+                    installBt.dataset.assetUrl = '';
+                    installBt.dataset.latest = '';
+                }
                 break;
             }
             if (m.newer) {
@@ -2742,8 +2823,58 @@ function onHostMessage(event) {
                 });
                 out.appendChild(span);
                 out.appendChild(link);
+                // Enable install only when we actually have a zip URL to
+                // download. A release with no .zip asset (rare, but
+                // possible on a malformed publish) gracefully falls back
+                // to the "open release page" link only.
+                if (installBt) {
+                    if (m.assetUrl) {
+                        installBt.disabled = false;
+                        installBt.dataset.assetUrl = m.assetUrl;
+                        installBt.dataset.latest   = m.latest;
+                        installBt.title = `Download v${m.latest} and run the installer (closes DOpus)`;
+                    } else {
+                        installBt.disabled = true;
+                        installBt.dataset.assetUrl = '';
+                        installBt.dataset.latest = '';
+                        installBt.title = 'No installable asset attached to the release';
+                    }
+                }
             } else {
                 out.textContent = `You're on the latest version (v${m.current}).`;
+                if (installBt) {
+                    installBt.disabled = true;
+                    installBt.dataset.assetUrl = '';
+                    installBt.dataset.latest = '';
+                    installBt.title = 'Available after a check finds a newer release';
+                }
+            }
+            break;
+        }
+        case 'installProgress': {
+            // {type:'installProgress', stage:'downloading'|'extracting'|'launching'}
+            const out = document.getElementById('update-status');
+            if (!out) break;
+            const stage = m.stage || '';
+            const label = stage === 'downloading' ? 'Downloading update…'
+                        : stage === 'extracting'  ? 'Extracting…'
+                        : stage === 'launching'   ? 'Launching installer (DOpus will close shortly)…'
+                        :                           'Working…';
+            out.textContent = label;
+            break;
+        }
+        case 'installResult': {
+            // {type:'installResult', ok:true|false, error?:'<msg>'}
+            // On ok:true DOpus is about to close so this rarely renders,
+            // but on failure the user stays in the dialog to see the error.
+            const out       = document.getElementById('update-status');
+            const installBt = document.getElementById('btn-install-update');
+            if (installBt) installBt.disabled = false;
+            if (!out) break;
+            if (m.ok) {
+                out.textContent = 'Installer launched. DOpus will restart automatically.';
+            } else {
+                out.textContent = 'Install failed: ' + (m.error || 'unknown error');
             }
             break;
         }
@@ -2807,6 +2938,33 @@ async function boot() {
             updateBtn.disabled = true;
             if (updateStatus) updateStatus.textContent = 'Checking…';
             send({ type: 'checkForUpdates' });
+        });
+    }
+
+    // Install-update button. Enabled by the updateCheckResult handler
+    // when a newer release with a zip asset is detected. Confirms with
+    // the user before kicking off the native install pipeline (which
+    // downloads the zip, extracts, and runs Install.cmd — Install.cmd
+    // self-elevates via UAC and will close DOpus during the install).
+    const installBtn = document.getElementById('btn-install-update');
+    if (installBtn) {
+        installBtn.addEventListener('click', () => {
+            const url    = installBtn.dataset.assetUrl;
+            const latest = installBtn.dataset.latest || 'new version';
+            if (!url) return;
+            const ok = window.confirm(
+                `Install mdWorX v${latest}?\n\n` +
+                `This will:\n` +
+                `  • download the release zip from GitHub\n` +
+                `  • close Directory Opus\n` +
+                `  • install the new version (UAC prompt)\n` +
+                `  • restart Directory Opus\n\n` +
+                `Save any open work in DOpus before continuing.`
+            );
+            if (!ok) return;
+            installBtn.disabled = true;
+            if (updateStatus) updateStatus.textContent = 'Preparing install…';
+            send({ type: 'installUpdate', url });
         });
     }
     // Footer "Themes ▾" menu: trigger button + popup + click-outside-to-

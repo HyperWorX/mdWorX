@@ -491,6 +491,16 @@ body.theme-dark .row select {
 .btn:hover {
     border-color: var(--accent-override, var(--accent));
 }
+.btn:disabled,
+.btn[disabled] {
+    opacity: 0.45;
+    cursor: not-allowed;
+    color: var(--ink-override, var(--ink));
+}
+.btn:disabled:hover,
+.btn[disabled]:hover {
+    border-color: var(--rule-override, var(--rule));
+}
 .btn-primary {
     background: var(--accent-override, var(--accent));
     border-color: var(--accent-override, var(--accent));
@@ -769,11 +779,12 @@ body.theme-dark .row select {
 .row.row-toolbar-layout {
     display: block;
     grid-template-columns: none;
-    padding: 12px 0 8px;
+    padding: 8px 0 14px;
+    margin-top: 18px;
 }
 .row.row-toolbar-layout > label {
     display: block;
-    margin-bottom: 8px;
+    margin-bottom: 12px;
     max-width: none;
 }
 .row.row-toolbar-layout > .reset-link {

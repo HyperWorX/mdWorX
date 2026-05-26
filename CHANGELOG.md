@@ -2,10 +2,80 @@
 
 Running record of changes to mdWorX. Newest entries first.
 
-## 2026-05-27 — v0.2.0 work in progress on `feature/v0.2.0`
+## 2026-05-27 — v0.2.0-beta
 
-Substantial UX additions building on top of v0.1.2. Branch is open for
-testing in the live DOpus install and is not yet merged or released.
+First public test cut of the v0.2.0 line. Substantial UX additions on
+top of v0.1.2 plus a one-click in-app updater. Not the final release;
+shipped as a prerelease so anyone running v0.1.2 can opt in and shake
+out the new surface before the stable cut.
+
+### Added since v0.1.2
+
+- **One-click in-app updater.** Settings dialog gets a second button
+  next to "Check for updates" labelled "Install update". Stays disabled
+  until a check finds a newer release with an attached zip. Clicking it
+  confirms with the user, downloads the release zip from GitHub into
+  `%TEMP%`, extracts it with PowerShell `Expand-Archive`, then launches
+  the bundled `Install.cmd`. `Install.cmd` self-elevates via UAC,
+  closes DOpus cleanly, swaps the DLL and assets, and relaunches DOpus.
+  The native side parses the GitHub release JSON for the asset URL and
+  posts `installProgress` waypoints back to the dialog so the user sees
+  download / extract / launching stages before DOpus restarts.
+- **Highlight (`==text==`) toolbar button.** New entry in the editing
+  toolbar between strikethrough and inline-code. Renders the
+  highlighter-pen icon; wraps the current selection in `==` markers.
+  Picks up the palette's `highlightBg` / `highlightFg` styling in
+  Reading and Live mode (already supported via `markdown-it-mark`).
+- **Cycling heading button (H1 to H6).** The three separate H1 / H2 /
+  H3 buttons collapse into a single button that cycles its target
+  level on each click. The number on the button glyph shows the level
+  the next click will apply. Always replaces an existing `#`-prefix in
+  place rather than stacking, so clicking the button repeatedly walks
+  the heading level cleanly. Existing user toolbar layouts that
+  referenced `heading1` / `heading2` / `heading3` migrate to the new
+  `heading` id with the merged visibility (any visible legacy entry
+  keeps the new button visible).
+- **Toolbar layout drag tiles, horizontal strip.** The
+  `toolbar-layout` row in settings now renders the customisable
+  buttons as a single horizontal icon-only row. Tooltips on hover
+  identify each one. Click a tile to toggle visibility; drag a tile
+  to reorder. Separators are draggable and resettable too. The row
+  spans the full settings panel width so wide toolbars no longer
+  squeeze; vertical scroll inside the strip no longer chains into
+  the settings form below it.
+
+### Earlier v0.2.0 work (carried into the beta)
+
+- **Fenced-code syntax highlighting across all three modes.** One Lezer-
+  based highlighter (`web/src/lib/code-highlight.js`) drives Reading
+  mode, Live mode, and the CM6 source-mode editor. All three emit the
+  same `tok-*` class names so a single CSS stylesheet skins every block.
+  Languages: javascript / typescript (+ jsx / tsx), python, rust, go,
+  c / cpp, sql, json, yaml, xml, html, css, markdown. Plus shell / bash,
+  diff, ini, and toml via `@codemirror/legacy-modes`.
+- **`--code-<role>` palette variables** for nine token roles: keyword,
+  string, comment, number, function, type, operator, variable,
+  punctuation. Light and dark theme defaults live in `viewer.css`. Per
+  palette overrides flow through the same `--code-<role>-override` path
+  used by the rest of the palette system.
+- **Code-theme picker** (`web/src/lib/code-themes.js`). Ten built-in
+  themes: GitHub Light, GitHub Dark, Solarized Light, Solarized Dark,
+  Monokai, Dracula, Nord, Tomorrow, Tomorrow Night, One Dark. New
+  `codeBlockTheme` setting in the dialog, default `match-palette`.
+- **Toolbar customisation**. Both the top toolbar and the formatting
+  toolbar can be re-ordered and have individual buttons hidden. The
+  settings dialog grows a `toolbar-layout` row type per toolbar, with
+  drag-to-reorder and click-to-toggle controls. Stored as
+  `topToolbarLayout` / `editToolbarLayout` (null = manifest default).
+  New buttons added in future versions append automatically rather
+  than disappearing.
+- **Auto-hide toolbars**. New `topToolbarMode` / `editToolbarMode`
+  settings, options `always` / `auto-hide`. Auto-hide adds a 10px
+  hot-zone strip (`#toolbar-hotzone`) at the top of the viewport; hover
+  over the strip, the toolbar, or any element holding keyboard focus
+  reveals the toolbar. Mouse leave + 400ms grace retracts it.
+
+## 2026-05-27 — v0.2.0 base (work-in-progress notes, now part of the beta)
 
 ### Added
 
