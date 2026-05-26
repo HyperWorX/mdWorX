@@ -711,41 +711,52 @@ body.theme-dark .row select {
 .tbl-row {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 3px 6px;
+    gap: 8px;
+    padding: 4px 8px;
     border-radius: 4px;
     background: var(--page-override, var(--page));
+    cursor: grab;
+    user-select: none;
+    /* Two transparent borders that flip to accent during a drag-over
+     * to indicate the drop position. Reserving the space here means the
+     * row doesn't jump 2px when the indicator appears. */
+    border-top: 2px solid transparent;
+    border-bottom: 2px solid transparent;
 }
 .tbl-row:hover {
     background: color-mix(in srgb, var(--accent-override, var(--accent)) 8%, var(--page-override, var(--page)));
 }
-.tbl-btn {
-    width: 22px;
-    height: 22px;
-    padding: 0;
-    line-height: 1;
-    font-size: 11px;
-    border: 1px solid color-mix(in srgb, var(--accent-override, var(--accent)) 30%, var(--rule-override, var(--rule)));
-    border-radius: 3px;
-    background: transparent;
-    color: var(--ink-override, var(--ink));
-    cursor: pointer;
+.tbl-row.dragging {
+    opacity: 0.4;
+    cursor: grabbing;
+}
+.tbl-row.drop-above {
+    border-top-color: var(--accent-override, var(--accent));
+}
+.tbl-row.drop-below {
+    border-bottom-color: var(--accent-override, var(--accent));
+}
+.tbl-handle {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    width: 18px;
+    height: 18px;
+    color: color-mix(in srgb, var(--ink-override, var(--ink)) 40%, transparent);
+    font-size: 16px;
+    line-height: 1;
+    letter-spacing: -2px;
+    flex-shrink: 0;
 }
-.tbl-btn:hover {
-    background: color-mix(in srgb, var(--accent-override, var(--accent)) 15%, transparent);
-}
-.tbl-btn:active {
-    background: color-mix(in srgb, var(--accent-override, var(--accent)) 25%, transparent);
+.tbl-row:hover .tbl-handle {
+    color: var(--accent-override, var(--accent));
 }
 .tbl-label {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     flex: 1 1 auto;
-    cursor: pointer;
+    cursor: inherit;
     font-size: 13px;
     color: var(--ink-override, var(--ink));
     min-width: 0;
@@ -757,4 +768,5 @@ body.theme-dark .row select {
 }
 .tbl-cb {
     margin: 0;
+    cursor: pointer;
 }

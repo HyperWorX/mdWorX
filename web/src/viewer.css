@@ -1071,7 +1071,12 @@ body.mode-live .cm-md-rendered-hr {
      * is small enough that an accidental click in the gap is unlikely. */
     margin: 0.7em 0 0;
     padding: var(--code-block-padding);
-    background: var(--code-override, var(--code));
+    /* Background chain: code-theme preset > palette override > theme default.
+     * `--code-block-bg-override` is only written when the user picks a
+     * built-in code theme (Monokai, Solarized, etc.), so the rest of the
+     * palette (blockquote bg, inline code bg) stays untouched. */
+    background: var(--code-block-bg-override, var(--code-override, var(--code)));
+    color: var(--code-block-fg-override, inherit);
     border-radius: 5px;
     /* min-width: 0 + max-width: 100% breaks the min-content propagation
      * chain. <code style="white-space: pre"> has an intrinsic min-content
@@ -1587,7 +1592,10 @@ body.mode-live .cm-md-superscript { vertical-align: super; }
 :is(#content, .cm-md-rendered-block) pre {
     margin: 1.2em 0 14px;
     padding: var(--code-block-padding);
-    background: var(--code-override, var(--code));
+    /* Same override chain as .cm-md-codeblock — see comment there. The
+     * code-theme bg is scoped to <pre> alone so blockquote, tables, and
+     * inline code keep the palette colour. */
+    background: var(--code-block-bg-override, var(--code-override, var(--code)));
     border-radius: 5px;
     overflow-x: auto;
     line-height: var(--line-height-code-override, var(--line-height-override, 1.5));
@@ -1598,7 +1606,7 @@ body.mode-live .cm-md-superscript { vertical-align: super; }
     padding: 0;
     font-size: var(--font-size-code-override, 12px);
     border-radius: 0;
-    color: var(--ink-override, var(--ink));
+    color: var(--code-block-fg-override, var(--ink-override, var(--ink)));
 }
 
 :is(#content, .cm-md-rendered-block) blockquote {

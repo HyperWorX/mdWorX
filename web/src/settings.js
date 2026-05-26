@@ -963,12 +963,9 @@ const schema = [
           { value: 'auto-hide', label: 'Auto-hide on hover' },
       ],
       tooltip: '"Always visible" keeps the formatting toolbar pinned in Live / Source modes. "Auto-hide on hover" slides it out of view until you bring the mouse to the top of the viewer.' },
-    { key: 'topToolbarLayout', label: 'Top toolbar layout', type: 'toolbar-layout',
-      manifestKey: 'top',
-      tooltip: 'Reorder or hide buttons in the top toolbar (mode switches, save, wrap, settings). The arrows move a row up or down, the tick hides or shows. Reset returns to defaults.' },
     { key: 'editToolbarLayout', label: 'Edit toolbar layout', type: 'toolbar-layout',
       manifestKey: 'edit',
-      tooltip: 'Reorder or hide buttons in the formatting toolbar shown in Live / Source modes. Same controls as the top toolbar above.' },
+      tooltip: 'Reorder or hide buttons in the formatting toolbar shown in Live / Source modes. Drag a row to a new position to reorder; untick to hide. Reset returns to defaults.' },
 
 ];
 
@@ -1366,38 +1363,24 @@ function themeDefaultFor(key) {
     return themeDefaultStatic[key] || null;
 }
 
+function clearDropHints(list) {
+    list.querySelectorAll('.tbl-row').forEach(rr =>
+        rr.classList.remove('drop-above', 'drop-below'));
+}
+
 function buildToolbarLayoutRow(list, item, def) {
     const r = document.createElement('div');
     r.className = 'tbl-row';
     r.dataset.id = def.id;
+    r.draggable = true;
 
-    const up = document.createElement('button');
-    up.type = 'button';
-    up.className = 'tbl-btn tbl-up';
-    up.title = 'Move up';
-    up.setAttribute('aria-label', 'Move ' + def.label + ' up');
-    up.textContent = '▲'; // ▲
-    up.addEventListener('click', () => {
-        const prev = r.previousElementSibling;
-        if (prev && prev.classList.contains('tbl-row')) {
-            list.insertBefore(r, prev);
-            list.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-    });
-
-    const down = document.createElement('button');
-    down.type = 'button';
-    down.className = 'tbl-btn tbl-down';
-    down.title = 'Move down';
-    down.setAttribute('aria-label', 'Move ' + def.label + ' down');
-    down.textContent = '▼'; // ▼
-    down.addEventListener('click', () => {
-        const next = r.nextElementSibling;
-        if (next && next.classList.contains('tbl-row')) {
-            list.insertBefore(next, r);
-            list.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-    });
+    // Drag handle: visual cue on the left. The whole row is draggable so
+    // grabbing anywhere works, but a dedicated handle reads as
+    // "this row is reorderable" without the user having to discover it.
+    const handle = document.createElement('span');
+    handle.className = 'tbl-handle';
+    handle.setAttribute('aria-hidden', 'true');
+    handle.textContent = '⋮⋮';
 
     const cb = document.createElement('input');
     cb.type = 'checkbox';
@@ -1406,6 +1389,8 @@ function buildToolbarLayoutRow(list, item, def) {
     cb.addEventListener('change', () => {
         list.dispatchEvent(new Event('input', { bubbles: true }));
     });
+    // Clicks inside the checkbox shouldn't bubble up and start a drag.
+    cb.addEventListener('mousedown', (e) => e.stopPropagation());
 
     const labelEl = document.createElement('label');
     labelEl.className = 'tbl-label';
@@ -1414,9 +1399,52 @@ function buildToolbarLayoutRow(list, item, def) {
     txt.textContent = def.label;
     labelEl.appendChild(txt);
 
-    r.appendChild(up);
-    r.appendChild(down);
+    r.appendChild(handle);
     r.appendChild(labelEl);
+
+    // HTML5 native drag-and-drop. On dragover the row is marked as
+    // drop-above or drop-below based on the pointer Y position so the
+    // drop point is visible. On drop the dragged row moves to that side
+    // of this row, then an `input` event fires to update the reset state
+    // and serialise the new order.
+    r.addEventListener('dragstart', (e) => {
+        r.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        try { e.dataTransfer.setData('text/plain', def.id); } catch (_) { /* IE fallback */ }
+    });
+    r.addEventListener('dragend', () => {
+        r.classList.remove('dragging');
+        clearDropHints(list);
+    });
+    r.addEventListener('dragover', (e) => {
+        const dragging = list.querySelector('.tbl-row.dragging');
+        if (!dragging || dragging === r) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const rect = r.getBoundingClientRect();
+        const above = (e.clientY - rect.top) < rect.height / 2;
+        clearDropHints(list);
+        r.classList.add(above ? 'drop-above' : 'drop-below');
+    });
+    r.addEventListener('dragleave', (e) => {
+        // Only clear when the pointer truly leaves this row (not just
+        // moving over a child). relatedTarget is the node we're entering.
+        if (!r.contains(e.relatedTarget)) {
+            r.classList.remove('drop-above', 'drop-below');
+        }
+    });
+    r.addEventListener('drop', (e) => {
+        const dragging = list.querySelector('.tbl-row.dragging');
+        if (!dragging || dragging === r) return;
+        e.preventDefault();
+        const rect = r.getBoundingClientRect();
+        const above = (e.clientY - rect.top) < rect.height / 2;
+        if (above) list.insertBefore(dragging, r);
+        else       list.insertBefore(dragging, r.nextSibling);
+        clearDropHints(list);
+        list.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+
     return r;
 }
 
