@@ -12,6 +12,7 @@
 #include <shlobj.h>
 #include <shellapi.h>
 #include <commdlg.h>   // GetSaveFileNameW for editor Save As
+#include <urlmon.h>    // URLDownloadToFileW for "Copy to file folder" of URL sources
 #include <wrl.h>
 #include <WebView2.h>
 #include <string>
@@ -1224,6 +1225,261 @@ void HandlePickImageMessage(ViewerState* state) {
     }
 }
 
+// Decode a single hex digit (0-9, a-f, A-F) to its 0-15 value, or -1.
+static int HexVal(wchar_t c) {
+    if (c >= L'0' && c <= L'9') return c - L'0';
+    if (c >= L'a' && c <= L'f') return 10 + (c - L'a');
+    if (c >= L'A' && c <= L'F') return 10 + (c - L'A');
+    return -1;
+}
+
+// Percent-decode a URL fragment, treating decoded byte sequences as UTF-8.
+// Non-ASCII characters that survived in the input wide string are passed
+// through unchanged after a UTF-8 round trip; this is good enough for typical
+// image URLs where the leaf is ASCII or already URL-encoded.
+static std::wstring UrlPercentDecodeUtf8(const std::wstring& in) {
+    std::string bytes;
+    bytes.reserve(in.size());
+    size_t i = 0;
+    while (i < in.size()) {
+        wchar_t c = in[i];
+        if (c == L'%' && i + 2 < in.size()) {
+            int hi = HexVal(in[i + 1]);
+            int lo = HexVal(in[i + 2]);
+            if (hi >= 0 && lo >= 0) {
+                bytes.push_back(static_cast<char>((hi << 4) | lo));
+                i += 3;
+                continue;
+            }
+        }
+        if (c < 0x80) {
+            bytes.push_back(static_cast<char>(c));
+        } else {
+            int wlen = WideCharToMultiByte(CP_UTF8, 0, &c, 1, nullptr, 0, nullptr, nullptr);
+            if (wlen > 0) {
+                std::string tmp(static_cast<size_t>(wlen), '\0');
+                WideCharToMultiByte(CP_UTF8, 0, &c, 1, tmp.data(), wlen, nullptr, nullptr);
+                bytes.append(tmp);
+            }
+        }
+        ++i;
+    }
+    int wlen = MultiByteToWideChar(CP_UTF8, 0, bytes.data(),
+                                   static_cast<int>(bytes.size()), nullptr, 0);
+    if (wlen <= 0) return L"";
+    std::wstring out(static_cast<size_t>(wlen), L'\0');
+    MultiByteToWideChar(CP_UTF8, 0, bytes.data(),
+                        static_cast<int>(bytes.size()), out.data(), wlen);
+    return out;
+}
+
+// Pick a filename from a URL: strip query/fragment, take everything after
+// the last '/', URL-decode. Returns an empty string if no usable leaf.
+static std::wstring DeriveFilenameFromUrl(const std::wstring& url) {
+    size_t cut = url.find_first_of(L"?#");
+    std::wstring path = (cut == std::wstring::npos) ? url : url.substr(0, cut);
+    size_t slash = path.find_last_of(L'/');
+    if (slash == std::wstring::npos) return L"";
+    std::wstring leaf = path.substr(slash + 1);
+    return UrlPercentDecodeUtf8(leaf);
+}
+
+// Replace Windows-illegal filename chars with '_' and trim leading/trailing
+// dots and spaces (which Windows quietly strips and which cause "file not
+// found" surprises later). Returns "" if the input collapses entirely.
+static std::wstring SanitiseFilename(const std::wstring& in) {
+    std::wstring out;
+    out.reserve(in.size());
+    for (wchar_t c : in) {
+        if (c < 32) continue;
+        switch (c) {
+            case L'<': case L'>': case L':': case L'"':
+            case L'/': case L'\\': case L'|': case L'?': case L'*':
+                out.push_back(L'_'); break;
+            default:
+                out.push_back(c);
+        }
+    }
+    size_t start = out.find_first_not_of(L" .");
+    if (start == std::wstring::npos) return L"";
+    size_t end = out.find_last_not_of(L" .");
+    return out.substr(start, end - start + 1);
+}
+
+// Detect image type by magic bytes. Returns canonical extension (e.g.
+// L".png") or empty wstring if no image signature matches. We sniff 16
+// bytes which is enough for every container we care about (PNG/JPEG/GIF/
+// WebP/BMP/ICO/AVIF/HEIC). SVG is detected by leading "<?xml" or "<svg".
+static std::wstring DetectImageExtension(const std::wstring& path) {
+    HANDLE h = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr,
+                           OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE) return L"";
+    unsigned char b[16] = {0};
+    DWORD got = 0;
+    BOOL ok = ReadFile(h, b, sizeof(b), &got, nullptr);
+    CloseHandle(h);
+    if (!ok || got < 4) return L"";
+
+    // PNG: 89 50 4E 47 0D 0A 1A 0A
+    if (got >= 8 && b[0]==0x89 && b[1]==0x50 && b[2]==0x4E && b[3]==0x47 &&
+        b[4]==0x0D && b[5]==0x0A && b[6]==0x1A && b[7]==0x0A) return L".png";
+    // JPEG: FF D8 FF
+    if (b[0]==0xFF && b[1]==0xD8 && b[2]==0xFF) return L".jpg";
+    // GIF: "GIF87a" or "GIF89a"
+    if (got >= 6 && b[0]=='G' && b[1]=='I' && b[2]=='F' && b[3]=='8' &&
+        (b[4]=='7' || b[4]=='9') && b[5]=='a') return L".gif";
+    // WebP: "RIFF" .... "WEBP"
+    if (got >= 12 && b[0]=='R' && b[1]=='I' && b[2]=='F' && b[3]=='F' &&
+        b[8]=='W' && b[9]=='E' && b[10]=='B' && b[11]=='P') return L".webp";
+    // BMP: "BM"
+    if (b[0]=='B' && b[1]=='M') return L".bmp";
+    // ICO: 00 00 01 00
+    if (b[0]==0x00 && b[1]==0x00 && b[2]==0x01 && b[3]==0x00) return L".ico";
+    // AVIF/HEIC: at offset 4, "ftyp" + brand at offset 8
+    if (got >= 12 && b[4]=='f' && b[5]=='t' && b[6]=='y' && b[7]=='p') {
+        if (b[8]=='a' && b[9]=='v' && b[10]=='i' && b[11]=='f') return L".avif";
+        if (b[8]=='h' && b[9]=='e' && (b[10]=='i' || b[10]=='v')) return L".heic";
+    }
+    // SVG: "<?xml" or "<svg" (whitespace-tolerant, case-insensitive)
+    if (b[0]=='<') {
+        // Lowercase first ~10 bytes for cheap case-insensitive match
+        char lc[12] = {0};
+        for (DWORD i = 0; i < got && i < 11; ++i) {
+            char c = static_cast<char>(b[i]);
+            if (c >= 'A' && c <= 'Z') c = static_cast<char>(c + 32);
+            lc[i] = c;
+        }
+        if (strstr(lc, "<?xml") || strstr(lc, "<svg")) return L".svg";
+    }
+    return L"";
+}
+
+// Case-insensitive wstring comparison helper.
+static bool IEqualW(const std::wstring& a, const std::wstring& b) {
+    if (a.size() != b.size()) return false;
+    for (size_t i = 0; i < a.size(); ++i) {
+        wchar_t ca = a[i], cb = b[i];
+        if (ca >= L'A' && ca <= L'Z') ca = static_cast<wchar_t>(ca + 32);
+        if (cb >= L'A' && cb <= L'Z') cb = static_cast<wchar_t>(cb + 32);
+        if (ca != cb) return false;
+    }
+    return true;
+}
+
+// Download an image from an http(s) URL into the markdown file's parent
+// directory. Used by the Insert Image toolbar when the source is a URL and
+// the "Copy to file folder" checkbox is ticked. Reply shape matches the
+// copyImage handler so the JS side can route both through one reply path:
+//   {type:'imageCopied', cancelled:false, relative:'foo.png'}
+//   {type:'imageCopied', cancelled:false, error:'<message>'}
+//
+// URLDownloadToFileW blocks the calling thread for the duration of the
+// download. For typical image sizes (a few hundred KB) over a normal
+// connection this is sub-second and acceptable. Large files or slow links
+// will visibly freeze the pane; we accept that for v1.
+void HandleDownloadImageMessage(ViewerState* state, const std::wstring& msg) {
+    auto reply = [&](bool ok, const std::wstring& relative, const std::wstring& err) {
+        if (!state || !state->webview) return;
+        std::wstring out;
+        if (ok) {
+            out = L"{\"type\":\"imageCopied\",\"cancelled\":false,\"relative\":\""
+                + JsonEscape(relative) + L"\"}";
+        } else {
+            out = L"{\"type\":\"imageCopied\",\"cancelled\":false,\"error\":\""
+                + JsonEscape(err) + L"\"}";
+        }
+        state->webview->PostWebMessageAsJson(out.c_str());
+    };
+
+    if (!state) return;
+    if (state->currentFileDir.empty()) {
+        reply(false, L"", L"No current file to download beside (save the document first).");
+        return;
+    }
+    std::wstring url = ExtractJsonStringKey(msg, L"path");
+    if (url.empty()) {
+        reply(false, L"", L"Missing URL.");
+        return;
+    }
+
+    std::wstring leaf = SanitiseFilename(DeriveFilenameFromUrl(url));
+    if (leaf.empty()) leaf = L"image.png";
+    size_t dot = leaf.find_last_of(L'.');
+    std::wstring stem, ext;
+    if (dot == std::wstring::npos) {
+        stem = leaf;
+        ext  = L".png";
+        leaf = stem + ext;
+    } else {
+        stem = leaf.substr(0, dot);
+        ext  = leaf.substr(dot);
+    }
+
+    std::wstring candidateName = leaf;
+    std::wstring candidatePath = state->currentFileDir + L"\\" + candidateName;
+    int suffix = 0;
+    while (GetFileAttributesW(candidatePath.c_str()) != INVALID_FILE_ATTRIBUTES) {
+        ++suffix;
+        if (suffix > 1000) {
+            reply(false, L"", L"Too many name collisions (1000) in destination folder.");
+            return;
+        }
+        wchar_t buf[16];
+        StringCchPrintfW(buf, 16, L"_%d", suffix);
+        candidateName = stem + buf + ext;
+        candidatePath = state->currentFileDir + L"\\" + candidateName;
+    }
+
+    HRESULT hr = URLDownloadToFileW(nullptr, url.c_str(), candidatePath.c_str(), 0, nullptr);
+    if (FAILED(hr)) {
+        wchar_t errBuf[96];
+        StringCchPrintfW(errBuf, 96,
+                         L"Download failed (HRESULT 0x%08lX)",
+                         static_cast<unsigned long>(hr));
+        reply(false, L"", errBuf);
+        return;
+    }
+
+    // Type sniffing: a successful HTTP response doesn't guarantee the body is
+    // an image — the URL might serve HTML, a 404 page, or a redirect-to-HTML.
+    // Inspect magic bytes and either reject (delete the file) or, if the
+    // body is a valid image whose extension doesn't match its real type,
+    // rename to the correct extension before reporting back.
+    std::wstring detected = DetectImageExtension(candidatePath);
+    if (detected.empty()) {
+        DeleteFileW(candidatePath.c_str());
+        reply(false, L"", L"Downloaded content is not a recognised image format.");
+        return;
+    }
+    if (!IEqualW(detected, ext)) {
+        // Build a new filename with the corrected extension, running the
+        // same collision-suffix loop so we don't clobber existing files.
+        std::wstring fixedName = stem + detected;
+        std::wstring fixedPath = state->currentFileDir + L"\\" + fixedName;
+        int suffix2 = 0;
+        while (GetFileAttributesW(fixedPath.c_str()) != INVALID_FILE_ATTRIBUTES) {
+            ++suffix2;
+            if (suffix2 > 1000) {
+                // Out of names — keep the wrong-extension file rather than
+                // failing outright, but report the mismatch so the caller
+                // at least sees something usable.
+                reply(true, candidateName, L"");
+                return;
+            }
+            wchar_t buf[16];
+            StringCchPrintfW(buf, 16, L"_%d", suffix2);
+            fixedName = stem + buf + detected;
+            fixedPath = state->currentFileDir + L"\\" + fixedName;
+        }
+        if (MoveFileW(candidatePath.c_str(), fixedPath.c_str())) {
+            candidateName = fixedName;
+        }
+        // If MoveFile fails we just keep the original (wrong-extension)
+        // filename; not worth surfacing as an error.
+    }
+    reply(true, candidateName, L"");
+}
+
 // Copy a picked image into the markdown file's parent directory so the
 // rendered <img> can reference it via a clean relative path. Used by the
 // Insert Image toolbar when the "Copy to file folder" checkbox is ticked.
@@ -1588,6 +1844,15 @@ HRESULT OnControllerCreated(ViewerState* state,
                 // with {type:'imageCopied', relative} or error.
                 if (msg.find(L"\"copyImage\"") != std::wstring::npos) {
                     HandleCopyImageMessage(state, msg);
+                    return S_OK;
+                }
+
+                // {type:"downloadImage", path:'https://...'} - download the
+                // URL into the markdown file's parent directory. Reply uses
+                // the same imageCopied shape as copyImage so the JS reply
+                // handler routes both through a single path.
+                if (msg.find(L"\"downloadImage\"") != std::wstring::npos) {
+                    HandleDownloadImageMessage(state, msg);
                     return S_OK;
                 }
 
