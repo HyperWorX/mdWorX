@@ -47,7 +47,7 @@ Click Source a second time while already in Source mode and the pane splits in t
 - Outdent / indent
 - Blockquote, fenced code block, image insert
 
-The image button opens a small popup: pick a file with `Browse...` (or paste a URL or relative path), set alt text, optional width and height in px, and an alignment (none / left / centre / right). Tick **Copy file to this document's folder** and the picker copies the chosen file next to the markdown and inserts a relative path, so the document stays portable.
+The image button opens a small popup: pick a file with `Browse...` (or paste a URL or relative path), set alt text, optional width and height in px, and an alignment (none / left / centre / right). Tick **Copy file to this document's folder** and the picker copies the chosen file next to the markdown and inserts a relative path, so the document stays portable. Paste an `http(s)` URL and the copy box auto-ticks — the image downloads into the document's folder and the saved syntax stays self-contained (no third-party host reference). The downloader sniffs the actual image type from magic bytes (PNG / JPEG / GIF / WebP / BMP / ICO / SVG / AVIF / HEIC), rejects responses that aren't valid images, and corrects the file extension if the URL lied about it.
 
 ![Editing toolbar and image-insert popup](img/editing_toolbar.png)
 
@@ -69,7 +69,7 @@ What it covers:
 
 - **Theme and preset picker** — 29 built-in palettes (17 dark, 12 light — see [`docs/palettes.md`](docs/palettes.md) for the visual reference) plus any custom entries you've saved. Picker grouped Light / Dark / Your themes.
 - **Save menu** — capture the current state three ways: **Save as palette** keeps just the colours, **Save as style** keeps just typography and layout (fonts, weights, sizes, line-heights, padding, max-width), **Save as theme** bundles everything. Saved entries appear in the picker alongside the built-ins; your own can be deleted, built-ins can't.
-- **Document handling** — encoding (`auto`, `utf-8`, `utf-16` / `-le` / `-be`, `system`, the `cp1250`–`cp1258` family, ISO-8859 single-byte, Shift-JIS, GBK, Big5, EUC-KR, KOI8-R / -U), fallback encoding for when auto-detection fails, "render single newlines as line breaks" (hard line breaks), and "show formatting characters in Live mode" (overlays every space, tab, and line ending; LF and CRLF lines get distinct badges).
+- **Document handling** — encoding (`auto`, `utf-8`, `utf-16` / `-le` / `-be`, `system`, the `cp1250`–`cp1258` family, ISO-8859 single-byte, Shift-JIS, GBK, Big5, EUC-KR, KOI8-R / -U), fallback encoding for when auto-detection fails, "render single newlines as line breaks" (hard line breaks), "show formatting characters in Live mode" (overlays every space, tab, and line ending; LF and CRLF lines get distinct badges), "allow remote images" (off by default — `![alt](https://...)` URLs render as a placeholder icon and no network request is made, so the hosting server can't learn the document was opened), "always reload external changes" (skips the conflict banner and always uses the disk version on file-return), and "auto-save every (minutes)" (0 disables; periodic save while the buffer is dirty).
 - **Page surface** — background, border colour and thickness, drop-shadow depth (`none` through `floating`), body text colour.
 - **Rules and dividers** — horizontal-rule colour and thickness, heading underline colour, thickness, and style (`solid`, `gradient`, or `none`). Heading underline thickness is independent of HR thickness, so a thin rule with a chunky H1 underline (or vice-versa) works fine. Default style is `gradient`.
 - **Per-level heading colours** — H1 through H6, each independent.
@@ -128,7 +128,7 @@ User settings live at `%APPDATA%\HyperWorX\mdWorX\settings.json`; saved custom t
 - In Source mode, click Source again to toggle the split preview. Drag the handle to resize; click the link icon in the middle of the handle to unlink scrolling.
 - The disk icons save the file. The icon next to them toggles word wrap on code blocks and long URLs.
 - Click the copy button in the corner of any rendered code block to copy the snippet.
-- In the viewer pane: save before clicking off to another file. If you switch files without saving, the pane reloads with the new selection and unsaved edits are gone. The pop-out window doesn't have this problem (you can edit, click around DOpus, come back, and save).
+- In the viewer pane: unsaved edits are stashed in the DOpus session when you switch to another file. Click back to the original and a banner asks whether to keep your edits or reload the disk version. The stash lives only for the current DOpus run and is cleared on save — close DOpus and it's gone. If the file was modified externally while you were away the banner says so explicitly. Set "Always reload external changes" in settings to skip the banner and always use the disk version, or set an "Auto-save every (minutes)" interval for periodic safety saves. The pop-out window edits a single file and isn't affected by file-switch behaviour.
 
 ## Building from source
 

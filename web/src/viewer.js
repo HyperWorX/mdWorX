@@ -106,6 +106,9 @@ const editorWrapEl    = document.getElementById('editor');
 const toolbarEl       = document.getElementById('toolbar');
 const editingToolbarEl = document.getElementById('editing-toolbar');
 const statusEl        = document.getElementById('status');
+const conflictBannerEl = document.getElementById('conflict-banner');
+const conflictKeepBtn  = document.getElementById('conflict-keep');
+const conflictReloadBtn = document.getElementById('conflict-reload');
 
 function render(markdownText) {
     if (initialEl) initialEl.style.display = 'none';
@@ -284,6 +287,103 @@ function setDirty(d) {
     syncToolbar();
 }
 
+// Process-scoped unsaved-edits stash.
+//
+// While the buffer is dirty, post the current contents to native on a
+// debounce so a viewer pane switch + return restores in-progress edits.
+// Native side keys the stash by canonicalised file path and holds it in
+// process memory; it does not touch disk and dies when DOpus exits.
+//
+// flushStashNow() is for save / mode-switch points where we want the
+// latest content captured immediately.
+let stashTimer = null;
+const STASH_DEBOUNCE_MS = 750;
+// Each message carries the file path it applies to. The native side keys
+// the stash by message path rather than its own current state, because
+// a pane switch can change native state->currentFilePath before a
+// debounced stash arrives.
+function scheduleStash() {
+    if (!dirty || !loadedPath) return;
+    if (stashTimer) clearTimeout(stashTimer);
+    const pathAtSchedule = loadedPath;
+    stashTimer = setTimeout(() => {
+        stashTimer = null;
+        if (!dirty) return;
+        send({ type: 'stashBuffer', path: pathAtSchedule, content: editorBuffer });
+    }, STASH_DEBOUNCE_MS);
+}
+function flushStashNow() {
+    if (stashTimer) { clearTimeout(stashTimer); stashTimer = null; }
+    if (!dirty || !loadedPath) return;
+    send({ type: 'stashBuffer', path: loadedPath, content: editorBuffer });
+}
+function clearStash() {
+    if (stashTimer) { clearTimeout(stashTimer); stashTimer = null; }
+    if (!loadedPath) return;
+    send({ type: 'clearStash', path: loadedPath });
+}
+
+// Auto-save: when the setting is > 0, fire triggerSave() every N minutes
+// while the buffer is dirty AND there's a loaded path. triggerSave already
+// short-circuits when !dirty, so this is a no-op the moment the buffer
+// matches disk again. Re-called from applySettings on every settings
+// change so flipping the value takes effect immediately without reload.
+let autoSaveTimer = null;
+function applyAutoSave(minutesRaw) {
+    if (autoSaveTimer) { clearInterval(autoSaveTimer); autoSaveTimer = null; }
+    const minutes = Number(minutesRaw);
+    if (!Number.isFinite(minutes) || minutes <= 0) return;
+    const intervalMs = minutes * 60 * 1000;
+    autoSaveTimer = setInterval(() => {
+        if (dirty && loadedPath) triggerSave();
+    }, intervalMs);
+}
+
+// Conflict-banner state and wiring.
+//
+// pendingConflictStash holds the user's stashed buffer while the banner is
+// visible; it's the source for the "Keep my edits" action. The banner is
+// non-dismissable except via the two buttons — we want the user to
+// explicitly choose one path or the other so unsaved work is never
+// silently lost.
+let pendingConflictStash = null;
+function showConflictBanner() {
+    if (conflictBannerEl) conflictBannerEl.hidden = false;
+}
+function hideConflictBanner() {
+    if (conflictBannerEl) conflictBannerEl.hidden = true;
+    pendingConflictStash = null;
+}
+if (conflictKeepBtn) {
+    conflictKeepBtn.addEventListener('click', () => {
+        if (pendingConflictStash === null) { hideConflictBanner(); return; }
+        editorBuffer = pendingConflictStash;
+        if (mode === 'reading') {
+            render(editorBuffer);
+        } else if (editor) {
+            editor.setDoc(editorBuffer);
+        }
+        setDirty(editorBuffer !== loadedBuffer);
+        setStatus('using your unsaved edits', 'ok');
+        hideConflictBanner();
+    });
+}
+if (conflictReloadBtn) {
+    conflictReloadBtn.addEventListener('click', () => {
+        editorBuffer = loadedBuffer;
+        if (mode === 'reading') {
+            render(loadedBuffer);
+        } else if (editor) {
+            editor.setDoc(loadedBuffer);
+        }
+        setDirty(false);
+        clearStash();
+        setStatus('reloaded from disk', 'ok');
+        hideConflictBanner();
+    });
+}
+
+
 function syncToolbar() {
     if (toolbarEl) {
         toolbarEl.querySelectorAll('[data-mode]').forEach(b => {
@@ -329,6 +429,7 @@ function buildEditorFor(targetMode) {
             if (!dirty && text !== loadedBuffer) setDirty(true);
             else if (dirty && text === loadedBuffer) setDirty(false);
             if (mode === 'source' && splitMode) scheduleSplitRender();
+            scheduleStash();
         },
         onSave:   () => triggerSave(),
         onSaveAs: () => triggerSaveAs(),
@@ -339,6 +440,10 @@ function buildEditorFor(targetMode) {
 
 function setMode(next) {
     if (!MODES.includes(next)) return;
+    // Capture any pending dirty buffer before tearing down the editor; if
+    // the pane is then swapped to a different file, the stash for THIS
+    // file is already up to date.
+    flushStashNow();
     mode = next;
     document.body.classList.remove('mode-live', 'mode-source', 'mode-reading');
     document.body.classList.add('mode-' + mode);
@@ -889,6 +994,16 @@ function applySettings(s) {
     const remoteChanged  = newAllowRemote !== !!window.mdwxAllowRemoteImages;
     window.mdwxAllowRemoteImages = newAllowRemote;
 
+    // Auto-reload-external setting. When ON, the load handler silently
+    // applies disk content over any stash on file-return. The settings
+    // dialog itself surfaces a temporary warning when the user ticks
+    // the box (see settings.js), so no persistent in-viewer warning
+    // is needed here.
+    window.mdwxAlwaysReloadExternal = s.alwaysReloadExternal === true;
+
+    // Auto-save: optional periodic Ctrl+S equivalent. 0 disables.
+    applyAutoSave(s.autoSaveMinutes);
+
     if (breaksChanged || remoteChanged) {
         if (mode === 'reading') {
             render(dirty ? editorBuffer : loadedBuffer);
@@ -936,6 +1051,21 @@ function onHostMessage(event) {
     switch (m.type) {
         case 'load':
             // {type:'load', path:'...', content:'...', encoding:'...'}
+            //
+            // Pre-swap: flush any pending stash for the OUTGOING file
+            // before overwriting loadedPath. The 750ms debounce timer
+            // might not have fired since the user's last keystroke,
+            // and once we run setDirty(false) below the timer's
+            // early-exit guard would discard the send. Without this,
+            // edits made in the last ~1s before switching files are
+            // lost from the stash, and the "click back to see the
+            // banner" flow can't fire because there's nothing to
+            // compare disk against.
+            if (loadedPath && loadedPath !== m.path && dirty && editorBuffer !== loadedBuffer) {
+                send({ type: 'stashBuffer', path: loadedPath, content: editorBuffer });
+            }
+            if (stashTimer) { clearTimeout(stashTimer); stashTimer = null; }
+
             loadedPath     = m.path || null;
             loadedBuffer   = m.content || '';
             editorBuffer   = loadedBuffer;
@@ -969,14 +1099,89 @@ function onHostMessage(event) {
             // arrives, regardless of which mode we're in. (Only render()
             // used to do this; live/source modes don't call render().)
             if (initialEl) initialEl.style.display = 'none';
+
+            // Stash restoration (process-scoped unsaved edits).
+            //
+            //   restoredFromStash: file unchanged on disk since the stash
+            //   was recorded, so the user's unsaved edits are the right
+            //   thing to show. Swap stashedContent in as the editor's
+            //   live buffer; loadedBuffer stays as the disk version so
+            //   the dirty-check still works.
+            //
+            //   conflictDetected: the file was modified externally
+            //   between when we stashed and now. Show the disk version
+            //   as the live buffer and pin the stashed content into
+            //   pendingConflictStash for the banner's "Keep my edits"
+            //   button to apply.
+            pendingConflictStash = null;
+            // What the editor should display on load + whether to show
+            // the banner:
+            //
+            // Any stash present (restoredFromStash OR conflictDetected) +
+            // setting OFF: show the banner asking "Keep my edits / Reload
+            // original". Editor under the banner shows the stashed
+            // (in-progress) content so the user sees what they would keep.
+            //
+            // conflictDetected + "Always reload external changes" ON:
+            // silently use disk content. The user accepted that trade-off
+            // when they enabled the setting; the persistent auto-reload
+            // warning banner near the bottom keeps them aware of it.
+            //
+            // restoredFromStash + setting ON: still show the banner. The
+            // setting only auto-discards when there's been an EXTERNAL
+            // change — without one, no work would be saved by skipping
+            // the prompt.
+            //
+            // No stash: plain load, disk content.
+            const haveStash = (m.restoredFromStash || m.conflictDetected) &&
+                              typeof m.stashedContent === 'string';
+            // Only meaningful to surface a stash when it actually differs
+            // from disk. If they're byte-identical, there's nothing to
+            // choose between — silently treat it as a clean load.
+            const stashDiffersFromDisk = haveStash && m.stashedContent !== loadedBuffer;
+            let displayBuffer = loadedBuffer;
+            let shouldBeDirty = false;
+            if (haveStash && stashDiffersFromDisk) {
+                if (window.mdwxAlwaysReloadExternal) {
+                    // Setting on: discard stash silently regardless of
+                    // whether the file changed externally. The user
+                    // accepted the "save before switching" trade-off
+                    // when they enabled this.
+                    editorBuffer = loadedBuffer;
+                    displayBuffer = loadedBuffer;
+                    setStatus('reloaded from disk (auto-reload on)', 'ok');
+                } else {
+                    pendingConflictStash = m.stashedContent;
+                    editorBuffer = m.stashedContent;
+                    displayBuffer = m.stashedContent;
+                    shouldBeDirty = (m.stashedContent !== loadedBuffer);
+                    // Banner copy adapts to whether there was an external
+                    // change since the stash, so the user knows what
+                    // "Reload original" actually reverts to.
+                    const bannerMsg = document.querySelector('#conflict-banner .conflict-banner-msg');
+                    if (bannerMsg) {
+                        bannerMsg.textContent = m.conflictDetected
+                            ? 'This file changed on disk while you were viewing another file. You have unsaved edits stashed.'
+                            : 'You have unsaved edits stashed for this file from earlier in this session.';
+                    }
+                }
+            } else {
+                editorBuffer = loadedBuffer;
+            }
+
             if (mode === 'reading') {
-                render(loadedBuffer);
+                render(displayBuffer);
             } else {
                 buildEditorFor(mode);
-                if (editor) editor.setDoc(loadedBuffer);
+                if (editor) editor.setDoc(displayBuffer);
             }
-            setDirty(false);
+            setDirty(shouldBeDirty);
             setTitle();
+            if (pendingConflictStash !== null) {
+                showConflictBanner();
+            } else {
+                hideConflictBanner();
+            }
             break;
         case 'saveResult':
             // {type:'saveResult', ok:bool, error?:string, encoding?:string}
@@ -985,6 +1190,7 @@ function onHostMessage(event) {
                 if (m.encoding) loadedEncoding = m.encoding;
                 setDirty(false);
                 setStatus('saved', 'ok');
+                clearStash();
             } else {
                 setStatus('save failed: ' + (m.error || 'unknown'), 'error');
             }
@@ -994,6 +1200,10 @@ function onHostMessage(event) {
             //  encoding?:string, error?:string}
             if (m.cancelled) { setStatus(''); break; }
             if (m.ok) {
+                // Clear stash for the OLD path before swapping loadedPath:
+                // the edits have just been saved (to a different file),
+                // so the original file's stash is stale.
+                clearStash();
                 if (m.newPath) loadedPath = m.newPath;
                 loadedBuffer = editorBuffer || loadedBuffer;
                 if (m.encoding) loadedEncoding = m.encoding;
@@ -1084,7 +1294,7 @@ if (window.chrome && window.chrome.webview) {
     // will respond with userSettings, theme, and (optionally) load — the
     // merge runs whenever either side updates.
     loadDefaults();
-    send({ type: 'ready', version: '0.1.1' });
+    send({ type: 'ready', version: '0.1.2' });
     console.log('[viewer] bridge connected, ready sent');
 } else {
     console.warn('[viewer] no chrome.webview — running outside WebView2');
