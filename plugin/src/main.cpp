@@ -70,6 +70,12 @@ constexpr wchar_t kWindowClassName[] = L"mdWorXWnd";
 extern "C" __declspec(dllexport)
 HWND DVP_Configure(HWND hWndParent, HWND hWndNotify, DWORD dwNotifyData);
 
+// Sentinel passed in dwNotifyData when the cog button in our viewer invokes
+// DVP_Configure. Distinguishes that path from a DOpus-initiated plugin-
+// prefs invocation so the latter can run a modal message pump (DOpus
+// expects DVP_Configure to block until the dialog is closed; see #3).
+static constexpr DWORD kInternalConfigureFlag = 0xC0DE0001u;
+
 // Build the WebView2 user data folder under %LOCALAPPDATA% so multiple
 // plugin instances and Windows users don't fight over a single state dir.
 std::wstring GetUserDataFolder() {
@@ -2007,7 +2013,10 @@ HRESULT OnControllerCreated(ViewerState* state,
                     // broadcast hub doesn't necessarily forward messages it
                     // didn't originate; the dialog→pane→webview path always
                     // works.
-                    DVP_Configure(owner, state->hwndSelf, 0);
+                    // Sentinel in dwNotifyData lets DVP_Configure tell that
+                    // we (not DOpus's plugin prefs) opened it, so it stays
+                    // modeless instead of running a blocking message pump.
+                    DVP_Configure(owner, state->hwndSelf, kInternalConfigureFlag);
                     return S_OK;
                 }
 
@@ -2320,7 +2329,13 @@ struct SettingsState {
     ComPtr<ICoreWebView2>            webview;
     EventRegistrationToken           webMessageToken{};
     bool destroyed = false;
+    bool invokedByDOpus = false;     // true when DOpus's plugin-prefs page
+                                     // invoked DVP_Configure (vs the cog
+                                     // button in the viewer). DOpus expects
+                                     // DVP_Configure to block in that case;
+                                     // see DVP_Configure for the modal pump.
 };
+
 
 inline SettingsState* GetSettingsState(HWND hwnd) {
     return reinterpret_cast<SettingsState*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
@@ -2756,13 +2771,29 @@ LRESULT CALLBACK SettingsWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPar
         DestroyWindow(hwnd);
         return 0;
     case WM_DESTROY: {
+        bool dopusInvoked = false;
         if (auto* s = GetSettingsState(hwnd)) {
+            dopusInvoked = s->invokedByDOpus;
             s->destroyed = true;
             TeardownSettingsWebView2(s);
             SetSettingsState(hwnd, nullptr);
             delete s;
         }
         if (g_hwndSettings == hwnd) g_hwndSettings = nullptr;
+        // When DOpus's plugin-prefs page invoked us, DVP_Configure is
+        // running a modal message pump that waits for WM_QUIT. Post it now
+        // so the pump exits and DVP_Configure returns; otherwise DOpus's
+        // prefs UI stays in a "waiting" state and you can't close it.
+        // Reported by iamlimeng in HyperWorX/mdWorX#3 (fix suggested by
+        // PolarGoose: same pattern used in DirectoryOpus-CSV-viewer-plugin).
+        //
+        // PostQuitMessage sets a thread-local quit flag — it only breaks
+        // OUR pump in DVP_Configure (which calls GetMessage and bails when
+        // it returns 0). DOpus's outer message loops are not affected
+        // because they have their own GetMessage calls on different
+        // pump entries; the quit flag is consumed when our pump's
+        // GetMessage observes it.
+        if (dopusInvoked) PostQuitMessage(0);
         return 0;
     }
     default:
@@ -2843,6 +2874,10 @@ HWND DVP_Configure(HWND hWndParent, HWND hWndNotify, DWORD dwNotifyData) {
     state->hwndParent    = hWndParent;
     state->hwndNotify    = hWndNotify;
     state->dwNotifyData  = dwNotifyData;
+    // Two callers: the cog button in our viewer (passes
+    // kInternalConfigureFlag in dwNotifyData) and DOpus's plugin-prefs
+    // page (passes its own data). The latter expects a blocking call.
+    state->invokedByDOpus = (dwNotifyData != kInternalConfigureFlag);
 
     // Centre over the parent. Fall back to the work area if no parent (or
     // if the parent rect is degenerate).
@@ -2896,6 +2931,30 @@ HWND DVP_Configure(HWND hWndParent, HWND hWndNotify, DWORD dwNotifyData) {
     g_hwndSettings = hwnd;
     ShowWindow(hwnd, SW_SHOWNORMAL);
     UpdateWindow(hwnd);
+
+    // DOpus-invoked path: run a modal message pump and return only when
+    // the window is destroyed (WM_DESTROY posts WM_QUIT). DOpus's plugin
+    // prefs page stays blocked on DVP_Configure and can't close until
+    // this function returns — modeless return here is what caused
+    // HyperWorX/mdWorX#3 ("Can't close the settings interface").
+    //
+    // Cog-button invocation stays modeless (returns hwnd immediately) so
+    // it doesn't recurse into DOpus's main message pump.
+    //
+    // No IsDialogMessageW here: our window isn't a true dialog (it's
+    // CreateWindowExW, not DialogBox), so the only thing IsDialogMessage
+    // would do is intercept VK_TAB / arrow keys before they reach the
+    // WebView2 — which we DON'T want, because WebView2 handles its own
+    // keyboard navigation. Plain Translate + Dispatch passes everything
+    // through unchanged.
+    if (state->invokedByDOpus) {
+        MSG msg;
+        while (GetMessageW(&msg, nullptr, 0, 0) > 0) {
+            TranslateMessage(&msg);
+            DispatchMessageW(&msg);
+        }
+        return nullptr;
+    }
     return hwnd;
 }
 
