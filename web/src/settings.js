@@ -1193,17 +1193,32 @@ function makeRow(entry) {
         selectWrap.appendChild(control);
         row.appendChild(selectWrap);
     } else if (entry.type === 'toolbar-layout') {
-        // Toolbar layout: a custom multi-row control. Each manifest
-        // button gets a row with up / down / visibility-checkbox plus the
-        // button's display name. setControlValue populates the rows from
-        // the stored layout; getControlValue reads them back as a
-        // { id, visible } array in display order.
+        // Toolbar layout: horizontal icon strip that takes the full
+        // dialog width on its own row. Tiles are populated by
+        // setControlValue; getControlValue reads `dataset.visible` and
+        // tile DOM order back as `{ id, visible }[]`.
         control = document.createElement('div');
         control.id = 'input-' + entry.key;
         control.className = 'toolbar-layout-list';
         control.dataset.manifestKey = entry.manifestKey;
         row.classList.add('row-toolbar-layout');
         row.appendChild(control);
+        // Wheel-over-strip should scroll the strip horizontally rather
+        // than the form vertically. Convert vertical wheel ticks into
+        // horizontal scrollLeft on the strip when there is overflow to
+        // scroll into, and preventDefault so the wheel event doesn't
+        // also reach the form's scroll container. overscroll-behavior:
+        // contain in the CSS handles the boundary cases.
+        control.addEventListener('wheel', (e) => {
+            const hasOverflow = control.scrollWidth > control.clientWidth;
+            if (!hasOverflow) return;
+            // Use the larger of |deltaY| / |deltaX| as the scroll input
+            // so trackpad horizontal swipes and regular wheels both work.
+            const delta = Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+            if (delta === 0) return;
+            control.scrollLeft += delta;
+            e.preventDefault();
+        }, { passive: false });
     } else if (entry.type === 'colour') {
         // Colour rows use a swatch + text input pair so users can either
         // pick visually or paste an rgba() / hsl() / named-colour / hex value.
