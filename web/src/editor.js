@@ -188,7 +188,7 @@ function buildEditorTheme(livePreview) {
             borderLeftColor: 'var(--accent-override, var(--accent))',
             borderLeftWidth: '2px',
         },
-        '.cm-activeLine': { backgroundColor: 'var(--code-override, var(--code))' },
+        '.cm-activeLine': { backgroundColor: 'var(--code)' },
         '.cm-gutters': {
             backgroundColor: 'transparent',
             color: 'var(--ink-soft)',

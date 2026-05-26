@@ -25,6 +25,15 @@
     --blockquote-padding: 10px 14px;
 }
 
+/* `--rule-override` is consumed throughout chrome (toolbars, popups,
+ * dialog dividers, page-card border) as the standard
+ * `var(--rule-override, var(--rule))` chain. No setting currently writes
+ * to it — `ruleColor` was decoupled and now writes
+ * `--content-rule-override`, which is scoped to viewer content borders
+ * only so editing that setting doesn't recolour the dialog. The
+ * `--rule-override` hook is kept intact so a future "let palette
+ * ruleColor reach the chrome" feature can wire to it without touching
+ * the 20-odd consumer selectors. Until then it's a no-op fallback. */
 body.theme-light {
     --pane:     #ecebe6;
     --page:     #f0f0f0;                       /* neutral light grey */
@@ -1093,7 +1102,7 @@ body.mode-live .cm-md-rendered-hr {
      * `--code-block-bg-override` is only written when the user picks a
      * built-in code theme (Monokai, Solarized, etc.), so the rest of the
      * palette (blockquote bg, inline code bg) stays untouched. */
-    background: var(--code-block-bg-override, var(--code-override, var(--code)));
+    background: var(--code-block-bg-override, var(--code));
     color: var(--code-block-fg-override, inherit);
     border-radius: 5px;
     /* min-width: 0 + max-width: 100% breaks the min-content propagation
@@ -1308,7 +1317,7 @@ body.mode-live .cm-activeLine { background: transparent; }
     font-size: 1.71em;              /* ~24px at 14px body */
     margin: 0 0 1em;
     padding-bottom: 0.35em;
-    color: var(--h1-color-override, var(--h1-override, var(--h1)));
+    color: var(--h1-color-override, var(--h1));
 }
 :is(#content, .cm-md-rendered-block) h2 {
     font-size: 1.29em;              /* ~18px */
@@ -1344,7 +1353,7 @@ body.mode-live .cm-activeLine { background: transparent; }
 body.mode-live .cm-md-heading-1 {
     font-size: 1.71em;
     padding-bottom: 0.35em;
-    color: var(--h1-color-override, var(--h1-override, var(--h1)));
+    color: var(--h1-color-override, var(--h1));
 }
 body.mode-live .cm-md-heading-2 {
     font-size: 1.29em;
@@ -1616,7 +1625,7 @@ body.mode-live .cm-md-superscript { vertical-align: super; }
     /* Same override chain as .cm-md-codeblock — see comment there. The
      * code-theme bg is scoped to <pre> alone so blockquote, tables, and
      * inline code keep the palette colour. */
-    background: var(--code-block-bg-override, var(--code-override, var(--code)));
+    background: var(--code-block-bg-override, var(--code));
     border-radius: 5px;
     overflow-x: auto;
     line-height: var(--line-height-code-override, var(--line-height-override, 1.5));
@@ -1952,7 +1961,7 @@ body.mdwx-show-formatting.mode-live .cm-md-eol-crlf::after {
     font-weight: 600;
     letter-spacing: 0.04em;
     color: var(--ink-soft);
-    background: var(--code-override, var(--code));
+    background: var(--code);
     border-radius: 3px;
     vertical-align: middle;
     opacity: 0.7;

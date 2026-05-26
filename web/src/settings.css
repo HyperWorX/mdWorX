@@ -652,7 +652,7 @@ body.theme-dark .row select {
     padding: 0 12px;
     border: 1px solid var(--rule-override, var(--rule));
     border-radius: 4px;
-    background: var(--code-override, var(--code));
+    background: var(--code);
     color: var(--ink-override, var(--ink));
     cursor: pointer;
     font: inherit;
