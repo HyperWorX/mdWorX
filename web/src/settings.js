@@ -1414,81 +1414,56 @@ function clearDropHints(list) {
 }
 
 function buildToolbarLayoutRow(list, item, def) {
-    // "Row" is a misnomer now — these are horizontal tiles laid out in a
-    // flex strip that mirrors the actual toolbar pill. Each tile shows
-    // the same glyph the live button uses, plus a visibility toggle.
-    // Separators get a thin vertical-line tile in the same strip.
+    // Tiles in a single horizontal row mirroring the actual toolbar.
+    // Each tile = icon only (label shown as native tooltip on hover).
+    // Click the tile to toggle visibility; drag-grip-and-move to
+    // reorder. The browser distinguishes click-without-move from drag
+    // automatically: dragstart fires only on actual movement, click
+    // fires only when the pointer hardly moved between mousedown/up.
     const r = document.createElement('div');
     r.className = item.visible === false ? 'tbl-tile tbl-tile-off' : 'tbl-tile';
     r.dataset.id = def.id;
     r.draggable = true;
-    r.title = def.label + (def.isSeparator ? '' : ' — drag to reorder, click eye to hide/show');
+    r.title = def.label;  // native tooltip on hover
     if (def.isSeparator) r.classList.add('tbl-separator');
 
     const visible = item.visible !== false;
+    r.dataset.visible = visible ? '1' : '0';
 
     if (def.isSeparator) {
-        // Separator tile is just a thin vertical line in the strip.
-        // No visibility toggle — to remove a separator the user drags
-        // it out of the strip via... well, they can't really. So the
-        // separator stays toggle-able too: click cycles visible/hidden.
         const line = document.createElement('span');
         line.className = 'tbl-separator-line';
         r.appendChild(line);
-        // Click cycles the separator's visibility (no checkbox to make
-        // the tile compact).
-        r.addEventListener('click', (e) => {
-            if (e.button !== 0) return;
-            const newVisible = r.classList.toggle('tbl-tile-off');
-            // Flip is opposite — toggle returns true if class was ADDED,
-            // meaning the tile is NOW off.
-            list.dispatchEvent(new Event('input', { bubbles: true }));
-            // Mark the data state so getControlValue reads correctly.
-            r.dataset.visible = newVisible ? '0' : '1';
-        });
-        r.dataset.visible = visible ? '1' : '0';
     } else {
-        // Glyph: copy the live toolbar's button icon. innerHTML used so
-        // the SVG/span markup the manifest supplied renders correctly.
         const glyph = document.createElement('span');
         glyph.className = 'tbl-tile-glyph';
         glyph.innerHTML = def.glyph || `<span class="etb-glyph">${def.label.charAt(0)}</span>`;
         r.appendChild(glyph);
-
-        // Visibility toggle — a small "eye" overlay in the corner of the
-        // tile. Click flips visible state without starting a drag.
-        const toggle = document.createElement('button');
-        toggle.type = 'button';
-        toggle.className = 'tbl-tile-toggle';
-        toggle.setAttribute('aria-label', visible ? 'Hide ' + def.label : 'Show ' + def.label);
-        toggle.title = visible ? 'Hide' : 'Show';
-        toggle.dataset.checked = visible ? '1' : '0';
-        toggle.textContent = visible ? '●' : '○';
-        toggle.addEventListener('click', (e) => {
-            e.stopPropagation();
-            e.preventDefault();
-            const wasChecked = toggle.dataset.checked === '1';
-            const nowChecked = !wasChecked;
-            toggle.dataset.checked = nowChecked ? '1' : '0';
-            toggle.textContent = nowChecked ? '●' : '○';
-            toggle.title = nowChecked ? 'Hide' : 'Show';
-            toggle.setAttribute('aria-label', nowChecked ? 'Hide ' + def.label : 'Show ' + def.label);
-            r.classList.toggle('tbl-tile-off', !nowChecked);
-            r.dataset.visible = nowChecked ? '1' : '0';
-            list.dispatchEvent(new Event('input', { bubbles: true }));
-        });
-        toggle.addEventListener('mousedown', (e) => e.stopPropagation());
-        r.appendChild(toggle);
-
-        // Small label beneath the icon. Helps when the icon isn't
-        // self-evident (footnote, inline code).
-        const lbl = document.createElement('span');
-        lbl.className = 'tbl-tile-label';
-        lbl.textContent = def.label;
-        r.appendChild(lbl);
-
-        r.dataset.visible = visible ? '1' : '0';
     }
+
+    // Click anywhere on the tile flips the visibility state. Tracks the
+    // pointer between mousedown/up to suppress click when the user
+    // actually starts a drag (any movement beyond a tiny threshold).
+    let downX = 0, downY = 0, moved = false;
+    r.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return;
+        downX = e.clientX;
+        downY = e.clientY;
+        moved = false;
+    });
+    r.addEventListener('mousemove', (e) => {
+        if (Math.abs(e.clientX - downX) > 3 || Math.abs(e.clientY - downY) > 3) {
+            moved = true;
+        }
+    });
+    r.addEventListener('click', (e) => {
+        if (moved) return; // it was a drag, not a click
+        const wasVisible = r.dataset.visible !== '0';
+        const nowVisible = !wasVisible;
+        r.dataset.visible = nowVisible ? '1' : '0';
+        r.classList.toggle('tbl-tile-off', !nowVisible);
+        list.dispatchEvent(new Event('input', { bubbles: true }));
+    });
 
     // HTML5 native drag-and-drop. On dragover the row is marked as
     // drop-above or drop-below based on the pointer Y position so the
