@@ -1,51 +1,18 @@
 // Fenced code block decorator.
 //
 // When the caret is outside a fenced code block, replace the whole block
-// with a syntax-highlighted <pre><code> widget (per Marijn's CM6 forum
-// guidance — call highlightTree with a parsed inner-language tree). When
-// the caret is inside, show raw markdown including the ``` fences.
+// with a syntax-highlighted <pre><code> widget. When the caret is inside,
+// show raw markdown including the ``` fences.
 //
-// Language detection: @codemirror/lang-markdown is already configured in
-// editor.js. Languages it has installed (lang-javascript, lang-html,
-// lang-css, lang-markdown itself) get full highlighting; unknown
-// languages render as plain monospace.
+// All token-class emission goes through lib/code-highlight.js so Live mode
+// renders the same `<span class="tok-...">` HTML that Reading mode emits
+// via markdown-it's fence rule. A single `.tok-*` stylesheet skins both.
 
 import { Decoration, WidgetType } from '@codemirror/view';
 import { RangeSetBuilder } from '@codemirror/state';
-import { syntaxTree, defaultHighlightStyle } from '@codemirror/language';
-import { highlightTree } from '@lezer/highlight';
-import { javascriptLanguage } from '@codemirror/lang-javascript';
-import { htmlLanguage } from '@codemirror/lang-html';
-import { cssLanguage } from '@codemirror/lang-css';
-import { markdownLanguage } from '@codemirror/lang-markdown';
+import { syntaxTree } from '@codemirror/language';
+import { highlightIntoElement } from '../lib/code-highlight.js';
 import { decoratorStateField, isCursorInRange } from './util.js';
-
-// Map fenced language tag -> parser. Strings come from the fenced code
-// info string (e.g. `lang-js` / `js` / `javascript`).
-const languageMap = {
-    'js': javascriptLanguage,
-    'jsx': javascriptLanguage,
-    'javascript': javascriptLanguage,
-    'ts': javascriptLanguage,
-    'tsx': javascriptLanguage,
-    'typescript': javascriptLanguage,
-    'json': javascriptLanguage,
-    'html': htmlLanguage,
-    'htm':  htmlLanguage,
-    'xml':  htmlLanguage,
-    'svg':  htmlLanguage,
-    'css':  cssLanguage,
-    'scss': cssLanguage,
-    'md':   markdownLanguage,
-    'markdown': markdownLanguage,
-};
-
-function parserFor(lang) {
-    if (!lang) return null;
-    const k = lang.toLowerCase().trim();
-    const langObj = languageMap[k];
-    return langObj ? langObj.parser : null;
-}
 
 class CodeBlockWidget extends WidgetType {
     constructor(lang, code) {
@@ -64,26 +31,7 @@ class CodeBlockWidget extends WidgetType {
         pre.className = 'cm-md-codeblock';
         const codeEl = document.createElement('code');
         if (this.lang) codeEl.className = 'language-' + this.lang;
-        const parser = parserFor(this.lang);
-        if (parser) {
-            const tree = parser.parse(this.code);
-            let pos = 0;
-            highlightTree(tree, defaultHighlightStyle, (from, to, classes) => {
-                if (from > pos) {
-                    codeEl.appendChild(document.createTextNode(this.code.slice(pos, from)));
-                }
-                const span = document.createElement('span');
-                span.className = classes;
-                span.appendChild(document.createTextNode(this.code.slice(from, to)));
-                codeEl.appendChild(span);
-                pos = to;
-            });
-            if (pos < this.code.length) {
-                codeEl.appendChild(document.createTextNode(this.code.slice(pos)));
-            }
-        } else {
-            codeEl.textContent = this.code;
-        }
+        highlightIntoElement(this.code, this.lang, codeEl);
         pre.appendChild(codeEl);
         wrap.appendChild(pre);
 

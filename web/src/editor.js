@@ -11,9 +11,10 @@ import { EditorView, keymap, drawSelection, highlightActiveLine,
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
-import { syntaxHighlighting, HighlightStyle, defaultHighlightStyle,
+import { syntaxHighlighting, HighlightStyle,
          bracketMatching, indentOnInput, syntaxTree } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
+import { codeHighlighter } from './lib/code-highlight.js';
 import { livePreviewExtension } from './editor-livepreview.js';
 
 // Source-mode markdown highlighting.
@@ -216,23 +217,20 @@ export function createEditor({ parent, doc, onChange, onSave, onSaveAs,
             lineNumbers(),
             highlightActiveLineGutter(),
         ]),
-        // BOTH modes get both highlight styles, registered in this order:
-        //   1. markdownSyntaxStyle — palette-aware overrides. MUST be first.
-        //      CM6's highlightingFor() iterates registered HighlightStyles and
-        //      breaks on the FIRST style that returns a class for a tag — it
-        //      does NOT concatenate, so registration order is winner-takes-all.
-        //      Putting markdownSyntaxStyle first ensures meta (ListMark dash) /
-        //      url / contentSeparator / labelName / heading get the palette
-        //      accent (and 'textDecoration: none' on heading) instead of
-        //      defaultHighlightStyle's hardcoded #7a757a / #219 / underline.
-        //   2. defaultHighlightStyle — fallback for everything markdownSyntaxStyle
-        //      does not cover. Required in Live mode too because
-        //      livepreview/fenced-code.js calls highlightTree(tree,
-        //      defaultHighlightStyle, ...) to colour nested-language tokens
-        //      inside rendered code-block widgets (string, keyword, number,
-        //      comment, etc.).
+        // BOTH modes get both highlighters, registered in this order:
+        //   1. markdownSyntaxStyle — palette-aware overrides for markdown
+        //      structural tokens (heading, emphasis, marks, etc.). MUST be
+        //      first. CM6's highlightingFor() walks registered styles and
+        //      uses the first match it finds for a tag — registration order
+        //      is winner-takes-all, not additive.
+        //   2. codeHighlighter — emits stable `tok-keyword` / `tok-string`
+        //      etc. class names for everything markdownSyntaxStyle does not
+        //      address (nested-language tokens inside fenced code blocks in
+        //      source mode). The companion `.tok-*` CSS in viewer.css resolves
+        //      those to palette `--code-*` variables, so source-mode code
+        //      blocks pick up the same colours as Reading and Live modes.
         syntaxHighlighting(markdownSyntaxStyle),
-        syntaxHighlighting(defaultHighlightStyle),
+        syntaxHighlighting(codeHighlighter),
         highlightActiveLine(),
         // Whitespace markers (spaces -> ·, tabs -> →, trailing spaces
         // surfaced separately) are wired here always. The marker glyphs
