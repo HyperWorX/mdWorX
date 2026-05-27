@@ -137,17 +137,16 @@ const markdownSyntaxStyle = HighlightStyle.define([
     { tag: tags.strong,                fontWeight: '600',    color: 'var(--strong-override, var(--strong))' },
     { tag: tags.strikethrough,         textDecoration: 'line-through', color: 'var(--strike-override, var(--strike))' },
     { tag: tags.monospace,             color: 'var(--mono-override, var(--mono))' },
-    // Per-level heading colours so source mode mirrors the per-Hn
-    // palette settings the reader sees in Reading / Live. tags.heading
-    // (above) sets weight + clears underline for all six; these
-    // override the colour per level. Tags more specific than the
-    // generic heading tag take precedence in CM's highlighter.
-    { tag: tags.heading1,              color: 'var(--h1-color-override, var(--h1-color, var(--accent-override, var(--accent))))' },
-    { tag: tags.heading2,              color: 'var(--h2-color-override, var(--h2-color, var(--ink-override, var(--ink))))' },
-    { tag: tags.heading3,              color: 'var(--h3-color-override, var(--h3-color, var(--ink-override, var(--ink))))' },
-    { tag: tags.heading4,              color: 'var(--h4-color-override, var(--h4-color, var(--ink-override, var(--ink))))' },
-    { tag: tags.heading5,              color: 'var(--h5-color-override, var(--h5-color, var(--ink-override, var(--ink))))' },
-    { tag: tags.heading6,              color: 'var(--h6-color-override, var(--h6-color, var(--ink-override, var(--ink))))' },
+    // Heading TEXT colour intentionally NOT set per level here. Source
+    // mode shows the heading text in plain body ink so the only thing
+    // visually distinct is the # marker (handled by
+    // headerMarkDecorationPlugin) and the bold weight inherited from
+    // tags.heading above. Reading mode keeps per-level palette
+    // colours via viewer.css's `:is(#content, .cm-md-rendered-block)
+    // h<N>` rules — those stay unchanged. The previous behaviour of
+    // tinting heading text per palette in source mode was visually
+    // noisy when paired with the # marker accent; user explicitly
+    // wants only the marker coloured.
     // Block-quote text: muted relative to body ink so the > marker
     // (handled via processingInstruction above) is visibly the leading
     // structural element and the quote body recedes a touch.

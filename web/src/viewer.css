@@ -2104,17 +2104,24 @@ body.mode-source .cm-highlightTab {
  * highlight precedence otherwise enforces via the heading1/2/...
  * tag inherited through ATXHeading1/.../ wildcards).
  *
- * The mark colour follows the palette accent so it pops against
- * the heading-text colour (which is each level's --h<N>-color). The
- * !important is required because CodeMirror inlines the
- * highlightStyle output and inline styles otherwise win the cascade.
+ * Colour follows the SYNTAX THEME's keyword cascade (the same chain
+ * as fenced-code keywords) rather than the palette accent directly.
+ * That means picking a specific syntax theme (Monokai, GitHub Dark,
+ * etc.) tints the # marker to match the syntax colours. Match-palette
+ * clears the theme layer and the marker falls through to the
+ * palette's curated keyword colour, then to the palette-accent
+ * derived --code-keyword default. The !important is required because
+ * CodeMirror inlines the highlightStyle output and inline styles
+ * otherwise win the cascade.
  *
  * Per-level cm-md-headermark-h<N> selectors are emitted alongside the
  * base class so this rule can be specialised later (e.g. tint each
  * mark towards its heading's own colour) without re-walking the tree.
  */
 .cm-md-headermark {
-    color: var(--accent-override, var(--accent)) !important;
+    color: var(--code-keyword-theme-override,
+               var(--code-keyword-palette-override,
+                   var(--code-keyword))) !important;
     font-weight: 700;
 }
 

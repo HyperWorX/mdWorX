@@ -15,7 +15,7 @@
 //      dialog. (Plain X button works too via DOpus' window chrome.)
 
 import { TOOLBAR_MANIFESTS, reconcileLayout, defaultLayoutFor } from './lib/toolbar-manifest.js';
-import { CODE_THEMES } from './lib/code-themes.js';
+import { CODE_THEMES, applyCodeTheme, applyPaletteCodeColors } from './lib/code-themes.js';
 
 // ---------------------------------------------------------------------------
 // Preset palettes
@@ -841,81 +841,6 @@ for (const [name, p] of Object.entries(palettes)) {
 // since it represents "follow whatever global palette is active"
 // rather than a specific theme. Within each dark/light group, themes
 // sort alphabetically by label.
-// Renders a two-surface preview block that the user sees directly
-// under the Syntax theme dropdown. The first surface mimics the
-// reading-mode markdown render (inline bold / italic / strike / code
-// / mark / sup / sub / link); the second mimics the source-mode
-// editor (fenced code with syntax-coloured tokens via .tok-* classes
-// that the same CSS cascade as the viewer drives). Both update live
-// when the user picks a different palette or syntax theme.
-function buildSyntaxPreviewBlock() {
-    const wrap = document.createElement('div');
-    wrap.className = 'syntax-preview';
-
-    const heading = document.createElement('div');
-    heading.className = 'syntax-preview-heading';
-    heading.textContent = 'Live preview · how rendered markdown looks';
-    wrap.appendChild(heading);
-
-    const proseEl = document.createElement('div');
-    proseEl.className = 'syntax-preview-prose cm-md-rendered-block';
-    proseEl.innerHTML =
-        'Plain text, <strong>bold</strong>, <em>italic</em>, ' +
-        '<del>strikethrough</del>, <code>inline code</code>, ' +
-        '<mark>highlighted</mark>, H<sub>2</sub>O, E=mc<sup>2</sup>, ' +
-        'and <a href="#" data-noop="1">a link</a>.';
-    wrap.appendChild(proseEl);
-
-    const sourceHeading = document.createElement('div');
-    sourceHeading.className = 'syntax-preview-heading';
-    sourceHeading.textContent = 'Source preview · how fenced code looks';
-    wrap.appendChild(sourceHeading);
-
-    // Build a minimal fenced-code-block sample using the same .tok-*
-    // classes as the live editor + viewer. Hand-tokenised so the
-    // preview doesn't need to spin up a real Lezer parser inside the
-    // settings dialog. Each token type appears at least once so the
-    // user sees the full mapping under the chosen theme.
-    const codeEl = document.createElement('pre');
-    codeEl.className = 'syntax-preview-code';
-    codeEl.innerHTML =
-        '<code>' +
-            '<span class="tok-comment">// fenced code block sample</span>\n' +
-            '<span class="tok-keyword">function</span> ' +
-                '<span class="tok-function">greet</span>' +
-                '<span class="tok-punctuation">(</span>' +
-                '<span class="tok-variable">name</span>' +
-                '<span class="tok-punctuation">: </span>' +
-                '<span class="tok-type">string</span>' +
-                '<span class="tok-punctuation">) {</span>\n' +
-            '  <span class="tok-keyword">const</span> ' +
-                '<span class="tok-variable">n</span> ' +
-                '<span class="tok-operator">=</span> ' +
-                '<span class="tok-number">42</span>' +
-                '<span class="tok-punctuation">;</span>\n' +
-            '  <span class="tok-keyword">return</span> ' +
-                '<span class="tok-string">`hello ${name}`</span>' +
-                '<span class="tok-punctuation">;</span>\n' +
-            '<span class="tok-punctuation">}</span>' +
-        '</code>';
-    wrap.appendChild(codeEl);
-
-    // Footnote-style help. Smaller, ink-soft, separates the preview
-    // from the explanation. Calls out that source mode uses the same
-    // colour scheme so users know one decision drives both surfaces.
-    const note = document.createElement('div');
-    note.className = 'syntax-preview-note';
-    note.innerHTML =
-        'Match palette derives the syntax colours from your active ' +
-        'palette. Picking any specific entry locks the syntax theme ' +
-        'regardless of palette. The source editor uses the same ' +
-        'colours so what you see here is what your <code>.md</code> ' +
-        'file looks like in source mode too.';
-    wrap.appendChild(note);
-
-    return wrap;
-}
-
 function buildCodeThemeOptions() {
     const matchEntry = CODE_THEMES['match-palette'];
     const opts = [
@@ -932,7 +857,11 @@ function buildCodeThemeOptions() {
     }
     dark.sort((a, b)  => a.label.localeCompare(b.label));
     light.sort((a, b) => a.label.localeCompare(b.label));
-    opts.push(...dark, ...light);
+    // Wrap each set in an optgroup so the dropdown shows Dark / Light
+    // section labels — same convention as the global preset picker.
+    // Dark first per user preference.
+    if (dark.length)  opts.push({ group: 'Dark',  options: dark });
+    if (light.length) opts.push({ group: 'Light', options: light });
     return opts;
 }
 
@@ -1339,11 +1268,31 @@ function makeRow(entry) {
     if (entry.type === 'select') {
         control = document.createElement('select');
         control.id = 'input-' + entry.key;
+        // Options can be:
+        //   - bare strings (value === label)
+        //   - { value, label }
+        //   - { group: '<label>', options: [...] } — emits an <optgroup>
+        //     wrapper with the nested options inside, so the dropdown
+        //     can show categories (e.g. dark / light syntax themes).
         for (const opt of entry.options) {
+            if (opt && typeof opt === 'object' && Array.isArray(opt.options)) {
+                const og = document.createElement('optgroup');
+                og.label = opt.group || '';
+                for (const sub of opt.options) {
+                    const o = document.createElement('option');
+                    if (sub && typeof sub === 'object') {
+                        o.value = sub.value;
+                        o.textContent = sub.label;
+                    } else {
+                        o.value = sub;
+                        o.textContent = sub;
+                    }
+                    og.appendChild(o);
+                }
+                control.appendChild(og);
+                continue;
+            }
             const o = document.createElement('option');
-            // Options can be either bare strings (value === label) or
-            // { value, label } objects. The object form lets us show a
-            // friendly display name while persisting a stable id.
             if (opt && typeof opt === 'object') {
                 o.value = opt.value;
                 o.textContent = opt.label;
@@ -2513,13 +2462,23 @@ function renderForm() {
             // presets section so it sits at the top of the Appearance
             // tab. Save / delete actions for custom themes and palettes
             // live in the footer "Themes ▾" menu (see settings.html +
-            // boot wire-up). The preview-cum-help block used to live
-            // here too; it's been moved down to sit under codeBlockTheme
-            // (the actual control governing the syntax colours that the
-            // preview reflects).
+            // boot wire-up). A short help line follows the picker
+            // explaining what changes; the meatier inline preview
+            // (bold / italic / code / mark + token samples) belongs
+            // under the Syntax theme picker because those colours are
+            // what the syntax theme governs.
             if (entry.section === 'Theme & presets') {
                 const presetRow = makePresetRow();
                 target.appendChild(presetRow);
+                const palHelp = document.createElement('div');
+                palHelp.className = 'help preset-help';
+                palHelp.textContent =
+                    'Picking a preset palette retints the whole interface — text, ' +
+                    'headings, links, page background, and UI accents. The settings ' +
+                    'dialog itself updates live so you can scan presets without ' +
+                    'applying. Use the Save… button to save or delete your own ' +
+                    'palettes, styles, and themes.';
+                target.appendChild(palHelp);
             }
             continue;
         }
@@ -2528,14 +2487,34 @@ function renderForm() {
         if (currentSection) row.dataset.section = currentSection;
         target.appendChild(row);
 
-        // After the syntax-theme picker, inject a live preview block
-        // showing what the inline-markdown colours and the fenced
-        // code block will look like under the current palette + theme.
-        // Two surfaces, clearly labelled, so the user understands the
-        // distinction between "live preview / reading mode rendering"
-        // and "what the source code editor will look like".
+        // After the syntax-theme picker, fold an inline-styled help
+        // sentence into the form. The bold / italic / strikethrough /
+        // mark / link spans demonstrate the wrapped-content colours;
+        // the .tok-* spans demonstrate the syntax-theme tokens. Same
+        // single-paragraph format as the pre-restructure preview —
+        // user-confirmed they prefer the inline-folded shape over the
+        // boxed two-surface block.
         if (entry.key === 'codeBlockTheme') {
-            target.appendChild(buildSyntaxPreviewBlock());
+            const synHelp = document.createElement('div');
+            synHelp.className = 'help cm-md-rendered-block preset-help';
+            synHelp.innerHTML =
+                'The syntax theme governs both rendered code blocks AND the ' +
+                'source-mode editor — picking <em>Match palette</em> follows ' +
+                'whichever palette is active; picking any specific entry locks ' +
+                'the colours regardless of palette. ' +
+                'Looks like: <strong>bold</strong>, <em>italic</em>, ' +
+                '<del>strikethrough</del>, <code>inline code</code>, ' +
+                '<mark>highlighted</mark> text, and syntax tokens ' +
+                '<span class="tok-keyword">function</span> ' +
+                '<span class="tok-function">greet</span><span class="tok-punctuation">(</span>' +
+                '<span class="tok-variable">name</span><span class="tok-punctuation">)</span> ' +
+                '<span class="tok-punctuation">{</span> ' +
+                '<span class="tok-keyword">return</span> ' +
+                '<span class="tok-string">"hi"</span><span class="tok-punctuation">;</span> ' +
+                '<span class="tok-punctuation">}</span> ' +
+                '<span class="tok-comment">// note</span>, ' +
+                '<span class="tok-number">42</span>.';
+            target.appendChild(synHelp);
         }
         if (entry.help) {
             const help = document.createElement('div');
@@ -2835,22 +2814,17 @@ function applyOwnPalette() {
         }
         root.setProperty(varName, out);
     }
-    // Mirror the palette's curated code-block colours into the dialog
-    // chrome too. Keeps the settings dialog's own code-block preview
-    // (if any) consistent with what the viewer will show after Apply.
-    const cc = userSettings.codePaletteColors;
-    const codeRoles = ['keyword','string','comment','number','function','type','operator','variable','punctuation'];
-    if (cc && typeof cc === 'object') {
-        for (const role of codeRoles) {
-            const v = cc[role];
-            if (typeof v === 'string' && v.length > 0) {
-                root.setProperty(`--code-${role}-palette-override`, v);
-            } else {
-                root.removeProperty(`--code-${role}-palette-override`);
-            }
-        }
-    } else {
-        for (const role of codeRoles) root.removeProperty(`--code-${role}-palette-override`);
+    // Mirror the curated palette code colours + active syntax theme
+    // into the dialog's documentElement so the inline preview help
+    // (.preset-help .tok-*) reflects what the viewer will show once
+    // Apply lands. Reading the syntax theme via getControlValue so
+    // live picks update the preview immediately without waiting for
+    // a save round-trip.
+    applyPaletteCodeColors(userSettings.codePaletteColors);
+    const codeThemeEntry = schema.find(s => s.key === 'codeBlockTheme');
+    if (codeThemeEntry) {
+        const themeId = getControlValue(codeThemeEntry) || 'match-palette';
+        applyCodeTheme(themeId);
     }
 }
 
