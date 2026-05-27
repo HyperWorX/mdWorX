@@ -2489,9 +2489,15 @@ function renderForm() {
         if (currentSection) row.dataset.section = currentSection;
         target.appendChild(row);
 
-        // Short note under the Syntax theme dropdown. Match palette
-        // is the default; any specific entry locks the syntax colours
-        // independently of the global palette.
+        // Short note under the Syntax theme dropdown followed by a
+        // compact preview box. Match palette is the default; any
+        // specific entry locks the syntax colours independently of
+        // the global palette. The preview is a tiny fenced-code
+        // sample so the user can see exactly what colours each
+        // theme will produce in their actual code blocks. Driven
+        // by the same .tok-* / --code-<role>-theme-override cascade
+        // as the viewer, so cycling the dropdown retints the
+        // preview immediately.
         if (entry.key === 'codeBlockTheme') {
             const synHelp = document.createElement('div');
             synHelp.className = 'help preset-help';
@@ -2500,6 +2506,23 @@ function renderForm() {
                 'Any specific entry locks the syntax colours regardless ' +
                 'of palette, for rendered code blocks and source mode.';
             target.appendChild(synHelp);
+
+            const synPreview = document.createElement('pre');
+            synPreview.className = 'syntax-mini-preview';
+            synPreview.innerHTML =
+                '<code>' +
+                    '<span class="tok-comment">// preview</span>\n' +
+                    '<span class="tok-keyword">function</span> ' +
+                    '<span class="tok-function">greet</span>' +
+                    '<span class="tok-punctuation">(</span>' +
+                    '<span class="tok-variable">name</span>' +
+                    '<span class="tok-punctuation">) {</span>\n' +
+                    '  <span class="tok-keyword">return</span> ' +
+                    '<span class="tok-string">"hi, " + name</span>' +
+                    '<span class="tok-punctuation">;</span>\n' +
+                    '<span class="tok-punctuation">}</span>' +
+                '</code>';
+            target.appendChild(synPreview);
         }
         if (entry.help) {
             const help = document.createElement('div');
