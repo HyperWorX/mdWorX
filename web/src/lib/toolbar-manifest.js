@@ -10,15 +10,14 @@
 // in index.html. Keep it stable: changing a selector invalidates any
 // stored layout that references the old id.
 
-export const TOP_TOOLBAR_BUTTONS = [
-    { id: 'mode-reading',    label: 'Reading mode',  domSelector: '#toolbar [data-mode="reading"]' },
-    { id: 'mode-live',       label: 'Live mode',     domSelector: '#toolbar [data-mode="live"]' },
-    { id: 'mode-source',     label: 'Source mode',   domSelector: '#toolbar [data-mode="source"]' },
-    { id: 'action-save',     label: 'Save',          domSelector: '#toolbar [data-action="save"]' },
-    { id: 'action-saveAs',   label: 'Save As',       domSelector: '#toolbar [data-action="saveAs"]' },
-    { id: 'action-wrap',     label: 'Word wrap',     domSelector: '#toolbar [data-action="wrap"]' },
-    { id: 'action-settings', label: 'Settings',      domSelector: '#toolbar [data-action="settings"]' },
-];
+// Top-toolbar customisation is deferred (P2 audit #25). The manifest
+// constant existed but nothing wired topToolbarLayout into the schema
+// and nothing called applyToolbarLayout('top'). Removed to stop
+// signalling a feature that does not ship in this beta. If we ship
+// top-toolbar customisation later, restore from git history at
+// 6e0295c and wire applyToolbarLayout('top'), a schema entry for
+// topToolbarLayout, and a migrateLegacyId branch for any
+// mode-/action- id rename.
 
 // `glyph` holds the inner markup (span or svg) for the settings drag-list
 // tile preview. Same source as the live button in index.html so the user
@@ -63,7 +62,6 @@ export const EDIT_TOOLBAR_BUTTONS = [
 ];
 
 export const TOOLBAR_MANIFESTS = {
-    top:  TOP_TOOLBAR_BUTTONS,
     edit: EDIT_TOOLBAR_BUTTONS,
 };
 

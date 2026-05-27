@@ -15,8 +15,10 @@
 
 import { TOOLBAR_MANIFESTS, reconcileLayout } from './toolbar-manifest.js';
 
+// Only the editing toolbar is customisable in this beta. Top-toolbar
+// customisation infrastructure was previously stubbed here but never
+// wired up; removed per P2 audit #25.
 const TOOLBAR_ROOTS = {
-    top:  '#toolbar .toolbar-main',
     edit: '#editing-toolbar',
 };
 
@@ -24,7 +26,6 @@ const TOOLBAR_ROOTS = {
 // from layout entries. Matches the static HTML separator class so the
 // existing CSS handles spacing/visuals without extra rules.
 const SEP_CLASS = {
-    top:  'tbm-sep',
     edit: 'etb-sep',
 };
 

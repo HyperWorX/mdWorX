@@ -515,6 +515,17 @@ function destroyEditor() {
         editorMode = null;
     }
     if (editorWrapEl) editorWrapEl.innerHTML = '';
+    // P2 audit #22: an in-flight image insert (user clicked the popup
+    // Insert button, native is copying / downloading) would otherwise
+    // resolve its eventual imageCopied reply against the new editor
+    // built on the next buildEditorFor — which inserts the image into
+    // the wrong document mode and leaves the popup orphaned. Drop
+    // the pending state along with the editor it referred to. The
+    // imageCopied handler's no-editor branch then surfaces the cancel
+    // cleanly. Also re-enable the Insert button in case mode-switch
+    // happened while it was disabled.
+    pendingImageInsert = null;
+    if (imgInsertBtn) updateImageInsertEnabled();
 }
 
 function buildEditorFor(targetMode) {
@@ -1369,19 +1380,39 @@ function onHostMessage(event) {
             break;
         case 'imageCopied':
             // {type:'imageCopied', cancelled, relative?, error?}
-            // Reply to copyImage. On success insert with the new relative
-            // path; on failure surface the error and leave the popup open.
+            // Reply to copyImage / downloadImage. P2 audit #21 + #22:
+            // the old handler only covered the error path and the
+            // success-with-pending-and-editor path. A {cancelled:true}
+            // reply, OR an imageCopied that arrived after a mode switch
+            // had nulled the editor (and our pending state), left
+            // imgInsertBtn stuck disabled and the popup orphaned.
+            // Every branch below explicitly re-runs updateImageInsertEnabled
+            // so the button can never end up stuck unless the popup itself
+            // is closed.
+            if (m.cancelled === true) {
+                pendingImageInsert = null;
+                if (imgInsertBtn) updateImageInsertEnabled();
+                break;
+            }
             if (m.error) {
                 setStatus('image copy failed: ' + m.error, 'error');
                 pendingImageInsert = null;
-                updateImageInsertEnabled();
+                if (imgInsertBtn) updateImageInsertEnabled();
                 break;
             }
             if (m.relative && pendingImageInsert && editor) {
                 insertImage(editor.view, { ...pendingImageInsert, path: m.relative });
                 pendingImageInsert = null;
                 toggleImagePopup(false);
+                if (imgInsertBtn) updateImageInsertEnabled();
+                break;
             }
+            // Reply arrived after the editor was destroyed (mode
+            // switch in flight) or with no pending state. Drop the
+            // result cleanly so the popup doesn't strand.
+            pendingImageInsert = null;
+            toggleImagePopup(false);
+            if (imgInsertBtn) updateImageInsertEnabled();
             break;
         case 'theme':
             // {type:'theme', mode:'dark'|'light', paneBg:'#rgb'}
