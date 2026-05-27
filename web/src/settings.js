@@ -2615,6 +2615,46 @@ function apply() {
 }
 
 // ---------------------------------------------------------------------------
+// Install watchdog (P2 audit #20)
+//
+// The native install pipeline posts installProgress heartbeats during
+// download/extract/launch and one terminal installResult. If native
+// crashes between sending installUpdate and the first heartbeat, or
+// stops heartbeating mid-pipeline, the install button would otherwise
+// stay disabled forever and the dialog would show "Working…" with no
+// recovery path. The watchdog re-enables the button and surfaces a
+// message so the user can retry or close the dialog.
+//
+// Heartbeat reset: every installProgress message rearms the timer.
+// 10 minutes is generous — long enough for a slow GitHub Releases
+// download on a constrained connection, short enough that a true
+// native crash recovers within a sitting at the dialog.
+
+let installWatchdogTimer = null;
+const INSTALL_WATCHDOG_MS = 10 * 60 * 1000;
+
+function armInstallWatchdog() {
+    if (installWatchdogTimer != null) clearTimeout(installWatchdogTimer);
+    installWatchdogTimer = setTimeout(() => {
+        installWatchdogTimer = null;
+        const installBt = document.getElementById('btn-install-update');
+        const out       = document.getElementById('update-status');
+        if (installBt && installBt.dataset.assetUrl) installBt.disabled = false;
+        if (out) {
+            out.textContent = 'Install timed out — no response from the background installer. '
+                            + 'Retry the install or close and reopen this dialog.';
+        }
+    }, INSTALL_WATCHDOG_MS);
+}
+
+function clearInstallWatchdog() {
+    if (installWatchdogTimer != null) {
+        clearTimeout(installWatchdogTimer);
+        installWatchdogTimer = null;
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Bridge
 
 function onHostMessage(event) {
@@ -2824,18 +2864,31 @@ function onHostMessage(event) {
                 out.appendChild(span);
                 out.appendChild(link);
                 // Enable install only when we actually have a zip URL to
-                // download. A release with no .zip asset (rare, but
-                // possible on a malformed publish) gracefully falls back
-                // to the "open release page" link only.
+                // download AND a published SHA256 to verify against. A
+                // release without a hash (older publish, or a hostile
+                // GitHub response) gracefully falls back to the "open
+                // release page" link only — the native installer also
+                // refuses to proceed without a hash, so we keep the UI
+                // and the native check in sync rather than letting users
+                // attempt installs that will always fail at the integrity
+                // check.
                 if (installBt) {
-                    if (m.assetUrl) {
+                    if (m.assetUrl && m.sha256) {
                         installBt.disabled = false;
                         installBt.dataset.assetUrl = m.assetUrl;
+                        installBt.dataset.sha256   = m.sha256;
                         installBt.dataset.latest   = m.latest;
                         installBt.title = `Download v${m.latest} and run the installer (closes DOpus)`;
+                    } else if (m.assetUrl && !m.sha256) {
+                        installBt.disabled = true;
+                        installBt.dataset.assetUrl = '';
+                        installBt.dataset.sha256   = '';
+                        installBt.dataset.latest = '';
+                        installBt.title = 'This release has no published SHA256 hash — in-app install disabled. Use the release page link to install manually.';
                     } else {
                         installBt.disabled = true;
                         installBt.dataset.assetUrl = '';
+                        installBt.dataset.sha256   = '';
                         installBt.dataset.latest = '';
                         installBt.title = 'No installable asset attached to the release';
                     }
@@ -2845,6 +2898,7 @@ function onHostMessage(event) {
                 if (installBt) {
                     installBt.disabled = true;
                     installBt.dataset.assetUrl = '';
+                    installBt.dataset.sha256   = '';
                     installBt.dataset.latest = '';
                     installBt.title = 'Available after a check finds a newer release';
                 }
@@ -2853,6 +2907,10 @@ function onHostMessage(event) {
         }
         case 'installProgress': {
             // {type:'installProgress', stage:'downloading'|'extracting'|'launching'}
+            // Each progress hop also serves as a heartbeat that resets
+            // the install watchdog: as long as native is talking, the
+            // dialog trusts the pipeline to continue.
+            armInstallWatchdog();
             const out = document.getElementById('update-status');
             if (!out) break;
             const stage = m.stage || '';
@@ -2867,6 +2925,7 @@ function onHostMessage(event) {
             // {type:'installResult', ok:true|false, error?:'<msg>'}
             // On ok:true DOpus is about to close so this rarely renders,
             // but on failure the user stays in the dialog to see the error.
+            clearInstallWatchdog();
             const out       = document.getElementById('update-status');
             const installBt = document.getElementById('btn-install-update');
             if (installBt) installBt.disabled = false;
@@ -2950,12 +3009,14 @@ async function boot() {
     if (installBtn) {
         installBtn.addEventListener('click', () => {
             const url    = installBtn.dataset.assetUrl;
+            const sha256 = installBtn.dataset.sha256 || '';
             const latest = installBtn.dataset.latest || 'new version';
-            if (!url) return;
+            if (!url || !sha256) return;
             const ok = window.confirm(
                 `Install mdWorX v${latest}?\n\n` +
                 `This will:\n` +
                 `  • download the release zip from GitHub\n` +
+                `  • verify the SHA256 against the published hash\n` +
                 `  • close Directory Opus\n` +
                 `  • install the new version (UAC prompt)\n` +
                 `  • restart Directory Opus\n\n` +
@@ -2964,7 +3025,17 @@ async function boot() {
             if (!ok) return;
             installBtn.disabled = true;
             if (updateStatus) updateStatus.textContent = 'Preparing install…';
-            send({ type: 'installUpdate', url });
+            // P2 audit #20: arm a client-side watchdog so the button
+            // does not stay disabled forever if native goes silent
+            // (crash, hung WinHttp, missing message). installProgress
+            // heartbeats reset the timer; installResult clears it.
+            armInstallWatchdog();
+            send({
+                type: 'installUpdate',
+                url,
+                sha256,
+                expectedVersion: latest,
+            });
         });
     }
     // Footer "Themes ▾" menu: trigger button + popup + click-outside-to-

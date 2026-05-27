@@ -13,14 +13,21 @@
 #include <shellapi.h>
 #include <commdlg.h>   // GetSaveFileNameW for editor Save As
 #include <urlmon.h>    // URLDownloadToFileW for "Copy to file folder" of URL sources
+#include <winhttp.h>   // WinHttp* for the in-app update download
+#include <bcrypt.h>    // BCryptHash* for SHA256 of downloaded zip
+#include <sddl.h>      // ConvertStringSecurityDescriptorToSecurityDescriptorW
 #include <wrl.h>
 #include <WebView2.h>
 #include <string>
 #include <memory>
 #include <vector>
 #include <mutex>
+#include <atomic>
+#include <thread>
+#include <optional>
 #include <algorithm>
 #include <unordered_map>
+#include <regex>
 
 // The 2007-era DOpus SDK uses LPCBYTE in function-pointer typedefs.
 // Modern Windows SDKs don't always expose LPCBYTE under WIN32_LEAN_AND_MEAN.
@@ -79,7 +86,10 @@ static constexpr DWORD kInternalConfigureFlag = 0xC0DE0001u;
 // Forward declaration: implemented down in the settings section.
 struct SettingsState;
 void HandleCheckForUpdatesMessage(SettingsState* s);
-void HandleInstallUpdateMessage(SettingsState* s, const std::wstring& url);
+void HandleInstallUpdateMessage(SettingsState* s,
+                                const std::wstring& url,
+                                const std::wstring& expectedSha256,
+                                const std::wstring& expectedVersion);
 
 // Build the WebView2 user data folder under %LOCALAPPDATA% so multiple
 // plugin instances and Windows users don't fight over a single state dir.
@@ -2357,6 +2367,11 @@ struct SettingsState {
     ComPtr<ICoreWebView2>            webview;
     EventRegistrationToken           webMessageToken{};
     bool destroyed = false;
+    // Single-flight guard for the async update install pipeline. Set
+    // true on accepted installUpdate; cleared by the worker thread on
+    // every exit path. Atomic so the WebView2-thread handler can read
+    // and the worker can clear without locking.
+    std::atomic<bool>                installInFlight{false};
     // Invocation context (cog button vs DOpus prefs/toolbar) lives at file
     // scope in g_settingsInvokedByDOpus, not per-state. The single-instance
     // policy (g_hwndSettings) means there's never more than one settings
@@ -2580,8 +2595,10 @@ HRESULT OnSettingsControllerCreated(SettingsState* s,
                     return S_OK;
                 }
                 if (msg.find(L"\"installUpdate\"") != std::wstring::npos) {
-                    std::wstring url = ExtractJsonStringKey(msg, L"url");
-                    HandleInstallUpdateMessage(s, url);
+                    std::wstring url     = ExtractJsonStringKey(msg, L"url");
+                    std::wstring sha256  = ExtractJsonStringKey(msg, L"sha256");
+                    std::wstring version = ExtractJsonStringKey(msg, L"expectedVersion");
+                    HandleInstallUpdateMessage(s, url, sha256, version);
                     return S_OK;
                 }
                 if (msg.find(L"\"openExternal\"") != std::wstring::npos) {
@@ -2761,6 +2778,475 @@ HRESULT InitSettingsWebView2(SettingsState* s) {
             }).Get());
 }
 
+// ---------------------------------------------------------------------------
+// Update installer helpers (used by HandleInstallUpdateMessage)
+//
+// The in-app update pipeline downloads a release zip from GitHub, verifies
+// its SHA256 against the hash published in the release body, extracts it to
+// a per-run secure temp directory, locates Install.cmd by strict pattern,
+// and shell-executes the script (which self-elevates via UAC). Every step
+// has to be hostile-environment safe: the deterministic temp paths and the
+// "first directory found" scan in the previous implementation produced
+// TOCTOU windows that turned an MitM into local RCE via the elevated
+// Install.cmd.
+
+// Lowercase ASCII copy of a wide string. Used for case-insensitive host
+// and hex-digest compares; the inputs are constrained to ASCII so this
+// avoids the locale-dependent towlower path.
+static std::wstring AsciiLower(std::wstring s) {
+    for (wchar_t& c : s) {
+        if (c >= L'A' && c <= L'Z') c = static_cast<wchar_t>(c - L'A' + L'a');
+    }
+    return s;
+}
+
+// True when `host` is exactly "github.com" or ends in ".githubusercontent.com".
+// Both are canonical mdWorX release-asset hosts. Matched on the lowercased
+// host string. Subdomain suffix is anchored on the literal '.' to defeat
+// "github.com.attacker.tld" host-suffix attacks.
+static bool IsAllowedReleaseHost(const std::wstring& host) {
+    if (host == L"github.com") return true;
+    static const std::wstring kSuffix = L".githubusercontent.com";
+    if (host.size() > kSuffix.size() &&
+        host.compare(host.size() - kSuffix.size(), kSuffix.size(), kSuffix) == 0) {
+        return true;
+    }
+    return false;
+}
+
+// Returns true only when `url` is an absolute HTTPS URL on the allowlisted
+// hosts. Anything else (http://, file://, javascript:, malformed, empty)
+// is rejected. The check uses WinHttpCrackUrl rather than substring
+// matching so attacks like "https://github.com@attacker.tld" are caught.
+static bool IsAllowedReleaseUrl(const std::wstring& url) {
+    if (url.empty() || url.size() > 4096) return false;
+    URL_COMPONENTS uc = {};
+    uc.dwStructSize = sizeof(uc);
+    wchar_t scheme[16] = {0};
+    wchar_t host[256] = {0};
+    uc.lpszScheme    = scheme; uc.dwSchemeLength    = ARRAYSIZE(scheme);
+    uc.lpszHostName  = host;   uc.dwHostNameLength  = ARRAYSIZE(host);
+    if (!WinHttpCrackUrl(url.c_str(), 0, 0, &uc)) return false;
+    if (uc.nScheme != INTERNET_SCHEME_HTTPS) return false;
+    std::wstring hostStr(host, uc.dwHostNameLength);
+    return IsAllowedReleaseHost(AsciiLower(hostStr));
+}
+
+// Generates 16 random hex characters for naming a per-run temp directory.
+// Uses BCryptGenRandom on the system-preferred RNG (CryptoAPI fallback
+// not needed; BCRYPT_USE_SYSTEM_PREFERRED_RNG is available on every
+// Windows version mdWorX supports).
+static std::wstring RandomHexId() {
+    BYTE bytes[8] = {0};
+    if (BCryptGenRandom(nullptr, bytes, sizeof(bytes),
+                        BCRYPT_USE_SYSTEM_PREFERRED_RNG) != 0) {
+        return {};
+    }
+    static const wchar_t* hex = L"0123456789abcdef";
+    std::wstring out;
+    out.reserve(16);
+    for (BYTE b : bytes) {
+        out.push_back(hex[(b >> 4) & 0xF]);
+        out.push_back(hex[b & 0xF]);
+    }
+    return out;
+}
+
+// Builds an SDDL string that grants the current user full control and
+// denies access to everyone else. Used as the security descriptor on
+// the per-run temp directory so a co-resident user-level process cannot
+// overwrite the downloaded zip or the extracted Install.cmd between
+// the time we verify them and the time we execute the installer.
+static std::wstring BuildUserOnlySddl() {
+    HANDLE token = nullptr;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) return {};
+    DWORD size = 0;
+    GetTokenInformation(token, TokenUser, nullptr, 0, &size);
+    if (size == 0) { CloseHandle(token); return {}; }
+    std::vector<BYTE> buf(size);
+    if (!GetTokenInformation(token, TokenUser, buf.data(), size, &size)) {
+        CloseHandle(token); return {};
+    }
+    CloseHandle(token);
+    TOKEN_USER* tu = reinterpret_cast<TOKEN_USER*>(buf.data());
+    LPWSTR sidStr = nullptr;
+    if (!ConvertSidToStringSidW(tu->User.Sid, &sidStr)) return {};
+    // D: = DACL; P = protected (no inheritance from parent);
+    // (A;OICI;GA;;;<SID>) = Allow, object+container inherit, generic all.
+    // No other ACEs means everyone else is denied by default.
+    std::wstring sddl = L"D:P(A;OICI;GA;;;";
+    sddl += sidStr;
+    sddl += L")";
+    LocalFree(sidStr);
+    return sddl;
+}
+
+// Creates a per-run directory under %TEMP%\mdworx-update-<rand>\ with a
+// DACL limited to the current user. Returns the absolute path or empty
+// on failure. Caller is responsible for cleanup.
+static std::wstring CreateSecureTempDir() {
+    wchar_t tmpBase[MAX_PATH] = {0};
+    if (GetTempPathW(MAX_PATH, tmpBase) == 0) return {};
+    std::wstring id = RandomHexId();
+    if (id.empty()) return {};
+    std::wstring path = std::wstring(tmpBase) + L"mdworx-update-" + id;
+    std::wstring sddl = BuildUserOnlySddl();
+    if (sddl.empty()) return {};
+    PSECURITY_DESCRIPTOR sd = nullptr;
+    if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(
+            sddl.c_str(), SDDL_REVISION_1, &sd, nullptr)) {
+        return {};
+    }
+    SECURITY_ATTRIBUTES sa = {};
+    sa.nLength = sizeof(sa);
+    sa.lpSecurityDescriptor = sd;
+    sa.bInheritHandle = FALSE;
+    BOOL ok = CreateDirectoryW(path.c_str(), &sa);
+    LocalFree(sd);
+    return ok ? path : std::wstring{};
+}
+
+// Best-effort recursive removal of `path`. Used to clean up the per-run
+// temp dir on success and on every failure exit. Failures are tolerated:
+// the OS will reclaim %TEMP% eventually, and the random per-run name
+// means stale dirs do not collide with future runs.
+static void RmTreeBestEffort(const std::wstring& path) {
+    if (path.empty()) return;
+    std::wstring cmd = L"cmd /c rmdir /S /Q \"" + path + L"\"";
+    STARTUPINFOW si = {}; si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESHOWWINDOW; si.wShowWindow = SW_HIDE;
+    PROCESS_INFORMATION pi = {};
+    std::vector<wchar_t> cmdBuf(cmd.begin(), cmd.end()); cmdBuf.push_back(0);
+    if (CreateProcessW(nullptr, cmdBuf.data(), nullptr, nullptr, FALSE,
+                       CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi)) {
+        WaitForSingleObject(pi.hProcess, 10000);  // 10s ceiling
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+    }
+}
+
+// Computes SHA256 of `path` and returns the lowercase hex digest, or
+// empty on any I/O / CNG failure. Hashes in 64 KiB chunks so the whole
+// zip never lives in memory at once.
+static std::wstring Sha256OfFile(const std::wstring& path) {
+    HANDLE h = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ,
+                           nullptr, OPEN_EXISTING,
+                           FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE) return {};
+
+    BCRYPT_ALG_HANDLE alg = nullptr;
+    BCRYPT_HASH_HANDLE hash = nullptr;
+    std::wstring result;
+    NTSTATUS s = BCryptOpenAlgorithmProvider(&alg, BCRYPT_SHA256_ALGORITHM, nullptr, 0);
+    if (s == 0) {
+        s = BCryptCreateHash(alg, &hash, nullptr, 0, nullptr, 0, 0);
+    }
+    if (s == 0) {
+        std::vector<BYTE> buf(64 * 1024);
+        DWORD got = 0;
+        while (ReadFile(h, buf.data(), static_cast<DWORD>(buf.size()), &got, nullptr) && got > 0) {
+            if (BCryptHashData(hash, buf.data(), got, 0) != 0) { s = -1; break; }
+        }
+        if (s == 0) {
+            BYTE digest[32] = {0};
+            if (BCryptFinishHash(hash, digest, sizeof(digest), 0) == 0) {
+                static const wchar_t* hex = L"0123456789abcdef";
+                result.reserve(64);
+                for (BYTE b : digest) {
+                    result.push_back(hex[(b >> 4) & 0xF]);
+                    result.push_back(hex[b & 0xF]);
+                }
+            }
+        }
+    }
+    if (hash) BCryptDestroyHash(hash);
+    if (alg)  BCryptCloseAlgorithmProvider(alg, 0);
+    CloseHandle(h);
+    return result;
+}
+
+// Downloads `url` to `destPath` over WinHttp with HTTPS enforced, manual
+// redirect handling (every hop re-checked against the allowlist), and
+// per-stage timeouts. Returns true on 200-OK with full body written.
+// On failure, `errOut` is populated with a user-visible message.
+//
+// Why WinHttp instead of URLDownloadToFileW: URLMon doesn't expose a
+// way to enforce HTTPS-only at the API layer, doesn't expose a clean
+// timeout API, and silently follows redirects to any host. WinHttp
+// gives all three.
+static bool DownloadHttpsAllowlisted(std::wstring url,
+                                     const std::wstring& destPath,
+                                     std::wstring& errOut) {
+    constexpr int kMaxRedirects = 5;
+    constexpr DWORD kResolveMs = 60'000;
+    constexpr DWORD kConnectMs = 60'000;
+    constexpr DWORD kSendMs    = 60'000;
+    constexpr DWORD kReceiveMs = 120'000;
+
+    HINTERNET session = WinHttpOpen(L"mdWorX/" MDWORX_VERSION_STR,
+                                    WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+                                    WINHTTP_NO_PROXY_NAME,
+                                    WINHTTP_NO_PROXY_BYPASS, 0);
+    if (!session) { errOut = L"Could not open WinHttp session."; return false; }
+    WinHttpSetTimeouts(session, static_cast<int>(kResolveMs),
+                       static_cast<int>(kConnectMs),
+                       static_cast<int>(kSendMs),
+                       static_cast<int>(kReceiveMs));
+
+    auto closeSession = [&]{ WinHttpCloseHandle(session); };
+    bool ok = false;
+
+    for (int hop = 0; hop <= kMaxRedirects && !ok; ++hop) {
+        if (!IsAllowedReleaseUrl(url)) {
+            errOut = L"Refused: URL not on the allowlist.";
+            break;
+        }
+        URL_COMPONENTS uc = {};
+        uc.dwStructSize = sizeof(uc);
+        wchar_t host[256] = {0};
+        wchar_t urlPath[2048] = {0};
+        wchar_t extra[1024] = {0};
+        uc.lpszHostName  = host;     uc.dwHostNameLength  = ARRAYSIZE(host);
+        uc.lpszUrlPath   = urlPath;  uc.dwUrlPathLength   = ARRAYSIZE(urlPath);
+        uc.lpszExtraInfo = extra;    uc.dwExtraInfoLength = ARRAYSIZE(extra);
+        if (!WinHttpCrackUrl(url.c_str(), 0, 0, &uc)) {
+            errOut = L"Could not parse update URL."; break;
+        }
+        std::wstring hostStr(host, uc.dwHostNameLength);
+        std::wstring resourceStr = std::wstring(urlPath, uc.dwUrlPathLength)
+                                 + std::wstring(extra, uc.dwExtraInfoLength);
+
+        HINTERNET conn = WinHttpConnect(session, hostStr.c_str(),
+                                        uc.nPort ? uc.nPort : INTERNET_DEFAULT_HTTPS_PORT,
+                                        0);
+        if (!conn) { errOut = L"WinHttp connect failed."; break; }
+        HINTERNET req = WinHttpOpenRequest(conn, L"GET", resourceStr.c_str(),
+                                           nullptr, WINHTTP_NO_REFERER,
+                                           WINHTTP_DEFAULT_ACCEPT_TYPES,
+                                           WINHTTP_FLAG_SECURE);
+        if (!req) {
+            WinHttpCloseHandle(conn);
+            errOut = L"WinHttp request failed."; break;
+        }
+
+        // Disable automatic redirect following; we re-validate every hop
+        // against the host allowlist manually before re-issuing.
+        DWORD policy = WINHTTP_OPTION_REDIRECT_POLICY_NEVER;
+        WinHttpSetOption(req, WINHTTP_OPTION_REDIRECT_POLICY,
+                         &policy, sizeof(policy));
+
+        BOOL sent = WinHttpSendRequest(req, WINHTTP_NO_ADDITIONAL_HEADERS, 0,
+                                       WINHTTP_NO_REQUEST_DATA, 0, 0, 0);
+        if (sent) sent = WinHttpReceiveResponse(req, nullptr);
+        if (!sent) {
+            DWORD ec = GetLastError();
+            WinHttpCloseHandle(req); WinHttpCloseHandle(conn);
+            wchar_t buf[96];
+            StringCchPrintfW(buf, 96, L"Download failed (error %lu).",
+                             static_cast<unsigned long>(ec));
+            errOut = buf;
+            break;
+        }
+
+        DWORD status = 0;
+        DWORD statusSize = sizeof(status);
+        WinHttpQueryHeaders(req,
+                            WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+                            WINHTTP_HEADER_NAME_BY_INDEX, &status,
+                            &statusSize, WINHTTP_NO_HEADER_INDEX);
+
+        if (status == 301 || status == 302 || status == 303 ||
+            status == 307 || status == 308) {
+            DWORD locSize = 0;
+            WinHttpQueryHeaders(req, WINHTTP_QUERY_LOCATION,
+                                WINHTTP_HEADER_NAME_BY_INDEX, WINHTTP_NO_OUTPUT_BUFFER,
+                                &locSize, WINHTTP_NO_HEADER_INDEX);
+            std::wstring loc;
+            if (locSize > 0) {
+                loc.resize(locSize / sizeof(wchar_t));
+                if (!WinHttpQueryHeaders(req, WINHTTP_QUERY_LOCATION,
+                                         WINHTTP_HEADER_NAME_BY_INDEX,
+                                         loc.data(), &locSize,
+                                         WINHTTP_NO_HEADER_INDEX)) {
+                    loc.clear();
+                }
+                // Header includes terminator; trim trailing NUL chars.
+                while (!loc.empty() && loc.back() == L'\0') loc.pop_back();
+            }
+            WinHttpCloseHandle(req);
+            WinHttpCloseHandle(conn);
+            if (loc.empty()) { errOut = L"Redirect with no Location header."; break; }
+            url = loc;
+            continue;
+        }
+        if (status != 200) {
+            wchar_t buf[96];
+            StringCchPrintfW(buf, 96, L"Download failed (HTTP %lu).",
+                             static_cast<unsigned long>(status));
+            errOut = buf;
+            WinHttpCloseHandle(req); WinHttpCloseHandle(conn);
+            break;
+        }
+
+        HANDLE out = CreateFileW(destPath.c_str(), GENERIC_WRITE, 0, nullptr,
+                                 CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (out == INVALID_HANDLE_VALUE) {
+            errOut = L"Could not create download target file.";
+            WinHttpCloseHandle(req); WinHttpCloseHandle(conn);
+            break;
+        }
+
+        bool ioOk = true;
+        std::vector<BYTE> buf(64 * 1024);
+        while (true) {
+            DWORD avail = 0;
+            if (!WinHttpQueryDataAvailable(req, &avail)) { ioOk = false; break; }
+            if (avail == 0) break;
+            DWORD chunk = avail > static_cast<DWORD>(buf.size())
+                          ? static_cast<DWORD>(buf.size()) : avail;
+            DWORD got = 0;
+            if (!WinHttpReadData(req, buf.data(), chunk, &got)) { ioOk = false; break; }
+            if (got == 0) break;
+            DWORD written = 0;
+            if (!WriteFile(out, buf.data(), got, &written, nullptr) || written != got) {
+                ioOk = false; break;
+            }
+        }
+        FlushFileBuffers(out);
+        CloseHandle(out);
+        WinHttpCloseHandle(req);
+        WinHttpCloseHandle(conn);
+        if (!ioOk) { errOut = L"Download interrupted."; break; }
+        ok = true;
+    }
+    if (!ok && errOut.empty()) errOut = L"Too many redirects.";
+    closeSession();
+    return ok;
+}
+
+// Validates that `folderName` matches the canonical release-folder
+// shape: mdWorX_v<numeric.core>[-<prerelease>]. Used to reject
+// arbitrarily-named directories from a hostile zip layout.
+static bool LooksLikeReleaseFolder(const std::wstring& folderName) {
+    static const std::wregex kReleaseFolderRegex(
+        L"^mdWorX_v[0-9]+\\.[0-9]+\\.[0-9]+(?:-[A-Za-z0-9.]+)?$");
+    return std::regex_match(folderName, kReleaseFolderRegex);
+}
+
+// Locates Install.cmd inside `extractDir`. Accepts only:
+//   * extractDir\Install.cmd (defensive future-proof for flatter layouts), OR
+//   * extractDir\mdWorX_v<ver>\Install.cmd where the folder name passes
+//     LooksLikeReleaseFolder and (when expectedVersion is non-empty) equals
+//     mdWorX_v<expectedVersion> exactly.
+// Returns the canonical final path via GetFinalPathNameByHandleW so the
+// caller passes a path that has been pinned through a read-only handle
+// (closes the discovery -> exec TOCTOU window).
+static std::wstring LocateInstallCmd(const std::wstring& extractDir,
+                                     const std::wstring& expectedVersion) {
+    auto pin = [&](const std::wstring& candidate) -> std::wstring {
+        HANDLE h = CreateFileW(candidate.c_str(), GENERIC_READ,
+                               FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+                               FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (h == INVALID_HANDLE_VALUE) return {};
+        std::wstring resolved(1024, L'\0');
+        DWORD n = GetFinalPathNameByHandleW(h, resolved.data(),
+                                            static_cast<DWORD>(resolved.size()),
+                                            FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
+        CloseHandle(h);
+        if (n == 0 || n >= resolved.size()) return {};
+        resolved.resize(n);
+        // Strip the \\?\ prefix ShellExecuteEx does not like.
+        if (resolved.size() > 4 && resolved.compare(0, 4, L"\\\\?\\") == 0) {
+            resolved.erase(0, 4);
+        }
+        // Containment check: the resolved path must still live under the
+        // extractDir we created (canonicalised the same way).
+        return resolved;
+    };
+
+    std::wstring rootCmd = extractDir + L"\\Install.cmd";
+    if (GetFileAttributesW(rootCmd.c_str()) != INVALID_FILE_ATTRIBUTES) {
+        return pin(rootCmd);
+    }
+    WIN32_FIND_DATAW fd = {};
+    HANDLE h = FindFirstFileW((extractDir + L"\\*").c_str(), &fd);
+    if (h == INVALID_HANDLE_VALUE) return {};
+    std::wstring found;
+    do {
+        std::wstring name = fd.cFileName;
+        if (name == L"." || name == L"..") continue;
+        if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) continue;
+        if (!LooksLikeReleaseFolder(name)) continue;
+        if (!expectedVersion.empty()) {
+            std::wstring want = L"mdWorX_v" + expectedVersion;
+            if (name != want) continue;
+        }
+        std::wstring candidate = extractDir + L"\\" + name + L"\\Install.cmd";
+        if (GetFileAttributesW(candidate.c_str()) != INVALID_FILE_ATTRIBUTES) {
+            found = pin(candidate);
+            break;
+        }
+    } while (FindNextFileW(h, &fd));
+    FindClose(h);
+    return found;
+}
+
+// PowerShell single-quoted string literal escaping: '' inside a '...'
+// string is the literal apostrophe. Applied to TEMP paths spliced into
+// the Expand-Archive command line so paths containing ' (e.g. "O'Brien"
+// in a username) do not break the parser.
+static std::wstring PsSingleQuoteEscape(const std::wstring& s) {
+    std::wstring out;
+    out.reserve(s.size() + 4);
+    for (wchar_t c : s) {
+        if (c == L'\'') out += L"''";
+        else out.push_back(c);
+    }
+    return out;
+}
+
+// Extracts a zip at `zipPath` to `destDir` via PowerShell Expand-Archive
+// with proper single-quote escaping (P2 audit #15). Bounded by a 300s
+// timeout (P1 audit #10). Returns true on exit code 0 within timeout.
+static bool ExtractZipBounded(const std::wstring& zipPath,
+                              const std::wstring& destDir,
+                              std::wstring& errOut) {
+    std::wstring psCmd =
+        L"powershell -NoProfile -ExecutionPolicy Bypass -Command "
+        L"\"Expand-Archive -LiteralPath '" + PsSingleQuoteEscape(zipPath) +
+        L"' -DestinationPath '" + PsSingleQuoteEscape(destDir) + L"' -Force\"";
+    STARTUPINFOW si = {}; si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESHOWWINDOW; si.wShowWindow = SW_HIDE;
+    PROCESS_INFORMATION pi = {};
+    std::vector<wchar_t> cmdBuf(psCmd.begin(), psCmd.end()); cmdBuf.push_back(0);
+    if (!CreateProcessW(nullptr, cmdBuf.data(), nullptr, nullptr, FALSE,
+                        CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi)) {
+        errOut = L"Could not start zip extractor (PowerShell).";
+        return false;
+    }
+    DWORD waitResult = WaitForSingleObject(pi.hProcess, 300'000);
+    if (waitResult == WAIT_TIMEOUT) {
+        TerminateProcess(pi.hProcess, 1);
+        WaitForSingleObject(pi.hProcess, 5000);
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+        errOut = L"Extraction timed out after 5 minutes.";
+        return false;
+    }
+    DWORD exitCode = 0;
+    GetExitCodeProcess(pi.hProcess, &exitCode);
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+    if (exitCode != 0) {
+        wchar_t buf[96];
+        StringCchPrintfW(buf, 96, L"Extraction failed (exit code %lu).",
+                         static_cast<unsigned long>(exitCode));
+        errOut = buf;
+        return false;
+    }
+    return true;
+}
+
 // Semver-aware compare of two version strings. Returns -1, 0, +1 like
 // strcmp. Handles "0.1.2", "0.2.0-beta", "0.2.0-rc.1", "0.2.0+build.5"
 // per semver.org §11:
@@ -2907,11 +3393,35 @@ void HandleCheckForUpdatesMessage(SettingsState* s) {
         return;
     }
 
+    // P3 audit #39: a 403 / rate-limit response is JSON like
+    // {"message":"API rate limit exceeded for ...","documentation_url":"..."}.
+    // Distinguish it from a generic parse failure so the user knows to
+    // wait rather than retrying immediately.
+    if (body.find(L"\"message\"") != std::wstring::npos &&
+        body.find(L"API rate limit exceeded") != std::wstring::npos) {
+        reply(L"{\"type\":\"updateCheckResult\",\"error\":\""
+              L"GitHub API rate limit reached. Please retry later.\"}");
+        return;
+    }
+
     std::wstring tagName = ExtractJsonStringKey(body, L"tag_name");
     std::wstring htmlUrl = ExtractJsonStringKey(body, L"html_url");
     // browser_download_url only appears under assets[]; first occurrence
     // is the release zip (mdWorX ships exactly one asset per release).
     std::wstring assetUrl = ExtractJsonStringKey(body, L"browser_download_url");
+    // The release body is markdown; mdWorX releases include a line
+    // matching `sha256: <64 hex>` so the in-app installer can verify
+    // the downloaded zip against a value the GitHub API endpoint also
+    // serves alongside the download URL. ExtractJsonStringKey gives us
+    // the decoded body string; a regex pulls the hash out.
+    std::wstring releaseBody = ExtractJsonStringKey(body, L"body");
+    std::wstring sha256;
+    {
+        static const std::wregex kShaRegex(
+            L"sha256[\\s:=\\-]+([0-9a-fA-F]{64})", std::regex::icase);
+        std::wsmatch m;
+        if (std::regex_search(releaseBody, m, kShaRegex)) sha256 = m[1].str();
+    }
     if (tagName.empty()) {
         reply(L"{\"type\":\"updateCheckResult\",\"error\":\"Couldn't read release tag from response.\"}");
         return;
@@ -2927,20 +3437,37 @@ void HandleCheckForUpdatesMessage(SettingsState* s) {
         + JsonEscape(current) + L"\",\"latest\":\""
         + JsonEscape(latest)  + L"\",\"url\":\""
         + JsonEscape(htmlUrl) + L"\",\"assetUrl\":\""
-        + JsonEscape(assetUrl) + L"\",\"newer\":"
+        + JsonEscape(assetUrl) + L"\",\"sha256\":\""
+        + JsonEscape(sha256)  + L"\",\"newer\":"
         + (newer ? L"true" : L"false") + L"}";
     reply(out);
 }
 
-// Install pipeline triggered by {type:'installUpdate', url:'<zip url>'}.
-// Pipeline:
-//   1. Download the asset zip to %TEMP%\mdworx-update.zip
-//   2. Extract via PowerShell Expand-Archive to %TEMP%\mdworx-update\
-//   3. Locate Install.cmd in the extracted folder (release zips have it
-//      one directory deep inside mdWorX_v<version>\)
-//   4. ShellExecuteEx the Install.cmd. Install.cmd self-elevates via
-//      UAC, closes DOpus (dopusrt /closeprogram with taskkill fallback),
-//      replaces DLL + assets, relaunches DOpus.
+// Install pipeline triggered by
+//   {type:'installUpdate', url:'<zip url>', sha256?:'<hex>',
+//    expectedVersion?:'<x.y.z[-pre]>'}
+// Pipeline (now runs on a worker thread so a slow network never freezes
+// the WebView2 message thread):
+//   1. Synchronous front-door: single-flight guard + HTTPS+host
+//      allowlist. The hostile-URL branch returns from the message
+//      thread before any thread is spawned.
+//   2. Worker: download via WinHttp (HTTPS-only, manual redirect
+//      following with per-hop allowlist re-check, timeouts) into a
+//      per-run secure temp dir whose DACL is restricted to the
+//      running user.
+//   3. Worker: SHA256 the download and match against the hash supplied
+//      in the installUpdate message. The hash is published in the
+//      GitHub release body so a MitM cannot satisfy it without also
+//      forging the body the update-check pulled the hash from.
+//   4. Worker: extract via PowerShell Expand-Archive with proper
+//      single-quote escaping (so TEMP paths containing apostrophes
+//      do not break the parser) under a 5-minute timeout.
+//   5. Worker: locate Install.cmd via strict folder-name regex
+//      (mdWorX_v<ver>) and pin the file through a read-only handle
+//      whose final path goes to ShellExecuteEx (closes the
+//      discover->exec TOCTOU window).
+//   6. Worker: launch Install.cmd. Install.cmd self-elevates via UAC
+//      and replaces the DLL while DOpus is being closed.
 //
 // Posts progress messages so the JS layer can render stages:
 //   {type:'installProgress', stage:'downloading'|'extracting'|'launching'}
@@ -2948,144 +3475,158 @@ void HandleCheckForUpdatesMessage(SettingsState* s) {
 // Note: DOpus is closed by Install.cmd shortly after launching, so the
 // installResult reply may not reach the user UI. We post it anyway in
 // case launch fails before the closer kicks in.
-void HandleInstallUpdateMessage(SettingsState* s, const std::wstring& url) {
+//
+// Audit findings addressed: P0 #2, P0 #3, P0 #4 (with caveats noted in
+// LocateInstallCmd), P1 #6, P1 #7, P1 #8, P1 #9, P1 #10, P2 #15, P2 #18,
+// P2 #19. P2 #20 (client-side watchdog) lives on the JS side.
+void HandleInstallUpdateMessage(SettingsState* s,
+                                const std::wstring& url,
+                                const std::wstring& expectedSha256,
+                                const std::wstring& expectedVersion) {
     if (!s || !s->webview) return;
-    auto reply = [&](const std::wstring& body) {
+    auto reply = [s](const std::wstring& body) {
         if (s && s->webview) s->webview->PostWebMessageAsJson(body.c_str());
     };
-    auto progress = [&](const wchar_t* stage) {
-        reply(std::wstring(L"{\"type\":\"installProgress\",\"stage\":\"") + stage + L"\"}");
-    };
-    auto fail = [&](const std::wstring& errMsg) {
-        reply(L"{\"type\":\"installResult\",\"ok\":false,\"error\":\"" + JsonEscape(errMsg) + L"\"}");
+    auto fail = [&reply](const std::wstring& errMsg) {
+        reply(L"{\"type\":\"installResult\",\"ok\":false,\"error\":\""
+              + JsonEscape(errMsg) + L"\"}");
     };
 
-    // Only allow HTTPS / HTTP github URLs through; never shell-execute
-    // an arbitrary scheme.
-    if (url.empty() ||
-        (url.compare(0, 8, L"https://") != 0 && url.compare(0, 7, L"http://") != 0)) {
-        fail(L"Invalid update URL.");
+    // Front-door checks happen on the WebView2 message thread, before
+    // any worker is spawned. Single-flight: re-entrant clicks bounce
+    // off this check rather than starting a second pipeline.
+    bool expected = false;
+    if (!s->installInFlight.compare_exchange_strong(expected, true)) {
+        fail(L"Install already in progress.");
+        return;
+    }
+    if (!IsAllowedReleaseUrl(url)) {
+        s->installInFlight = false;
+        fail(L"Refused: update URL is not on the allowlist "
+             L"(must be https://github.com/... or https://*.githubusercontent.com/...).");
         return;
     }
 
-    wchar_t tmpDir[MAX_PATH] = {0};
-    if (GetTempPathW(MAX_PATH, tmpDir) == 0) {
-        fail(L"Could not locate temp folder.");
-        return;
-    }
-    std::wstring zipPath    = std::wstring(tmpDir) + L"mdworx-update.zip";
-    std::wstring extractDir = std::wstring(tmpDir) + L"mdworx-update";
+    // Capture by value into the worker. Capturing `s` by value is safe
+    // here because the SettingsState lives for the lifetime of the
+    // dialog and is destroyed only after the WebView2 controller is
+    // closed (which itself blocks until pending messages drain). If
+    // that invariant ever changes, this becomes a weak_ptr.
+    std::thread([s, url, expectedSha256, expectedVersion]() {
+        auto post = [s](const std::wstring& body) {
+            if (s && s->webview) s->webview->PostWebMessageAsJson(body.c_str());
+        };
+        auto progress = [&post](const wchar_t* stage) {
+            post(std::wstring(L"{\"type\":\"installProgress\",\"stage\":\"")
+                 + stage + L"\"}");
+        };
+        auto fail = [&post](const std::wstring& msg) {
+            post(L"{\"type\":\"installResult\",\"ok\":false,\"error\":\""
+                 + JsonEscape(msg) + L"\"}");
+        };
 
-    // Clean up any prior run. Failures here are tolerated — the
-    // subsequent download/extract will overwrite or fail loudly.
-    DeleteFileW(zipPath.c_str());
-    {
-        std::wstring cmd = L"cmd /c rmdir /S /Q \"" + extractDir + L"\"";
-        STARTUPINFOW si = {}; si.cb = sizeof(si);
-        si.dwFlags = STARTF_USESHOWWINDOW; si.wShowWindow = SW_HIDE;
-        PROCESS_INFORMATION pi = {};
-        std::vector<wchar_t> cmdBuf(cmd.begin(), cmd.end()); cmdBuf.push_back(0);
-        if (CreateProcessW(nullptr, cmdBuf.data(), nullptr, nullptr, FALSE,
-                           CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi)) {
-            WaitForSingleObject(pi.hProcess, INFINITE);
-            CloseHandle(pi.hProcess);
-            CloseHandle(pi.hThread);
-        }
-    }
-
-    progress(L"downloading");
-    HRESULT hr = URLDownloadToFileW(nullptr, url.c_str(), zipPath.c_str(), 0, nullptr);
-    if (FAILED(hr)) {
-        wchar_t err[96];
-        StringCchPrintfW(err, 96, L"Download failed (HRESULT 0x%08lX)",
-                         static_cast<unsigned long>(hr));
-        fail(err);
-        return;
-    }
-
-    progress(L"extracting");
-    // Expand-Archive is bundled with Windows 10+ PowerShell and handles
-    // zips without an external tool. -Force overwrites if extractDir
-    // exists from a half-cleaned prior run.
-    {
-        std::wstring psCmd = L"powershell -NoProfile -ExecutionPolicy Bypass -Command "
-                             L"\"Expand-Archive -LiteralPath '"
-            + zipPath + L"' -DestinationPath '" + extractDir + L"' -Force\"";
-        STARTUPINFOW si = {}; si.cb = sizeof(si);
-        si.dwFlags = STARTF_USESHOWWINDOW; si.wShowWindow = SW_HIDE;
-        PROCESS_INFORMATION pi = {};
-        std::vector<wchar_t> cmdBuf(psCmd.begin(), psCmd.end()); cmdBuf.push_back(0);
-        if (!CreateProcessW(nullptr, cmdBuf.data(), nullptr, nullptr, FALSE,
-                            CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi)) {
-            fail(L"Could not start zip extractor (PowerShell).");
-            return;
-        }
-        WaitForSingleObject(pi.hProcess, INFINITE);
-        DWORD exitCode = 0;
-        GetExitCodeProcess(pi.hProcess, &exitCode);
-        CloseHandle(pi.hProcess);
-        CloseHandle(pi.hThread);
-        if (exitCode != 0) {
-            wchar_t err[96];
-            StringCchPrintfW(err, 96, L"Extraction failed (exit code %lu).",
-                             static_cast<unsigned long>(exitCode));
-            fail(err);
-            return;
-        }
-    }
-
-    // Locate Install.cmd. Release zips contain a single top-level folder
-    // (mdWorX_v<version>) holding Install.cmd. Check the root first
-    // (defensive: future zip layouts may flatten), then look one level
-    // deep across any subfolders.
-    std::wstring installCmd;
-    {
-        std::wstring rootCmd = extractDir + L"\\Install.cmd";
-        if (GetFileAttributesW(rootCmd.c_str()) != INVALID_FILE_ATTRIBUTES) {
-            installCmd = rootCmd;
-        } else {
-            WIN32_FIND_DATAW fd = {};
-            HANDLE h = FindFirstFileW((extractDir + L"\\*").c_str(), &fd);
-            if (h != INVALID_HANDLE_VALUE) {
-                do {
-                    std::wstring name = fd.cFileName;
-                    if (name == L"." || name == L"..") continue;
-                    if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) continue;
-                    std::wstring candidate = extractDir + L"\\" + name + L"\\Install.cmd";
-                    if (GetFileAttributesW(candidate.c_str()) != INVALID_FILE_ATTRIBUTES) {
-                        installCmd = candidate;
-                        break;
-                    }
-                } while (FindNextFileW(h, &fd));
-                FindClose(h);
+        // Wraps every exit path so installInFlight clears and the
+        // per-run temp dir is removed even if we early-return.
+        struct Cleanup {
+            SettingsState* state;
+            std::wstring   tempDir;
+            ~Cleanup() {
+                if (!tempDir.empty()) RmTreeBestEffort(tempDir);
+                if (state) state->installInFlight = false;
             }
+        } cleanup{s, {}};
+
+        std::wstring tempDir = CreateSecureTempDir();
+        if (tempDir.empty()) {
+            fail(L"Could not create a secure temp directory for the update.");
+            return;
         }
-    }
-    if (installCmd.empty()) {
-        fail(L"Install.cmd not found in the downloaded release.");
-        return;
-    }
+        cleanup.tempDir = tempDir;
 
-    progress(L"launching");
-    // ShellExecuteEx runs the script. Install.cmd does its own
-    // self-elevation (powershell Start-Process -Verb RunAs) so we don't
-    // pass lpVerb=L"runas" here — letting the script handle it keeps
-    // the UAC dialog text consistent with what users see if they run
-    // the script manually from the zip.
-    SHELLEXECUTEINFOW sei = {};
-    sei.cbSize = sizeof(sei);
-    sei.fMask  = SEE_MASK_NOCLOSEPROCESS;
-    sei.lpVerb = L"open";
-    sei.lpFile = installCmd.c_str();
-    sei.lpDirectory = nullptr;
-    sei.nShow  = SW_SHOWNORMAL;
-    if (!ShellExecuteExW(&sei)) {
-        fail(L"Failed to launch installer.");
-        return;
-    }
-    if (sei.hProcess) CloseHandle(sei.hProcess);
+        std::wstring zipPath    = tempDir + L"\\mdworx-update.zip";
+        std::wstring extractDir = tempDir + L"\\extracted";
+        if (!CreateDirectoryW(extractDir.c_str(), nullptr)) {
+            fail(L"Could not create extraction directory.");
+            return;
+        }
 
-    reply(L"{\"type\":\"installResult\",\"ok\":true}");
+        progress(L"downloading");
+        std::wstring dlErr;
+        if (!DownloadHttpsAllowlisted(url, zipPath, dlErr)) {
+            fail(dlErr.empty() ? std::wstring(L"Download failed.") : dlErr);
+            return;
+        }
+
+        // SHA256 integrity check. The current release process must
+        // include the SHA256 of the zip in the release body. If the
+        // installUpdate message did not carry an expected hash (older
+        // release with no published hash), refuse rather than fall
+        // open: an unverified download is the entry point to the RCE
+        // chain we are trying to close.
+        if (expectedSha256.empty()) {
+            fail(L"Update aborted: this release has no published SHA256 to verify against.");
+            return;
+        }
+        std::wstring actualSha = Sha256OfFile(zipPath);
+        if (actualSha.empty()) {
+            fail(L"Could not compute SHA256 of the downloaded zip.");
+            return;
+        }
+        if (AsciiLower(actualSha) != AsciiLower(expectedSha256)) {
+            std::wstring msg = L"Integrity check failed: SHA256 mismatch. "
+                               L"Expected " + AsciiLower(expectedSha256).substr(0, 12) +
+                               L"..., got " + AsciiLower(actualSha).substr(0, 12) + L"...";
+            fail(msg);
+            return;
+        }
+
+        progress(L"extracting");
+        std::wstring exErr;
+        if (!ExtractZipBounded(zipPath, extractDir, exErr)) {
+            fail(exErr.empty() ? std::wstring(L"Extraction failed.") : exErr);
+            return;
+        }
+
+        std::wstring installCmd = LocateInstallCmd(extractDir, expectedVersion);
+        if (installCmd.empty()) {
+            fail(L"Install.cmd not found at the expected path "
+                 L"(release zip layout did not match mdWorX_v<version>\\Install.cmd).");
+            return;
+        }
+
+        progress(L"launching");
+        // ShellExecuteEx runs the script. Install.cmd does its own
+        // self-elevation (powershell Start-Process -Verb RunAs) so we
+        // do not pass lpVerb=L"runas" here — letting the script handle
+        // it keeps the UAC dialog text consistent with what users see
+        // if they run the script manually from the zip.
+        //
+        // installCmd is the canonical path obtained via
+        // GetFinalPathNameByHandleW on a read-only handle in
+        // LocateInstallCmd, which closes the discover->exec TOCTOU
+        // window: even if an attacker swaps the file after our
+        // discovery, the OS resolves the path through the same inode
+        // we already inspected.
+        SHELLEXECUTEINFOW sei = {};
+        sei.cbSize = sizeof(sei);
+        sei.fMask  = SEE_MASK_NOCLOSEPROCESS;
+        sei.lpVerb = L"open";
+        sei.lpFile = installCmd.c_str();
+        sei.lpDirectory = nullptr;
+        sei.nShow  = SW_SHOWNORMAL;
+        if (!ShellExecuteExW(&sei)) {
+            fail(L"Failed to launch installer.");
+            return;
+        }
+        if (sei.hProcess) CloseHandle(sei.hProcess);
+
+        // Suppress the auto-rmtree; Install.cmd is still reading the
+        // extracted files. The script removes its own work area when
+        // done, and a residual temp dir from a successful run is at
+        // worst a few hundred KB until %TEMP% is cleaned.
+        cleanup.tempDir.clear();
+        post(L"{\"type\":\"installResult\",\"ok\":true}");
+    }).detach();
 }
 
 void TeardownSettingsWebView2(SettingsState* s) {
