@@ -544,20 +544,6 @@ body.theme-dark .row select {
 }
 .preset-help mark { padding: 0.05em 0.25em; }
 
-/* Inline .tok-* spans inside the .preset-help paragraph under the
- * Syntax theme picker. The same palette+theme cascade as the viewer
- * drives the colours so the preview sentence retints live as the
- * user moves through presets and syntax themes. */
-.preset-help .tok-keyword     { color: var(--code-keyword-theme-override,     var(--code-keyword-palette-override,     var(--code-keyword))); }
-.preset-help .tok-string      { color: var(--code-string-theme-override,      var(--code-string-palette-override,      var(--code-string))); }
-.preset-help .tok-comment     { color: var(--code-comment-theme-override,     var(--code-comment-palette-override,     var(--code-comment)));     font-style: italic; }
-.preset-help .tok-number      { color: var(--code-number-theme-override,      var(--code-number-palette-override,      var(--code-number))); }
-.preset-help .tok-function    { color: var(--code-function-theme-override,    var(--code-function-palette-override,    var(--code-function))); }
-.preset-help .tok-type        { color: var(--code-type-theme-override,        var(--code-type-palette-override,        var(--code-type))); }
-.preset-help .tok-operator    { color: var(--code-operator-theme-override,    var(--code-operator-palette-override,    var(--code-operator))); }
-.preset-help .tok-variable    { color: var(--code-variable-theme-override,    var(--code-variable-palette-override,    var(--code-variable))); }
-.preset-help .tok-punctuation { color: var(--code-punctuation-theme-override, var(--code-punctuation-palette-override, var(--code-punctuation))); }
-
 /* Footer action group, dropdown menu trigger + popup, and name-entry.
  *
  * Layout: settings-foot is a flex row. footer-actions holds the buttons.
