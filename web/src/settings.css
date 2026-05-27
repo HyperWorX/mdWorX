@@ -544,95 +544,19 @@ body.theme-dark .row select {
 }
 .preset-help mark { padding: 0.05em 0.25em; }
 
-/* Syntax-theme live preview block. Sits under the codeBlockTheme
- * dropdown and shows two surfaces side by side conceptually (stacked
- * on narrow widths): the inline-markdown rendering and a fenced code
- * sample. Both pick up the active palette + syntax theme via the
- * existing --strong/--emphasis/--code-* override chain, so cycling
- * presets refreshes the preview live with no extra wiring. */
-.syntax-preview {
-    margin: 6px 0 10px;
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 6px;
-}
-.syntax-preview-heading {
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--ink-soft);
-    margin-top: 4px;
-}
-.syntax-preview-prose {
-    font-size: 13px;
-    line-height: 1.6;
-    color: var(--ink-override, var(--ink));
-    background: var(--page-override, var(--page));
-    border: 1px solid var(--rule-override, var(--rule));
-    border-radius: 4px;
-    padding: 8px 12px;
-}
-.syntax-preview-prose code {
-    font-size: 0.95em;
-    padding: 0.05em 0.3em;
-    background: var(--code-block-bg-override, var(--code, transparent));
-    color: var(--mono-override, var(--mono, inherit));
-    border-radius: 3px;
-}
-.syntax-preview-prose mark {
-    padding: 0.05em 0.25em;
-    background: var(--highlight-bg-override, var(--mark-bg));
-    color: var(--highlight-fg-override, var(--mark-fg));
-}
-.syntax-preview-prose strong {
-    color: var(--strong-override, var(--strong));
-    font-weight: 700;
-}
-.syntax-preview-prose em {
-    color: var(--emphasis-override, var(--emphasis));
-    font-style: italic;
-}
-.syntax-preview-prose del, .syntax-preview-prose s {
-    color: var(--strike-override, var(--strike));
-}
-.syntax-preview-prose a {
-    color: var(--link-override, var(--link));
-}
-.syntax-preview-code {
-    margin: 0;
-    padding: 8px 12px;
-    background: var(--code-theme-block-bg-override, var(--code-block-bg-override, var(--code)));
-    color: var(--code-theme-block-fg-override, var(--code-block-fg-override, var(--ink-override, var(--ink))));
-    border: 1px solid var(--rule-override, var(--rule));
-    border-radius: 4px;
-    font-family: 'Cascadia Code', Consolas, ui-monospace, monospace;
-    font-size: 12px;
-    line-height: 1.45;
-    overflow-x: auto;
-    white-space: pre;
-}
-.syntax-preview-code code { color: inherit; background: none; }
-.syntax-preview-code .tok-keyword     { color: var(--code-keyword-theme-override,     var(--code-keyword-palette-override,     var(--code-keyword))); }
-.syntax-preview-code .tok-string      { color: var(--code-string-theme-override,      var(--code-string-palette-override,      var(--code-string))); }
-.syntax-preview-code .tok-comment     { color: var(--code-comment-theme-override,     var(--code-comment-palette-override,     var(--code-comment)));     font-style: italic; }
-.syntax-preview-code .tok-number      { color: var(--code-number-theme-override,      var(--code-number-palette-override,      var(--code-number))); }
-.syntax-preview-code .tok-function    { color: var(--code-function-theme-override,    var(--code-function-palette-override,    var(--code-function))); }
-.syntax-preview-code .tok-type        { color: var(--code-type-theme-override,        var(--code-type-palette-override,        var(--code-type))); }
-.syntax-preview-code .tok-operator    { color: var(--code-operator-theme-override,    var(--code-operator-palette-override,    var(--code-operator))); }
-.syntax-preview-code .tok-variable    { color: var(--code-variable-theme-override,    var(--code-variable-palette-override,    var(--code-variable))); }
-.syntax-preview-code .tok-punctuation { color: var(--code-punctuation-theme-override, var(--code-punctuation-palette-override, var(--code-punctuation))); }
-.syntax-preview-note {
-    font-size: 11px;
-    line-height: 1.5;
-    color: var(--ink-soft);
-}
-.syntax-preview-note code {
-    font-size: 0.95em;
-    padding: 0.05em 0.25em;
-    background: var(--code-block-bg-override, var(--code));
-    border-radius: 2px;
-}
+/* Inline .tok-* spans inside the .preset-help paragraph under the
+ * Syntax theme picker. The same palette+theme cascade as the viewer
+ * drives the colours so the preview sentence retints live as the
+ * user moves through presets and syntax themes. */
+.preset-help .tok-keyword     { color: var(--code-keyword-theme-override,     var(--code-keyword-palette-override,     var(--code-keyword))); }
+.preset-help .tok-string      { color: var(--code-string-theme-override,      var(--code-string-palette-override,      var(--code-string))); }
+.preset-help .tok-comment     { color: var(--code-comment-theme-override,     var(--code-comment-palette-override,     var(--code-comment)));     font-style: italic; }
+.preset-help .tok-number      { color: var(--code-number-theme-override,      var(--code-number-palette-override,      var(--code-number))); }
+.preset-help .tok-function    { color: var(--code-function-theme-override,    var(--code-function-palette-override,    var(--code-function))); }
+.preset-help .tok-type        { color: var(--code-type-theme-override,        var(--code-type-palette-override,        var(--code-type))); }
+.preset-help .tok-operator    { color: var(--code-operator-theme-override,    var(--code-operator-palette-override,    var(--code-operator))); }
+.preset-help .tok-variable    { color: var(--code-variable-theme-override,    var(--code-variable-palette-override,    var(--code-variable))); }
+.preset-help .tok-punctuation { color: var(--code-punctuation-theme-override, var(--code-punctuation-palette-override, var(--code-punctuation))); }
 
 /* Footer action group, dropdown menu trigger + popup, and name-entry.
  *
