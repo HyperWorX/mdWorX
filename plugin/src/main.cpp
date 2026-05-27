@@ -91,6 +91,7 @@ void HandleInstallUpdateMessage(SettingsState* s,
                                 const std::wstring& expectedSha256,
                                 const std::wstring& expectedVersion);
 static void InstallWebViewNavigationGuards(ICoreWebView2* wv);
+static std::wstring RandomHexId();
 
 // Build the WebView2 user data folder under %LOCALAPPDATA% so multiple
 // plugin instances and Windows users don't fight over a single state dir.
@@ -885,9 +886,58 @@ struct ViewerState {
     EventRegistrationToken           resourceRequestedToken{};
     bool initInProgress  = false;
     bool initSucceeded   = false;
+    bool initFailed      = false;   // P2 audit #24: signals WM_PAINT to show the WebView2-unavailable message.
     bool destroyed       = false;
     std::wstring pendingFilePath;  // Set if LOAD arrives before init finishes.
+    // /_abs/ allowlist: directories the user has explicitly opened in
+    // this viewer this session, plus the parent dir of every Insert
+    // Image / Download Image opt-in. The /_abs/ handler refuses to
+    // serve any absolute path that is not contained in one of these.
+    // Closes P1 audit #11.
+    std::vector<std::wstring> allowedAbsDirs;
 };
+
+// Canonicalises and lowercases `dir` for stable membership checks.
+// Resolves to the long path form (with the leading drive in upper case
+// and a trailing backslash) so paths added at different points in the
+// session match up regardless of how the caller spelled them.
+static std::wstring CanonicaliseDir(const std::wstring& dir) {
+    if (dir.empty()) return {};
+    std::wstring buf(1024, L'\0');
+    DWORD n = GetFullPathNameW(dir.c_str(),
+                               static_cast<DWORD>(buf.size()),
+                               buf.data(), nullptr);
+    if (n == 0 || n >= buf.size()) return {};
+    buf.resize(n);
+    if (!buf.empty() && buf.back() != L'\\' && buf.back() != L'/') buf.push_back(L'\\');
+    for (wchar_t& c : buf) {
+        if (c == L'/') c = L'\\';
+        if (c >= L'A' && c <= L'Z') c = static_cast<wchar_t>(c - L'A' + L'a');
+    }
+    return buf;
+}
+
+static void AllowAbsDir(ViewerState* state, const std::wstring& dir) {
+    if (!state) return;
+    std::wstring canon = CanonicaliseDir(dir);
+    if (canon.empty()) return;
+    for (const auto& d : state->allowedAbsDirs) if (d == canon) return;
+    state->allowedAbsDirs.push_back(std::move(canon));
+}
+
+// True when `absPath` is contained in any allowlisted directory. The
+// caller is expected to have already canonicalised the path via the
+// same case + slash + long-path rules used by CanonicaliseDir.
+static bool IsAbsPathAllowed(ViewerState* state, const std::wstring& canonAbsPath) {
+    if (!state) return false;
+    for (const auto& d : state->allowedAbsDirs) {
+        if (canonAbsPath.size() >= d.size() &&
+            canonAbsPath.compare(0, d.size(), d) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
 
 // ---------------------------------------------------------------------------
 // Per-session unsaved-edits stash.
@@ -997,6 +1047,10 @@ void PushFileToWebView(ViewerState* state, const std::wstring& path) {
     // installed at controller init can resolve /_local/* paths.
     state->currentFileDir  = GetParentDir(path);
     state->currentFilePath = path;
+    // P1 audit #11: every directory the user opens a document in is
+    // an allowlisted base for the /_abs/ image route. Without this,
+    // arbitrary local files could be fetched via the bypass route.
+    AllowAbsDir(state, state->currentFileDir);
     state->loadedDiskMtime = ReadFileMtime(path);
 
     DecodedFile df = ReadFileDecoded(path);
@@ -1048,17 +1102,59 @@ void ResizeWebViewToClient(ViewerState* state) {
     state->controller->put_Bounds(rc);
 }
 
-// Atomic UTF-8 file write: writes to <path>.tmp then MoveFileEx replaces
-// the original. WriteThrough flushes to disk so a crash mid-rename leaves
-// either the old or new file intact (never both, never empty).
-// addBOM prepends the UTF-8 BOM (EF BB BF) when the original file had one,
-// so save round-trips encoding-as-stored. Returns false on any failure.
+// Atomic byte-array write to disk. The previous code had three
+// near-duplicate implementations of this (WriteUtf8FileAtomic,
+// WriteUserSettingsAtomic, WriteCustomThemeAtomic) which drifted in
+// detail and notably skipped FlushFileBuffers before MoveFileEx
+// (P2 audit #17). MOVEFILE_WRITE_THROUGH only forces the rename's
+// directory entry to flush; the file's data blocks still need the
+// explicit FlushFileBuffers to survive power loss.
+//
+// Pattern: write to <path>.<random>.tmp -> FlushFileBuffers
+// -> CloseHandle -> MoveFileExW(REPLACE_EXISTING | WRITE_THROUGH).
+// The random suffix avoids the previous race where two saves to
+// the same path would scribble on each other's .tmp file.
+static bool AtomicWriteBytes(const std::wstring& path,
+                             const void* data,
+                             size_t bytes) {
+    if (path.empty()) return false;
+    std::wstring tmpPath = path + L".mdworx." + RandomHexId() + L".tmp";
+
+    HANDLE h = CreateFileW(tmpPath.c_str(), GENERIC_WRITE, 0, nullptr,
+                           CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE) return false;
+
+    BOOL writeOk = TRUE;
+    if (bytes > 0) {
+        DWORD written = 0;
+        writeOk = WriteFile(h, data, static_cast<DWORD>(bytes),
+                            &written, nullptr);
+        if (!writeOk || written != bytes) writeOk = FALSE;
+    }
+    if (writeOk) FlushFileBuffers(h);
+    CloseHandle(h);
+    if (!writeOk) {
+        DeleteFileW(tmpPath.c_str());
+        return false;
+    }
+
+    BOOL moveOk = MoveFileExW(tmpPath.c_str(), path.c_str(),
+                              MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
+    if (!moveOk) {
+        DeleteFileW(tmpPath.c_str());
+        return false;
+    }
+    return true;
+}
+
+// Atomic UTF-8 file write: writes to <path>.<random>.tmp then
+// MoveFileEx replaces the original. addBOM prepends the UTF-8 BOM
+// (EF BB BF) when the original file had one, so save round-trips
+// encoding-as-stored. Returns false on any failure.
 bool WriteUtf8FileAtomic(const std::wstring& path,
                           const std::wstring& text,
                           bool addBOM) {
     if (path.empty()) return false;
-    std::wstring tmpPath = path + L".mdworx.tmp";
-
     int blen = WideCharToMultiByte(CP_UTF8, 0, text.c_str(),
                                    static_cast<int>(text.size()),
                                    nullptr, 0, nullptr, nullptr);
@@ -1074,26 +1170,7 @@ bool WriteUtf8FileAtomic(const std::wstring& path,
                             reinterpret_cast<char*>(bytes.data() + off),
                             blen, nullptr, nullptr);
     }
-
-    HANDLE h = CreateFileW(tmpPath.c_str(), GENERIC_WRITE, 0, nullptr,
-                            CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (h == INVALID_HANDLE_VALUE) return false;
-
-    DWORD written = 0;
-    BOOL ok = TRUE;
-    if (!bytes.empty()) {
-        ok = WriteFile(h, bytes.data(),
-                       static_cast<DWORD>(bytes.size()),
-                       &written, nullptr);
-    }
-    CloseHandle(h);
-    if (!ok || written != bytes.size()) {
-        DeleteFileW(tmpPath.c_str());
-        return false;
-    }
-
-    return MoveFileExW(tmpPath.c_str(), path.c_str(),
-                       MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != FALSE;
+    return AtomicWriteBytes(path, bytes.data(), bytes.size());
 }
 
 // Helper to post a saveResult JSON back to the viewer page.
@@ -1251,6 +1328,7 @@ void HandleSaveAsMessage(ViewerState* state, const std::wstring& msg) {
     // Adopt the new path so subsequent plain Save writes here too.
     state->filePath       = chosen;
     state->currentFileDir = GetParentDir(chosen);
+    AllowAbsDir(state, state->currentFileDir);
     state->lastReadEncoding = addBOM ? EncodingChoice{DK_UTF8, 0}
                                      : EncodingChoice{DK_UTF8, 0};
     state->lastReadHadBOM   = addBOM;
@@ -1300,6 +1378,12 @@ void HandlePickImageMessage(ViewerState* state) {
     }
 
     std::wstring chosen = pathBuf;
+    // P1 audit #11: picking an image outside currentFileDir extends the
+    // /_abs/ allowlist to that file's directory so the bypass route can
+    // serve it. Only the directory is added; future scripts cannot use
+    // the allowance to read other arbitrary files because the route
+    // does its own containment check on the requested path.
+    AllowAbsDir(state, GetParentDir(chosen));
 
     // Compute a path relative to the current file's directory when the
     // markdown file's parent is known. PathRelativePathToW returns the
@@ -1507,6 +1591,23 @@ void HandleDownloadImageMessage(ViewerState* state, const std::wstring& msg) {
         return;
     }
 
+    // P2 audit #16: the JS layer gates with /^https?/ but the native
+    // side must re-check. URLMon happily resolves file://, ftp://, and
+    // res:// schemes, which would let a compromised webview path
+    // exfiltrate local files via a download UI. Anchor to http(s) only.
+    {
+        URL_COMPONENTS uc = {};
+        uc.dwStructSize = sizeof(uc);
+        wchar_t scheme[16] = {0};
+        uc.lpszScheme = scheme; uc.dwSchemeLength = ARRAYSIZE(scheme);
+        if (!WinHttpCrackUrl(url.c_str(), 0, 0, &uc) ||
+            (uc.nScheme != INTERNET_SCHEME_HTTP &&
+             uc.nScheme != INTERNET_SCHEME_HTTPS)) {
+            reply(false, L"", L"Download refused: only http(s):// image URLs are allowed.");
+            return;
+        }
+    }
+
     std::wstring leaf = SanitiseFilename(DeriveFilenameFromUrl(url));
     if (leaf.empty()) leaf = L"image.png";
     size_t dot = leaf.find_last_of(L'.');
@@ -1565,10 +1666,15 @@ void HandleDownloadImageMessage(ViewerState* state, const std::wstring& msg) {
         while (GetFileAttributesW(fixedPath.c_str()) != INVALID_FILE_ATTRIBUTES) {
             ++suffix2;
             if (suffix2 > 1000) {
-                // Out of names — keep the wrong-extension file rather than
-                // failing outright, but report the mismatch so the caller
-                // at least sees something usable.
-                reply(true, candidateName, L"");
+                // P3 audit #35: previously reported ok=true with the
+                // wrong-extension filename — callers thought save
+                // succeeded but the on-disk extension lied about the
+                // body's real type. Now we delete the orphan and
+                // surface the failure so the user can clean up the
+                // collision-saturated folder.
+                DeleteFileW(candidatePath.c_str());
+                reply(false, L"",
+                      L"Could not assign a unique filename with the correct extension (too many collisions).");
                 return;
             }
             wchar_t buf[16];
@@ -1720,6 +1826,8 @@ HRESULT InitWebView2(ViewerState* state) {
                 if (state->destroyed) return S_OK;
                 if (FAILED(envResult) || env == nullptr) {
                     state->initInProgress = false;
+                    state->initFailed     = true;
+                    if (state->hwndSelf) InvalidateRect(state->hwndSelf, nullptr, TRUE);
                     return envResult;
                 }
                 state->env = env;
@@ -1847,6 +1955,10 @@ HRESULT OnControllerCreated(ViewerState* state,
                 // the currentFileDir constraint. Used by the Insert Image
                 // toolbar when the user picks a file outside the markdown
                 // file's subtree and didn't opt in to copy.
+                //
+                // P1 audit #11: only paths whose canonical parent dir is
+                // in state->allowedAbsDirs are served. The allowlist is
+                // populated by document open + Insert Image picker.
                 if (rel.size() > 4 &&
                     rel[0] == L'_' && rel[1] == L'a' &&
                     rel[2] == L'b' && rel[3] == L's' &&
@@ -1864,7 +1976,28 @@ HRESULT OnControllerCreated(ViewerState* state,
                         return S_OK;
                     }
                     for (auto& c : abs) if (c == L'/') c = L'\\';
-                    fullPath = abs;
+                    // Canonicalise via GetFullPathNameW so symlink /
+                    // junction escapes and case-only mismatches do not
+                    // bypass the containment check.
+                    std::wstring canonBuf(1024, L'\0');
+                    DWORD n = GetFullPathNameW(abs.c_str(),
+                                               static_cast<DWORD>(canonBuf.size()),
+                                               canonBuf.data(), nullptr);
+                    if (n == 0 || n >= canonBuf.size()) {
+                        respond404();
+                        return S_OK;
+                    }
+                    canonBuf.resize(n);
+                    std::wstring canonLower = canonBuf;
+                    for (wchar_t& c : canonLower) {
+                        if (c == L'/') c = L'\\';
+                        if (c >= L'A' && c <= L'Z') c = static_cast<wchar_t>(c - L'A' + L'a');
+                    }
+                    if (!IsAbsPathAllowed(state, canonLower)) {
+                        respond404();
+                        return S_OK;
+                    }
+                    fullPath = canonBuf;
                 } else if (rel.empty() || !IsSafeRelativePath(rel) ||
                            state->currentFileDir.empty()) {
                     respond404();
@@ -1889,10 +2022,12 @@ HRESULT OnControllerCreated(ViewerState* state,
                 }
 
                 std::wstring ct = GuessContentType(fullPath);
+                // Dropped Access-Control-Allow-Origin: * (P1 audit #11).
+                // The webview is same-origin to the virtual host; no
+                // CORS header is needed for the markdown-side fetch.
                 std::wstring headers =
                     L"Content-Type: " + ct +
-                    L"\r\nCache-Control: no-cache"
-                    L"\r\nAccess-Control-Allow-Origin: *";
+                    L"\r\nCache-Control: no-cache";
 
                 ComPtr<ICoreWebView2WebResourceResponse> resp;
                 state->env->CreateWebResourceResponse(
@@ -2133,7 +2268,11 @@ LRESULT CALLBACK ViewerWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam
 
     case WM_PAINT: {
         // Brief solid fill before WebView2's first paint so we don't show
-        // garbage if init is still in flight.
+        // garbage if init is still in flight. If WebView2 init failed
+        // (P2 audit #24 — runtime missing on Win10 LTSC, hostile cleanup
+        // tools, evergreen update mid-load), paint a message on the
+        // empty pane so the user sees something actionable instead of
+        // a blank rectangle.
         auto* state = GetState(hwnd);
         PAINTSTRUCT ps;
         HDC hdc = BeginPaint(hwnd, &ps);
@@ -2142,6 +2281,25 @@ LRESULT CALLBACK ViewerWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam
             HBRUSH br = CreateSolidBrush(state->bgColour);
             FillRect(hdc, &rc, br);
             DeleteObject(br);
+            if (state->initFailed) {
+                static const wchar_t* kMsg =
+                    L"mdWorX could not initialise the Microsoft Edge WebView2 runtime.\n"
+                    L"\n"
+                    L"Install or repair the WebView2 Evergreen Runtime, then reopen this\n"
+                    L"preview pane.\n"
+                    L"\n"
+                    L"Download: https://developer.microsoft.com/microsoft-edge/webview2/";
+                RECT inner = rc;
+                InflateRect(&inner, -16, -16);
+                SetBkMode(hdc, TRANSPARENT);
+                COLORREF fg = GetSysColor(COLOR_WINDOWTEXT);
+                SetTextColor(hdc, fg);
+                HFONT font = static_cast<HFONT>(GetStockObject(DEFAULT_GUI_FONT));
+                HGDIOBJ old = SelectObject(hdc, font);
+                DrawTextW(hdc, kMsg, -1, &inner,
+                          DT_LEFT | DT_TOP | DT_WORDBREAK | DT_NOPREFIX);
+                SelectObject(hdc, old);
+            }
         }
         EndPaint(hwnd, &ps);
         return 0;
@@ -2413,8 +2571,6 @@ void ResizeSettingsWebView(SettingsState* s) {
 bool WriteUserSettingsAtomic(const std::wstring& settingsText) {
     std::wstring path = GetUserSettingsPath();
     if (path.empty()) return false;
-    std::wstring tmpPath = path + L".tmp";
-
     int blen = WideCharToMultiByte(CP_UTF8, 0, settingsText.c_str(),
                                     static_cast<int>(settingsText.size()),
                                     nullptr, 0, nullptr, nullptr);
@@ -2425,23 +2581,7 @@ bool WriteUserSettingsAtomic(const std::wstring& settingsText) {
                             static_cast<int>(settingsText.size()),
                             bytes.data(), blen, nullptr, nullptr);
     }
-
-    HANDLE h = CreateFileW(tmpPath.c_str(), GENERIC_WRITE, 0, nullptr,
-                            CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (h == INVALID_HANDLE_VALUE) return false;
-
-    DWORD written = 0;
-    BOOL ok = WriteFile(h, bytes.data(),
-                        static_cast<DWORD>(bytes.size()),
-                        &written, nullptr);
-    CloseHandle(h);
-    if (!ok || written != bytes.size()) {
-        DeleteFileW(tmpPath.c_str());
-        return false;
-    }
-
-    return MoveFileExW(tmpPath.c_str(), path.c_str(),
-                       MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != FALSE;
+    return AtomicWriteBytes(path, bytes.data(), bytes.size());
 }
 
 // Atomic write of UTF-8 text to a custom theme file. Same .tmp + rename
@@ -2452,8 +2592,6 @@ bool WriteCustomThemeAtomic(const std::wstring& name,
     std::wstring dir = GetCustomThemesDir();
     if (dir.empty() || name.empty()) return false;
     std::wstring path = dir + L"\\" + name + L".json";
-    std::wstring tmpPath = path + L".tmp";
-
     int blen = WideCharToMultiByte(CP_UTF8, 0, themeText.c_str(),
                                     static_cast<int>(themeText.size()),
                                     nullptr, 0, nullptr, nullptr);
@@ -2464,23 +2602,7 @@ bool WriteCustomThemeAtomic(const std::wstring& name,
                             static_cast<int>(themeText.size()),
                             bytes.data(), blen, nullptr, nullptr);
     }
-
-    HANDLE h = CreateFileW(tmpPath.c_str(), GENERIC_WRITE, 0, nullptr,
-                            CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (h == INVALID_HANDLE_VALUE) return false;
-
-    DWORD written = 0;
-    BOOL ok = WriteFile(h, bytes.data(),
-                        static_cast<DWORD>(bytes.size()),
-                        &written, nullptr);
-    CloseHandle(h);
-    if (!ok || written != bytes.size()) {
-        DeleteFileW(tmpPath.c_str());
-        return false;
-    }
-
-    return MoveFileExW(tmpPath.c_str(), path.c_str(),
-                       MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != FALSE;
+    return AtomicWriteBytes(path, bytes.data(), bytes.size());
 }
 
 // Delete a custom theme file by name. Name MUST already be sanitised.
