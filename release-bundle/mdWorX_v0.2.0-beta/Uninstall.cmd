@@ -1,6 +1,9 @@
 @echo off
 chcp 65001 >nul
 
+REM Match the installer: resize the console so the 94-char banner fits.
+mode con: cols=100 lines=36 >nul 2>&1
+
 REM Enable ANSI color support
 reg add HKCU\Console /v VirtualTerminalLevel /t REG_DWORD /d 1 /f >nul 2>&1
 
