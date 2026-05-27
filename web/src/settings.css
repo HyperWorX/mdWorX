@@ -544,6 +544,47 @@ body.theme-dark .row select {
 }
 .preset-help mark { padding: 0.05em 0.25em; }
 
+/* Compact syntax preview block under the Syntax theme dropdown.
+ * Hand-tokenised fenced-code sample using the same .tok-* class
+ * names the real editor emits, so the same three-layer cascade
+ * (theme override > palette override > palette-derived default)
+ * drives the colours here. Cycling the syntax-theme dropdown
+ * retints this preview immediately because applyOwnPalette ->
+ * applyCodeTheme writes the theme-override layer on the dialog's
+ * documentElement on every dropdown change.
+ *
+ * Kept deliberately small (a 4-line function sample) so the box
+ * doesn't dominate the form; the user only needs enough tokens
+ * to gauge keyword / function / string / comment / punctuation
+ * colours at a glance. */
+.syntax-mini-preview {
+    margin: 4px 0 8px;
+    padding: 8px 12px;
+    background: var(--code-theme-block-bg-override,
+                  var(--code-block-bg-override,
+                      var(--code)));
+    color: var(--code-theme-block-fg-override,
+              var(--code-block-fg-override,
+                  var(--ink-override, var(--ink))));
+    border: 1px solid var(--rule-override, var(--rule));
+    border-radius: 4px;
+    font-family: 'Cascadia Code', Consolas, ui-monospace, monospace;
+    font-size: 11px;
+    line-height: 1.5;
+    overflow-x: auto;
+    white-space: pre;
+}
+.syntax-mini-preview code { background: none; padding: 0; color: inherit; }
+.syntax-mini-preview .tok-keyword     { color: var(--code-keyword-theme-override,     var(--code-keyword-palette-override,     var(--code-keyword))); }
+.syntax-mini-preview .tok-string      { color: var(--code-string-theme-override,      var(--code-string-palette-override,      var(--code-string))); }
+.syntax-mini-preview .tok-comment     { color: var(--code-comment-theme-override,     var(--code-comment-palette-override,     var(--code-comment)));     font-style: italic; }
+.syntax-mini-preview .tok-number      { color: var(--code-number-theme-override,      var(--code-number-palette-override,      var(--code-number))); }
+.syntax-mini-preview .tok-function    { color: var(--code-function-theme-override,    var(--code-function-palette-override,    var(--code-function))); }
+.syntax-mini-preview .tok-type        { color: var(--code-type-theme-override,        var(--code-type-palette-override,        var(--code-type))); }
+.syntax-mini-preview .tok-operator    { color: var(--code-operator-theme-override,    var(--code-operator-palette-override,    var(--code-operator))); }
+.syntax-mini-preview .tok-variable    { color: var(--code-variable-theme-override,    var(--code-variable-palette-override,    var(--code-variable))); }
+.syntax-mini-preview .tok-punctuation { color: var(--code-punctuation-theme-override, var(--code-punctuation-palette-override, var(--code-punctuation))); }
+
 /* Footer action group, dropdown menu trigger + popup, and name-entry.
  *
  * Layout: settings-foot is a flex row. footer-actions holds the buttons.
