@@ -126,17 +126,102 @@ const conflictBannerEl = document.getElementById('conflict-banner');
 const conflictKeepBtn  = document.getElementById('conflict-keep');
 const conflictReloadBtn = document.getElementById('conflict-reload');
 
+// Allow-list DOMPurify config (P0 audit #5).
+//
+// Previously this used FORBID_TAGS, which is fail-open: any new tag
+// the markdown-it pipeline started emitting (or any DOMPurify default
+// the upstream library tightened or loosened later) silently re-opened
+// the sanitiser surface. Form/input/meta/base/link were all in
+// DOMPurify's default allowlist, so authored markdown could include
+// `<form action="https://attacker.tld">` and would render with the
+// form intact; combined with the unrestricted updater pipeline it
+// shipped the RCE chain documented in the audit.
+//
+// The allowlist below is the union of:
+//   * structural elements markdown-it produces (block + inline + table)
+//   * inline semantic tags users commonly rely on (kbd, mark, abbr, ...)
+//   * the figure/figcaption pair we explicitly added for image captions
+// It excludes everything that can drive navigation, post messages, or
+// run script: form, input, button, meta, base, link, style, script,
+// iframe, object, embed, audio, video, source, picture, template, slot.
+const SANITIZER_CONFIG = {
+    ALLOWED_TAGS: [
+        // Block structural
+        'p', 'div', 'span', 'br', 'hr',
+        'pre', 'code', 'blockquote',
+        'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+        'ul', 'ol', 'li', 'dl', 'dt', 'dd',
+        'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'caption', 'colgroup', 'col',
+        'figure', 'figcaption',
+        'details', 'summary',
+        'section', 'article', 'header', 'footer', 'nav', 'aside', 'main',
+        // Inline
+        'a', 'strong', 'em', 's', 'del', 'ins', 'mark',
+        'sub', 'sup', 'small', 'kbd', 'samp', 'var', 'abbr', 'dfn', 'cite', 'q',
+        'time', 'data', 'bdi', 'bdo', 'ruby', 'rt', 'rp',
+        'img',
+        'input', // checkbox-only, gated by sanitiseListInputs() below
+    ],
+    ALLOWED_ATTR: [
+        'id', 'class',
+        'href', 'src', 'alt', 'title',
+        'lang', 'dir',
+        'colspan', 'rowspan', 'scope', 'headers', 'abbr',
+        'start', 'reversed', 'value', 'type',
+        'datetime',
+        'open',
+        'loading', 'decoding',
+        'data-external', 'data-line-start', 'data-line-end',
+        'checked', 'disabled',
+        // target/rel only meaningful on <a>; DOMPurify will drop them
+        // from other elements via the schema.
+        'target', 'rel',
+    ],
+    ALLOWED_URI_REGEXP: /^(?:https?:|mailto:|tel:|app\.mdworx\.test\/|local\.mdworx\.test\/)/i,
+    FORBID_TAGS: [
+        // Defence-in-depth: explicitly deny these even though they're
+        // already absent from ALLOWED_TAGS. Future allowlist additions
+        // would have to consciously remove them from this list too.
+        'style', 'script', 'iframe', 'object', 'embed',
+        'form', 'button', 'select', 'option', 'textarea', 'fieldset', 'legend',
+        'meta', 'base', 'link', 'audio', 'video', 'source', 'track', 'picture',
+        'template', 'slot', 'svg', 'math',
+    ],
+    FORBID_ATTR: [
+        'style',
+        'onerror', 'onload', 'onclick', 'onmouseover', 'onmouseout',
+        'onfocus', 'onblur', 'onchange', 'onsubmit',
+        'formaction', 'srcdoc', 'srcset',
+    ],
+    USE_PROFILES: { html: true },
+};
+
+function sanitiseListInputs(root) {
+    // markdown-it-task-lists renders task items as <input type="checkbox" disabled>.
+    // After sanitisation, strip any <input> that is not exactly that
+    // shape — this is the only <input> we intentionally allow.
+    root.querySelectorAll('input').forEach((el) => {
+        const t = (el.getAttribute('type') || '').toLowerCase();
+        if (t !== 'checkbox' || !el.hasAttribute('disabled')) {
+            el.remove();
+            return;
+        }
+        // Drop any attribute that is not part of the checkbox shape.
+        for (const attr of Array.from(el.attributes)) {
+            if (attr.name === 'type' || attr.name === 'disabled' ||
+                attr.name === 'checked' || attr.name === 'class' ||
+                attr.name === 'id') continue;
+            el.removeAttribute(attr.name);
+        }
+    });
+}
+
 function render(markdownText) {
     if (initialEl) initialEl.style.display = 'none';
     const html = md.render(markdownText || '');
-    const clean = DOMPurify.sanitize(html, {
-        ADD_ATTR: ['target', 'rel', 'loading', 'decoding', 'data-external',
-                   'data-line-start', 'data-line-end'],
-        ADD_TAGS: ['source', 'figure', 'figcaption'],
-        FORBID_TAGS: ['style', 'script', 'iframe', 'object', 'embed'],
-        FORBID_ATTR: ['onerror', 'onload', 'onclick'],
-    });
+    const clean = DOMPurify.sanitize(html, SANITIZER_CONFIG);
     contentEl.innerHTML = clean;
+    sanitiseListInputs(contentEl);
 
     // Rewrite <img src> for any raw HTML <img> tags the user authored or
     // the Insert Image toolbar produced. Markdown image syntax already

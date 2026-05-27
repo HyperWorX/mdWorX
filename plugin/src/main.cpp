@@ -90,6 +90,7 @@ void HandleInstallUpdateMessage(SettingsState* s,
                                 const std::wstring& url,
                                 const std::wstring& expectedSha256,
                                 const std::wstring& expectedVersion);
+static void InstallWebViewNavigationGuards(ICoreWebView2* wv);
 
 // Build the WebView2 user data folder under %LOCALAPPDATA% so multiple
 // plugin instances and Windows users don't fight over a single state dir.
@@ -1765,10 +1766,17 @@ HRESULT OnControllerCreated(ViewerState* state,
         settings->put_IsWebMessageEnabled(TRUE);
         settings->put_AreDefaultScriptDialogsEnabled(TRUE);
         settings->put_IsStatusBarEnabled(FALSE);
+        // DevTools and the default context menu (which includes
+        // "Inspect") expose the postMessage bridge to anyone with F12
+        // access. Debug builds keep them so developers can inspect;
+        // Release builds (NDEBUG) drop them. P3 audit #32.
+#ifdef NDEBUG
+        settings->put_AreDevToolsEnabled(FALSE);
+        settings->put_AreDefaultContextMenusEnabled(FALSE);
+#else
         settings->put_AreDevToolsEnabled(TRUE);
-        // Temporarily enable default context menus so right-click -> Inspect
-        // works for diagnosing image / asset loading. Tighten before release.
         settings->put_AreDefaultContextMenusEnabled(TRUE);
+#endif
         settings->put_IsZoomControlEnabled(FALSE);
     }
 
@@ -1893,6 +1901,11 @@ HRESULT OnControllerCreated(ViewerState* state,
                 return S_OK;
             }).Get(),
         &state->resourceRequestedToken);
+
+    // Navigation guards: keep the webview locked to our virtual hosts.
+    // Clicked external links open in the OS browser instead of
+    // navigating the pane off the local origin. P0 audit #5.
+    InstallWebViewNavigationGuards(state->webview.Get());
 
     // Bridge: web -> native messages arrive here.
     state->webview->add_WebMessageReceived(
@@ -2511,8 +2524,14 @@ HRESULT OnSettingsControllerCreated(SettingsState* s,
         settings->put_IsWebMessageEnabled(TRUE);
         settings->put_AreDefaultScriptDialogsEnabled(TRUE);
         settings->put_IsStatusBarEnabled(FALSE);
+        // Same NDEBUG gating as the viewer pane (P3 audit #32).
+#ifdef NDEBUG
+        settings->put_AreDevToolsEnabled(FALSE);
+        settings->put_AreDefaultContextMenusEnabled(FALSE);
+#else
         settings->put_AreDevToolsEnabled(TRUE);
         settings->put_AreDefaultContextMenusEnabled(TRUE);
+#endif
         settings->put_IsZoomControlEnabled(FALSE);
     }
 
@@ -2543,6 +2562,9 @@ HRESULT OnSettingsControllerCreated(SettingsState* s,
     //                                             DOpus to reinitialise
     //                                             every open viewer.
     //   {type:'closeSettings'}                  — dismiss the dialog.
+    // Same navigation guards as the viewer pane — keep the settings
+    // webview locked to our virtual hosts (P0 audit #5).
+    InstallWebViewNavigationGuards(s->webview.Get());
     s->webview->add_WebMessageReceived(
         Callback<ICoreWebView2WebMessageReceivedEventHandler>(
             [s](ICoreWebView2*, ICoreWebView2WebMessageReceivedEventArgs* args) -> HRESULT {
@@ -3245,6 +3267,93 @@ static bool ExtractZipBounded(const std::wstring& zipPath,
         return false;
     }
     return true;
+}
+
+// Returns true when `uri` is a navigation we want to keep inside the
+// webview: the two virtual hosts we ourselves wire up, plus about:blank
+// (initial navigation). Everything else (clicked external links,
+// javascript: payloads, data: URIs, file: navigation, attacker-served
+// HTML triggering window.location, etc.) is rejected; external http(s)
+// links are handed off to ShellExecuteEx so the OS browser opens them.
+//
+// Audit finding P0 #5: without this, malicious markdown could navigate
+// the webview off the local virtual host (e.g. via a `<form action=...>`
+// or a hidden anchor target) and then post messages back to native from
+// an attacker-controlled origin.
+static bool IsInternalWebViewUri(const std::wstring& uri) {
+    static const std::wstring kHttpsAppHost   = L"https://app.mdworx.test/";
+    static const std::wstring kHttpsLocalHost = L"https://local.mdworx.test/";
+    if (uri == L"about:blank") return true;
+    if (uri.compare(0, kHttpsAppHost.size(), kHttpsAppHost) == 0) return true;
+    if (uri.compare(0, kHttpsLocalHost.size(), kHttpsLocalHost) == 0) return true;
+    return false;
+}
+
+// Wires NavigationStarting and NewWindowRequested handlers onto `wv`.
+// Cancels everything that is not internal; external http(s) links open
+// in the OS browser; everything else is silently cancelled. Used by
+// both the viewer pane and the settings pane.
+static void InstallWebViewNavigationGuards(ICoreWebView2* wv) {
+    if (!wv) return;
+
+    EventRegistrationToken navTok = {};
+    wv->add_NavigationStarting(
+        Callback<ICoreWebView2NavigationStartingEventHandler>(
+            [](ICoreWebView2*, ICoreWebView2NavigationStartingEventArgs* args) -> HRESULT {
+                if (!args) return S_OK;
+                LPWSTR rawUri = nullptr;
+                if (FAILED(args->get_Uri(&rawUri)) || !rawUri) return S_OK;
+                std::wstring uri = rawUri;
+                CoTaskMemFree(rawUri);
+                if (IsInternalWebViewUri(uri)) return S_OK;
+                args->put_Cancel(TRUE);
+                if (uri.compare(0, 8, L"https://") == 0 ||
+                    uri.compare(0, 7, L"http://")  == 0 ||
+                    uri.compare(0, 7, L"mailto:") == 0) {
+                    ShellExecuteW(nullptr, L"open", uri.c_str(),
+                                  nullptr, nullptr, SW_SHOWNORMAL);
+                }
+                return S_OK;
+            }).Get(),
+        &navTok);
+
+    EventRegistrationToken winTok = {};
+    wv->add_NewWindowRequested(
+        Callback<ICoreWebView2NewWindowRequestedEventHandler>(
+            [](ICoreWebView2*, ICoreWebView2NewWindowRequestedEventArgs* args) -> HRESULT {
+                if (!args) return S_OK;
+                args->put_Handled(TRUE);
+                LPWSTR rawUri = nullptr;
+                if (SUCCEEDED(args->get_Uri(&rawUri)) && rawUri) {
+                    std::wstring uri = rawUri;
+                    CoTaskMemFree(rawUri);
+                    if (uri.compare(0, 8, L"https://") == 0 ||
+                        uri.compare(0, 7, L"http://")  == 0) {
+                        ShellExecuteW(nullptr, L"open", uri.c_str(),
+                                      nullptr, nullptr, SW_SHOWNORMAL);
+                    }
+                }
+                return S_OK;
+            }).Get(),
+        &winTok);
+
+    // FrameNavigationStarting catches iframes / object embeds in case
+    // DOMPurify ever lets one through; the allowlist is the same as
+    // the top-level navigation handler.
+    ComPtr<ICoreWebView2> wvKeep = wv;
+    EventRegistrationToken frmTok = {};
+    wv->add_FrameNavigationStarting(
+        Callback<ICoreWebView2NavigationStartingEventHandler>(
+            [](ICoreWebView2*, ICoreWebView2NavigationStartingEventArgs* args) -> HRESULT {
+                if (!args) return S_OK;
+                LPWSTR rawUri = nullptr;
+                if (FAILED(args->get_Uri(&rawUri)) || !rawUri) return S_OK;
+                std::wstring uri = rawUri;
+                CoTaskMemFree(rawUri);
+                if (!IsInternalWebViewUri(uri)) args->put_Cancel(TRUE);
+                return S_OK;
+            }).Get(),
+        &frmTok);
 }
 
 // Semver-aware compare of two version strings. Returns -1, 0, +1 like
