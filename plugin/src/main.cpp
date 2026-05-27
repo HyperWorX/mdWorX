@@ -2761,23 +2761,102 @@ HRESULT InitSettingsWebView2(SettingsState* s) {
             }).Get());
 }
 
-// Lexicographic-by-numeric-component compare of two dotted version
-// strings ("0.1.2" style). Returns -1, 0, +1 like strcmp. Non-numeric
-// or missing components are treated as 0. Stops at the first difference.
+// Semver-aware compare of two version strings. Returns -1, 0, +1 like
+// strcmp. Handles "0.1.2", "0.2.0-beta", "0.2.0-rc.1", "0.2.0+build.5"
+// per semver.org §11:
+//   * numeric core (major.minor.patch) compared component-wise
+//   * a version without a pre-release suffix outranks the same numeric
+//     core WITH one (so "0.2.0" > "0.2.0-beta")
+//   * pre-release identifiers split on '.' and compared one-by-one;
+//     all-digit identifiers compare numerically, anything else
+//     lexically; numeric identifiers always rank below non-numeric;
+//     a longer identifier list wins if all shared identifiers match
+//   * build metadata (after '+') is ignored for ordering
+// Missing numeric components are treated as 0.
 static int CompareVersionStrings(const std::wstring& a, const std::wstring& b) {
-    size_t i = 0, j = 0;
-    while (i < a.size() || j < b.size()) {
-        int av = 0, bv = 0;
-        while (i < a.size() && a[i] >= L'0' && a[i] <= L'9') {
-            av = av * 10 + (a[i] - L'0'); ++i;
+    auto stripBuild = [](const std::wstring& v) {
+        size_t plus = v.find(L'+');
+        return plus == std::wstring::npos ? v : v.substr(0, plus);
+    };
+    auto splitPrerelease = [](const std::wstring& v,
+                              std::wstring& core,
+                              std::wstring& pre) {
+        size_t dash = v.find(L'-');
+        if (dash == std::wstring::npos) {
+            core = v;
+            pre.clear();
+        } else {
+            core = v.substr(0, dash);
+            pre  = v.substr(dash + 1);
         }
-        while (j < b.size() && b[j] >= L'0' && b[j] <= L'9') {
-            bv = bv * 10 + (b[j] - L'0'); ++j;
+    };
+    auto splitIdentifiers = [](const std::wstring& s) {
+        std::vector<std::wstring> out;
+        if (s.empty()) return out;
+        size_t start = 0;
+        for (size_t i = 0; i <= s.size(); ++i) {
+            if (i == s.size() || s[i] == L'.') {
+                out.push_back(s.substr(start, i - start));
+                start = i + 1;
+            }
+        }
+        return out;
+    };
+    auto isAllDigits = [](const std::wstring& s) {
+        if (s.empty()) return false;
+        for (wchar_t c : s) if (c < L'0' || c > L'9') return false;
+        return true;
+    };
+    auto compareIdentifier = [&](const std::wstring& x, const std::wstring& y) -> int {
+        bool xn = isAllDigits(x), yn = isAllDigits(y);
+        if (xn && yn) {
+            // Numeric identifier: leading zeros are invalid per semver but
+            // we tolerate them by comparing length first, then value.
+            std::wstring xt = x, yt = y;
+            while (xt.size() > 1 && xt.front() == L'0') xt.erase(0, 1);
+            while (yt.size() > 1 && yt.front() == L'0') yt.erase(0, 1);
+            if (xt.size() != yt.size()) return xt.size() < yt.size() ? -1 : +1;
+            if (xt != yt) return xt < yt ? -1 : +1;
+            return 0;
+        }
+        if (xn != yn) return xn ? -1 : +1;  // numeric < non-numeric
+        if (x != y) return x < y ? -1 : +1; // lex
+        return 0;
+    };
+
+    std::wstring aCore, aPre, bCore, bPre;
+    splitPrerelease(stripBuild(a), aCore, aPre);
+    splitPrerelease(stripBuild(b), bCore, bPre);
+
+    // Compare numeric cores component-wise.
+    size_t i = 0, j = 0;
+    while (i < aCore.size() || j < bCore.size()) {
+        int av = 0, bv = 0;
+        while (i < aCore.size() && aCore[i] >= L'0' && aCore[i] <= L'9') {
+            av = av * 10 + (aCore[i] - L'0'); ++i;
+        }
+        while (j < bCore.size() && bCore[j] >= L'0' && bCore[j] <= L'9') {
+            bv = bv * 10 + (bCore[j] - L'0'); ++j;
         }
         if (av != bv) return av < bv ? -1 : +1;
-        if (i < a.size() && a[i] == L'.') ++i;
-        if (j < b.size() && b[j] == L'.') ++j;
+        if (i < aCore.size() && aCore[i] == L'.') ++i;
+        if (j < bCore.size() && bCore[j] == L'.') ++j;
     }
+
+    // Numeric cores equal. Pre-release presence/absence decides.
+    if (aPre.empty() && bPre.empty()) return 0;
+    if (aPre.empty()) return +1;  // 0.2.0 > 0.2.0-beta
+    if (bPre.empty()) return -1;
+
+    // Both have pre-release. Compare identifier lists.
+    auto aIds = splitIdentifiers(aPre);
+    auto bIds = splitIdentifiers(bPre);
+    size_t n = aIds.size() < bIds.size() ? aIds.size() : bIds.size();
+    for (size_t k = 0; k < n; ++k) {
+        int c = compareIdentifier(aIds[k], bIds[k]);
+        if (c != 0) return c;
+    }
+    if (aIds.size() != bIds.size()) return aIds.size() < bIds.size() ? -1 : +1;
     return 0;
 }
 
