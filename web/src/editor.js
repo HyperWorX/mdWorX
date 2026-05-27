@@ -12,8 +12,65 @@ import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirro
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { syntaxHighlighting, HighlightStyle,
-         bracketMatching, indentOnInput, syntaxTree } from '@codemirror/language';
+         bracketMatching, indentOnInput, syntaxTree,
+         LanguageDescription, StreamLanguage } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
+import { javascript } from '@codemirror/lang-javascript';
+import { python } from '@codemirror/lang-python';
+import { cpp } from '@codemirror/lang-cpp';
+import { go } from '@codemirror/lang-go';
+import { rust } from '@codemirror/lang-rust';
+import { json } from '@codemirror/lang-json';
+import { sql } from '@codemirror/lang-sql';
+import { xml } from '@codemirror/lang-xml';
+import { yaml } from '@codemirror/lang-yaml';
+import { html } from '@codemirror/lang-html';
+import { css } from '@codemirror/lang-css';
+import { shell } from '@codemirror/legacy-modes/mode/shell';
+import { powerShell } from '@codemirror/legacy-modes/mode/powershell';
+import { ruby } from '@codemirror/legacy-modes/mode/ruby';
+import { lua } from '@codemirror/legacy-modes/mode/lua';
+import { perl } from '@codemirror/legacy-modes/mode/perl';
+import { swift } from '@codemirror/legacy-modes/mode/swift';
+import { dockerFile } from '@codemirror/legacy-modes/mode/dockerfile';
+import { toml } from '@codemirror/legacy-modes/mode/toml';
+import { diff } from '@codemirror/legacy-modes/mode/diff';
+import { properties } from '@codemirror/legacy-modes/mode/properties';
+
+// Fenced-code-block language map. Each LanguageDescription is matched
+// against the info string after \`\`\`, so the editor highlights inside
+// the block once the fence is closed. legacy-modes entries wrap a
+// StreamLanguage; bundled lang-* packages are used directly so we get
+// the modern Lezer parsers when available. New languages get added
+// here by:
+//   1. installing the lang-* package (or use legacy-modes)
+//   2. importing it above
+//   3. adding a LanguageDescription entry with all aliases
+// Names cover GitHub-Linguist conventional aliases so \`\`\`js and
+// \`\`\`javascript both resolve.
+const codeLanguages = [
+    LanguageDescription.of({ name: 'javascript', alias: ['js', 'jsx', 'ts', 'tsx', 'typescript', 'node'], support: javascript() }),
+    LanguageDescription.of({ name: 'python',     alias: ['py'],                                            support: python() }),
+    LanguageDescription.of({ name: 'cpp',        alias: ['c', 'c++', 'cxx', 'cc', 'h', 'hpp', 'objc'],     support: cpp() }),
+    LanguageDescription.of({ name: 'go',         alias: ['golang'],                                        support: go() }),
+    LanguageDescription.of({ name: 'rust',       alias: ['rs'],                                            support: rust() }),
+    LanguageDescription.of({ name: 'json',       alias: ['jsonc'],                                         support: json() }),
+    LanguageDescription.of({ name: 'sql',        alias: ['mysql', 'postgres', 'postgresql', 'sqlite'],     support: sql() }),
+    LanguageDescription.of({ name: 'xml',        alias: ['svg'],                                           support: xml() }),
+    LanguageDescription.of({ name: 'yaml',       alias: ['yml'],                                           support: yaml() }),
+    LanguageDescription.of({ name: 'html',       alias: ['htm'],                                           support: html() }),
+    LanguageDescription.of({ name: 'css',        alias: ['scss', 'less'],                                  support: css() }),
+    LanguageDescription.of({ name: 'shell',      alias: ['sh', 'bash', 'zsh'],                             support: StreamLanguage.define(shell) }),
+    LanguageDescription.of({ name: 'powershell', alias: ['ps1', 'pwsh'],                                   support: StreamLanguage.define(powerShell) }),
+    LanguageDescription.of({ name: 'ruby',       alias: ['rb'],                                            support: StreamLanguage.define(ruby) }),
+    LanguageDescription.of({ name: 'lua',        alias: [],                                                support: StreamLanguage.define(lua) }),
+    LanguageDescription.of({ name: 'perl',       alias: ['pl'],                                            support: StreamLanguage.define(perl) }),
+    LanguageDescription.of({ name: 'swift',      alias: [],                                                support: StreamLanguage.define(swift) }),
+    LanguageDescription.of({ name: 'dockerfile', alias: ['docker'],                                        support: StreamLanguage.define(dockerFile) }),
+    LanguageDescription.of({ name: 'toml',       alias: [],                                                support: StreamLanguage.define(toml) }),
+    LanguageDescription.of({ name: 'diff',       alias: ['patch'],                                         support: StreamLanguage.define(diff) }),
+    LanguageDescription.of({ name: 'properties', alias: ['ini', 'conf'],                                   support: StreamLanguage.define(properties) }),
+];
 import { codeHighlighter } from './lib/code-highlight.js';
 import { livePreviewExtension } from './editor-livepreview.js';
 
@@ -80,6 +137,39 @@ const markdownSyntaxStyle = HighlightStyle.define([
     { tag: tags.strong,                fontWeight: '600',    color: 'var(--strong-override, var(--strong))' },
     { tag: tags.strikethrough,         textDecoration: 'line-through', color: 'var(--strike-override, var(--strike))' },
     { tag: tags.monospace,             color: 'var(--mono-override, var(--mono))' },
+    // Per-level heading colours so source mode mirrors the per-Hn
+    // palette settings the reader sees in Reading / Live. tags.heading
+    // (above) sets weight + clears underline for all six; these
+    // override the colour per level. Tags more specific than the
+    // generic heading tag take precedence in CM's highlighter.
+    { tag: tags.heading1,              color: 'var(--h1-color-override, var(--h1-color, var(--accent-override, var(--accent))))' },
+    { tag: tags.heading2,              color: 'var(--h2-color-override, var(--h2-color, var(--ink-override, var(--ink))))' },
+    { tag: tags.heading3,              color: 'var(--h3-color-override, var(--h3-color, var(--ink-override, var(--ink))))' },
+    { tag: tags.heading4,              color: 'var(--h4-color-override, var(--h4-color, var(--ink-override, var(--ink))))' },
+    { tag: tags.heading5,              color: 'var(--h5-color-override, var(--h5-color, var(--ink-override, var(--ink))))' },
+    { tag: tags.heading6,              color: 'var(--h6-color-override, var(--h6-color, var(--ink-override, var(--ink))))' },
+    // Block-quote text: muted relative to body ink so the > marker
+    // (handled via processingInstruction above) is visibly the leading
+    // structural element and the quote body recedes a touch.
+    { tag: tags.quote,                 color: 'var(--blockquote-fg-override, var(--blockquote-fg, var(--ink-muted, var(--ink))))' },
+    // Link content (the [bracketed] text portion of [text](url)). The
+    // URL itself is tagged tags.url and styled with the accent
+    // earlier. tags.link covers the whole link incl. brackets and the
+    // bracketed text — match the rendered viewer where links inherit
+    // the link colour.
+    { tag: tags.link,                  color: 'var(--link-color-override, var(--link-color, var(--accent-override, var(--accent))))' },
+    // Link title (the "title" inside [text](url "title")). Italicised
+    // to disambiguate from the URL it sits next to.
+    { tag: tags.string,                color: 'var(--link-color-override, var(--link-color, var(--accent-override, var(--accent))))',
+                                       fontStyle: 'italic' },
+    // Backslash escapes (\\*, \\_, \\[) — surface them in the accent
+    // so the user can see at a glance that a character is being
+    // escaped rather than acting as markup.
+    { tag: tags.escape,                color: 'var(--accent-override, var(--accent))' },
+    // HTML entities (&amp; &#x2014; etc.) — same family as escapes.
+    { tag: tags.character,             color: 'var(--accent-override, var(--accent))' },
+    // HTML comments (<!-- ... -->) — render as comment-style muted.
+    { tag: tags.comment,               color: 'var(--ink-muted, var(--ink))', fontStyle: 'italic' },
 ]);
 
 // List-aware Tab / Shift-Tab. When the cursor is on a line that is part of
@@ -248,7 +338,13 @@ export function createEditor({ parent, doc, onChange, onSave, onSaveAs,
         // so strikethrough, task lists, tables, autolinks, sub/sup all parse
         // into syntax tree nodes the live-preview decorators can match. Default
         // markdown() uses commonmarkLanguage which has none of these.
-        markdown({base: markdownLanguage}),
+        // codeLanguages passes through to lang-markdown's parseCode wrap,
+        // so fenced \`\`\`<lang>\n...\n\`\`\` blocks get the nested
+        // language's full Lezer parse tree. Without this, fenced bodies
+        // were a flat sea of monospace ink. The companion codeHighlighter
+        // (registered above) emits the .tok-* class names that resolve
+        // to palette --code-* CSS variables.
+        markdown({base: markdownLanguage, codeLanguages}),
         // List-aware Tab/Shift-Tab MUST come before defaultKeymap so it wins
         // over indentMore/indentLess for list lines. Falls through (returns
         // false) for non-list lines so indentWithTab still works elsewhere.
