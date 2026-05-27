@@ -937,10 +937,14 @@ const settingsCssMap = {
     textColor:             '--ink-override',
     pageColor:             '--page-override',
     accentColor:           '--accent-override',
-    // codeBg writes to the same variable the code-theme preset uses so
-    // the two are naturally last-applied-wins at the CSS level. Settings
-    // UI also clears one when the other is changed so the form mirrors
-    // what's actually active.
+    // codeBg writes the palette-layer override. applyCodeTheme writes a
+    // DIFFERENT variable (--code-theme-block-bg-override) so the two
+    // coexist in the CSS cascade: code-theme override > palette codeBg
+    // override > theme default. Picking match-palette clears only the
+    // theme layer, letting the palette colour show through. The form's
+    // clearOtherCodeField mutex still applies so the codeBg field is
+    // empty when a syntax theme is active (no point editing a value the
+    // theme override hides).
     codeBg:                '--code-block-bg-override',
     blockquoteBg:          '--blockquote-bg-override',
     blockquoteFg:          '--blockquote-fg-override',
