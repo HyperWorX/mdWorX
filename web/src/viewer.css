@@ -2087,15 +2087,25 @@ body.mode-source .cm-highlightTab {
  * override variables to swap the whole scheme without touching the
  * surrounding palette.
  */
-.tok-keyword     { color: var(--code-keyword-override,     var(--code-keyword)); }
-.tok-string      { color: var(--code-string-override,      var(--code-string)); }
-.tok-comment     { color: var(--code-comment-override,     var(--code-comment));     font-style: italic; }
-.tok-number      { color: var(--code-number-override,      var(--code-number)); }
-.tok-function    { color: var(--code-function-override,    var(--code-function)); }
-.tok-type        { color: var(--code-type-override,        var(--code-type)); }
-.tok-operator    { color: var(--code-operator-override,    var(--code-operator)); }
-.tok-variable    { color: var(--code-variable-override,    var(--code-variable)); }
-.tok-punctuation { color: var(--code-punctuation-override, var(--code-punctuation)); }
+/* Three-layer cascade per syntax-token role:
+ *   1. --code-<role>-theme-override   — set by applyCodeTheme when the
+ *      user picks a specific code theme (Monokai, GitHub Dark, etc.)
+ *   2. --code-<role>-palette-override — set by applyPaletteCodeColors
+ *      from the active palette's curated codeColors map (settings.js)
+ *   3. --code-<role>                  — CSS-derived default in :root /
+ *      body.theme-dark, anchored to palette accent / strong / mono etc.
+ * Match-palette clears layer 1 and lets the palette layer show through.
+ * Palettes without a codeColors map fall through to layer 3, which is
+ * still palette-derived but coarser than the curated values. */
+.tok-keyword     { color: var(--code-keyword-theme-override,     var(--code-keyword-palette-override,     var(--code-keyword))); }
+.tok-string      { color: var(--code-string-theme-override,      var(--code-string-palette-override,      var(--code-string))); }
+.tok-comment     { color: var(--code-comment-theme-override,     var(--code-comment-palette-override,     var(--code-comment)));     font-style: italic; }
+.tok-number      { color: var(--code-number-theme-override,      var(--code-number-palette-override,      var(--code-number))); }
+.tok-function    { color: var(--code-function-theme-override,    var(--code-function-palette-override,    var(--code-function))); }
+.tok-type        { color: var(--code-type-theme-override,        var(--code-type-palette-override,        var(--code-type))); }
+.tok-operator    { color: var(--code-operator-theme-override,    var(--code-operator-palette-override,    var(--code-operator))); }
+.tok-variable    { color: var(--code-variable-theme-override,    var(--code-variable-palette-override,    var(--code-variable))); }
+.tok-punctuation { color: var(--code-punctuation-theme-override, var(--code-punctuation-palette-override, var(--code-punctuation))); }
 
 /* Diff/patch rows. Inserted/deleted use a tinted background so a long
  * diff block reads at a glance instead of relying on the leading `+`/`-`.

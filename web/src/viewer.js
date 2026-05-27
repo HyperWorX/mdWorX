@@ -21,7 +21,7 @@ import { COMMANDS as EDITOR_COMMANDS, insertImage } from './editor-toolbar.js';
 import { rewriteImageUrl } from './lib/local-url.js';
 import { setBreaks as setSharedBreaks } from './lib/markdown-it-shared.js';
 import { highlightToHtml } from './lib/code-highlight.js';
-import { applyCodeTheme }  from './lib/code-themes.js';
+import { applyCodeTheme, applyPaletteCodeColors }  from './lib/code-themes.js';
 import { applyToolbarLayout } from './lib/toolbar-layout.js';
 
 // ---------------------------------------------------------------------------
@@ -386,6 +386,18 @@ function setDirty(d) {
     dirty = d;
     setTitle();
     syncToolbar();
+}
+
+// Cheap content normalisation used when comparing two strings for
+// semantic equality on the conflict-banner path. Strips the UTF-8 BOM
+// if present and folds CRLF / CR line endings down to LF so a stash
+// that round-tripped through CodeMirror (which normalises everything
+// to LF internally) doesn't read as "different" from a fresh disk
+// read of the same file on a Windows machine writing CRLF.
+function normaliseForCompare(s) {
+    if (typeof s !== 'string' || s.length === 0) return '';
+    if (s.charCodeAt(0) === 0xFEFF) s = s.slice(1);
+    return s.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 }
 
 // Process-scoped unsaved-edits stash.
@@ -1133,10 +1145,21 @@ function applySettings(s) {
     // Auto-save: optional periodic Ctrl+S equivalent. 0 disables.
     applyAutoSave(s.autoSaveMinutes);
 
-    // Code-block syntax theme. 'match-palette' (default) clears overrides
-    // so the palette's --code-* defaults win; any other id writes the
-    // preset's nine colours into --code-<role>-override on :root.
+    // Three-layer code-block colour cascade:
+    //   1. applyCodeTheme writes --code-<role>-theme-override and
+    //      --code-theme-block-bg-override when codeBlockTheme is a
+    //      specific theme (not match-palette).
+    //   2. applyPaletteCodeColors writes --code-<role>-palette-override
+    //      from the active palette's curated codeColors map. This
+    //      layer is independent of codeBlockTheme — it's the active
+    //      palette's identity colours, applied unconditionally.
+    //   3. viewer.css derives --code-<role> defaults from palette CSS
+    //      variables (accent, strong, mono, etc.) as the bottom-most
+    //      fallback when neither override layer is set.
+    // Layer 1 wins over 2 wins over 3 via CSS var() fallback chain in
+    // the .tok-* rules. Picking match-palette clears layer 1 only.
     applyCodeTheme(s.codeBlockTheme);
+    applyPaletteCodeColors(s.codePaletteColors);
 
     // Edit toolbar layout. Null/missing falls back to the manifest default
     // (every button visible, original HTML order, group separators
@@ -1288,7 +1311,18 @@ function onHostMessage(event) {
             // Only meaningful to surface a stash when it actually differs
             // from disk. If they're byte-identical, there's nothing to
             // choose between — silently treat it as a clean load.
-            const stashDiffersFromDisk = haveStash && m.stashedContent !== loadedBuffer;
+            //
+            // Normalise both sides before comparing. CodeMirror folds line
+            // endings to LF when it ingests text into its EditorState, so
+            // a stash that round-trips through the editor ends up with LF
+            // even if the source file on disk had CRLF (Windows default).
+            // A naive byte-for-byte check then declares the stash
+            // "different from disk" even though the content is identical,
+            // and the conflict banner shows on a file the user never
+            // edited. Same logic for UTF-8 BOM presence which can come
+            // and go through the encoding pipeline.
+            const stashDiffersFromDisk =
+                haveStash && normaliseForCompare(m.stashedContent) !== normaliseForCompare(loadedBuffer);
             let displayBuffer = loadedBuffer;
             let shouldBeDirty = false;
             if (haveStash && stashDiffersFromDisk) {

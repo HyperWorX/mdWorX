@@ -59,6 +59,7 @@ const palettes = {
         emphasisColor: '#ff79c6',
         strikeColor:   '#6272a4',
         monoColor:     '#f1fa8c',
+        codeColors: { keyword: '#ff79c6', string: '#f1fa8c', comment: '#6272a4', number: '#bd93f9', function: '#50fa7b', type: '#8be9fd', operator: '#ff79c6', variable: '#f8f8f2', punctuation: '#f8f8f2' },
     },
     'Solarized Dark': {
         theme: 'dark',
@@ -82,6 +83,7 @@ const palettes = {
         emphasisColor: '#859900',
         strikeColor:   '#586e75',
         monoColor:     '#2aa198',
+        codeColors: { keyword: '#859900', string: '#2aa198', comment: '#586e75', number: '#d33682', function: '#268bd2', type: '#b58900', operator: '#cb4b16', variable: '#93a1a1', punctuation: '#839496' },
     },
     'Nord': {
         theme: 'dark',
@@ -110,6 +112,7 @@ const palettes = {
         emphasisColor: '#b48ead',
         strikeColor:   '#4c566a',
         monoColor:     '#8fbcbb',
+        codeColors: { keyword: '#81a1c1', string: '#a3be8c', comment: '#4c566a', number: '#b48ead', function: '#88c0d0', type: '#8fbcbb', operator: '#81a1c1', variable: '#d8dee9', punctuation: '#d8dee9' },
     },
     'Gruvbox Dark': {
         theme: 'dark',
@@ -138,6 +141,7 @@ const palettes = {
         emphasisColor: '#d3869b',
         strikeColor:   '#928374',
         monoColor:     '#b8bb26',
+        codeColors: { keyword: '#fb4934', string: '#b8bb26', comment: '#928374', number: '#d3869b', function: '#8ec07c', type: '#fabd2f', operator: '#fe8019', variable: '#ebdbb2', punctuation: '#a89984' },
     },
     'One Dark': {
         // Atom One Dark — accent is BLUE (@hue-2 #61afef), Atom's editor
@@ -172,6 +176,7 @@ const palettes = {
         emphasisColor: '#c678dd',
         strikeColor:   '#5c6370',
         monoColor:     '#98c379',
+        codeColors: { keyword: '#c678dd', string: '#98c379', comment: '#5c6370', number: '#d19a66', function: '#61afef', type: '#e5c07b', operator: '#56b6c2', variable: '#abb2bf', punctuation: '#abb2bf' },
     },
     'Tokyo Night': {
         // Canonical Tokyo Night Night (enkia VS Code theme) palette.
@@ -199,6 +204,7 @@ const palettes = {
         emphasisColor: '#bb9af7',
         strikeColor:   '#51597d',
         monoColor:     '#9ece6a',
+        codeColors: { keyword: '#bb9af7', string: '#9ece6a', comment: '#565f89', number: '#ff9e64', function: '#7aa2f7', type: '#0db9d7', operator: '#89ddff', variable: '#c0caf5', punctuation: '#a9b1d6' },
     },
     'Ayu Dark': {
         theme: 'dark',
@@ -228,6 +234,7 @@ const palettes = {
         emphasisColor: '#ff7733',
         strikeColor:   '#5c6773',
         monoColor:     '#bbe67e',
+        codeColors: { keyword: '#ff8f40', string: '#aad94c', comment: '#5c6773', number: '#d2a6ff', function: '#ffb454', type: '#73d0ff', operator: '#f29668', variable: '#cccac2', punctuation: '#cccac2' },
     },
     'Catppuccin Mocha': {
         theme: 'dark',
@@ -256,6 +263,7 @@ const palettes = {
         emphasisColor: '#a6e3a1',
         strikeColor:   '#6c7086',
         monoColor:     '#f9e2af',
+        codeColors: { keyword: '#cba6f7', string: '#a6e3a1', comment: '#6c7086', number: '#fab387', function: '#89b4fa', type: '#f9e2af', operator: '#94e2d5', variable: '#cdd6f4', punctuation: '#9399b2' },
     },
     'GitHub Dark': {
         theme: 'dark',
@@ -283,6 +291,7 @@ const palettes = {
         emphasisColor: '#d2a8ff',
         strikeColor:   '#6e7681',
         monoColor:     '#a5d6ff',
+        codeColors: { keyword: '#ff7b72', string: '#a5d6ff', comment: '#8b949e', number: '#79c0ff', function: '#d2a8ff', type: '#ffa657', operator: '#ff7b72', variable: '#c9d1d9', punctuation: '#8b949e' },
     },
 
     // ---- Additional themed palettes -----------------------------------
@@ -317,6 +326,7 @@ const palettes = {
         emphasisColor: '#bb9af7',
         strikeColor:   '#6272a4',
         monoColor:     '#0fd6f0',
+        codeColors: { keyword: '#c084fc', string: '#86efac', comment: '#71717a', number: '#fb923c', function: '#60a5fa', type: '#fde047', operator: '#f87171', variable: '#e5e7eb', punctuation: '#9ca3af' },
     },
     // pipeittodevnull/PLN — Nord-derived palette, ships an opt-in
     // .pln-hdcl class with Nord-coloured headings; we apply them as
@@ -345,6 +355,7 @@ const palettes = {
         emphasisColor: '#c084fc',
         strikeColor:   '#6b7280',
         monoColor:     '#34d399',
+        codeColors: { keyword: '#f48771', string: '#ce9178', comment: '#6a9955', number: '#b5cea8', function: '#dcdcaa', type: '#4ec9b0', operator: '#d4d4d4', variable: '#9cdcfe', punctuation: '#808080' },
     },
     'PLN Light': {
         theme: 'light',
@@ -370,6 +381,7 @@ const palettes = {
         emphasisColor: '#0891b2',
         strikeColor:   '#9ca3af',
         monoColor:     '#059669',
+        codeColors: { keyword: '#0000ff', string: '#a31515', comment: '#008000', number: '#098658', function: '#795e26', type: '#267f99', operator: '#000000', variable: '#001080', punctuation: '#808080' },
     },
     // AnubisNekhet/AnuPpuccin — Catppuccin port. The bare .theme-dark
     // resolves to Mocha (which we already have as "Catppuccin Mocha"),
@@ -395,6 +407,7 @@ const palettes = {
         emphasisColor: '#a6d189',
         strikeColor:   '#737994',
         monoColor:     '#e5c890',
+        codeColors: { keyword: '#ca9ee6', string: '#a6d189', comment: '#737994', number: '#ef9f76', function: '#8caaee', type: '#e5c890', operator: '#81c8be', variable: '#c6d0f5', punctuation: '#949cbb' },
     },
     // Everforest — sainnhe/everforest (dark / medium). Warm green accent,
     // pastel rainbow per heading (red→orange→yellow→green→aqua→blue). Body
@@ -424,6 +437,7 @@ const palettes = {
         emphasisColor: '#d699b6',       // purple / keyword
         strikeColor:   '#859289',       // grey1 / comment
         monoColor:     '#dbbc7f',       // yellow / string
+        codeColors: { keyword: '#e67e80', string: '#a7c080', comment: '#7a8478', number: '#d699b6', function: '#a7c080', type: '#dbbc7f', operator: '#83c092', variable: '#d3c6aa', punctuation: '#9da9a0' },
     },
     // Rosé Pine — rose-pine/palette (main "Rosé Pine" dark variant). Dusty
     // rose accent, six-token rainbow per heading (love/gold/rose/pine/foam/iris).
@@ -452,6 +466,7 @@ const palettes = {
         emphasisColor: '#c4a7e7',       // iris (keyword)
         strikeColor:   '#6e6a86',       // muted
         monoColor:     '#ebbcba',       // rose (inline code)
+        codeColors: { keyword: '#c4a7e7', string: '#f6c177', comment: '#6e6a86', number: '#eb6f92', function: '#9ccfd8', type: '#ebbcba', operator: '#31748f', variable: '#e0def4', punctuation: '#908caa' },
     },
     // Vesper — raunofreiberg/vesper (Adam Wathan). Near-black bg, single
     // warm-peach accent across all six heading levels (the theme's canonical
@@ -483,6 +498,7 @@ const palettes = {
         emphasisColor: '#A0A0A0',       // keyword/grey
         strikeColor:   '#8B8B8B',       // comment
         monoColor:     '#99FFE4',       // string/mint
+        codeColors: { keyword: '#A0A0A0', string: '#90B99F', comment: '#505050', number: '#FFC799', function: '#FFC799', type: '#A0A0A0', operator: '#FFC799', variable: '#FFFFFF', punctuation: '#A0A0A0' },
     },
     // Red Rascal — inspired by douggrubba/terminal-themes "red-rascal" preset
     // (canonical bg #0F0202, red TextColor #EE304B) but with body text lifted
@@ -513,6 +529,7 @@ const palettes = {
         emphasisColor: '#e8b890',       // peach
         strikeColor:   '#a06868',       // muted rose
         monoColor:     '#d4a04a',       // amber/gold
+        codeColors: { keyword: '#FF6347', string: '#E5C07B', comment: '#737373', number: '#FF9F43', function: '#DE5757', type: '#FFAB91', operator: '#FF6E6E', variable: '#FFD8D8', punctuation: '#E0A0A0' },
     },
     // ---- Light --------------------------------------------------------
     'Solarized Light': {
@@ -537,6 +554,7 @@ const palettes = {
         emphasisColor: '#268bd2',
         strikeColor:   '#93a1a1',
         monoColor:     '#2aa198',
+        codeColors: { keyword: '#859900', string: '#2aa198', comment: '#93a1a1', number: '#d33682', function: '#268bd2', type: '#b58900', operator: '#cb4b16', variable: '#586e75', punctuation: '#657b83' },
     },
     'GitHub Light': {
         theme: 'light',
@@ -560,6 +578,7 @@ const palettes = {
         emphasisColor: '#8250df',
         strikeColor:   '#6e7681',
         monoColor:     '#0a3069',
+        codeColors: { keyword: '#cf222e', string: '#0a3069', comment: '#6e7781', number: '#0550ae', function: '#8250df', type: '#953800', operator: '#cf222e', variable: '#1f2328', punctuation: '#57606a' },
     },
     'Ayu Light': {
         theme: 'light',
@@ -584,6 +603,7 @@ const palettes = {
         emphasisColor: '#ff7733',
         strikeColor:   '#abb0b6',
         monoColor:     '#86b300',
+        codeColors: { keyword: '#fa8d3e', string: '#86b300', comment: '#abb0b6', number: '#a37acc', function: '#f2ae49', type: '#399ee6', operator: '#ed9366', variable: '#5c6166', punctuation: '#5c6166' },
     },
     'Gruvbox Light': {
         theme: 'light',
@@ -612,6 +632,7 @@ const palettes = {
         emphasisColor: '#8f3f71',
         strikeColor:   '#928374',
         monoColor:     '#79740e',
+        codeColors: { keyword: '#9d0006', string: '#79740e', comment: '#928374', number: '#8f3f71', function: '#427b58', type: '#b57614', operator: '#af3a03', variable: '#3c3836', punctuation: '#7c6f64' },
     },
     'Catppuccin Latte': {
         theme: 'light',
@@ -639,6 +660,7 @@ const palettes = {
         emphasisColor: '#40a02b',
         strikeColor:   '#8c8fa1',
         monoColor:     '#df8e1d',
+        codeColors: { keyword: '#8839ef', string: '#40a02b', comment: '#9ca0b0', number: '#fe640b', function: '#1e66f5', type: '#df8e1d', operator: '#179299', variable: '#4c4f69', punctuation: '#7c7f93' },
     },
     'One Light': {
         theme: 'light',
@@ -663,6 +685,7 @@ const palettes = {
         emphasisColor: '#a626a4',
         strikeColor:   '#a0a1a7',
         monoColor:     '#50a14f',
+        codeColors: { keyword: '#a626a4', string: '#50a14f', comment: '#a0a1a7', number: '#986801', function: '#4078f2', type: '#c18401', operator: '#0184bc', variable: '#383a42', punctuation: '#383a42' },
     },
     'Tokyo Night Day': {
         // Canonical folke/tokyonight.nvim Day palette
@@ -692,6 +715,7 @@ const palettes = {
         emphasisColor: '#7847bd',
         strikeColor:   '#7482a0',
         monoColor:     '#587539',
+        codeColors: { keyword: '#9854f1', string: '#587539', comment: '#9699a3', number: '#965027', function: '#2e7de9', type: '#007197', operator: '#3e6968', variable: '#3760bf', punctuation: '#6172b0' },
     },
     'Nord Light': {
         // Community-style inversion — Nord ships only as a dark theme;
@@ -719,6 +743,7 @@ const palettes = {
         emphasisColor: '#b48ead',
         strikeColor:   '#9aa5be',
         monoColor:     '#8fbcbb',
+        codeColors: { keyword: '#5e81ac', string: '#a3be8c', comment: '#7b88a1', number: '#b48ead', function: '#5e81ac', type: '#88c0d0', operator: '#5e81ac', variable: '#2e3440', punctuation: '#4c566a' },
     },
     'Alucard': {
         theme: 'light',
@@ -745,6 +770,7 @@ const palettes = {
         emphasisColor: '#b87bc8',
         strikeColor:   '#7a7a7a',
         monoColor:     '#6aaf6a',
+        codeColors: { keyword: '#9844c5', string: '#947100', comment: '#a4a6a8', number: '#cb3a2a', function: '#1f8f00', type: '#036a96', operator: '#cb3a2a', variable: '#1f1f1f', punctuation: '#5e5e5e' },
     },
     // Obsidianite Light: source theme.css commented out a light variant
     // as "work in progress". Shipped here as a paired light partner using
@@ -774,6 +800,7 @@ const palettes = {
         emphasisColor: '#9155c4',
         strikeColor:   '#8a8a8a',
         monoColor:     '#f4569d',
+        codeColors: { keyword: '#7c3aed', string: '#15803d', comment: '#71717a', number: '#c2410c', function: '#2563eb', type: '#a16207', operator: '#dc2626', variable: '#18181b', punctuation: '#52525b' },
     },
 };
 
@@ -2408,6 +2435,17 @@ function applyPreset(palette) {
         const row = form.querySelector(`.row[data-key="${key}"]`);
         if (row) updateResetState(row, entry);
     }
+    // Carry the palette's curated per-token code colours through. Each
+    // palette declares a codeColors map matching its identity (Dracula
+    // pink/yellow/green, Nord frost cyan + aurora, etc.). The colours
+    // are pushed as --code-<role>-palette-override CSS variables in
+    // applyOwnPalette below and saved into userSettings here so the
+    // round-trip is intact even though no form field surfaces them.
+    if (palette.codeColors && typeof palette.codeColors === 'object') {
+        userSettings.codePaletteColors = { ...palette.codeColors };
+    } else {
+        delete userSettings.codePaletteColors;
+    }
     applyOwnTheme();
     // applyOwnTheme just refreshed --*-override on documentElement to
     // reflect the new palette. The setControlValue calls above computed
@@ -2433,6 +2471,9 @@ function applyDefault(theme) {
         const row = form.querySelector(`.row[data-key="${key}"]`);
         if (row) updateResetState(row, entry);
     }
+    // Drop any palette-specific code colours since the user picked the
+    // bundled default (no specific palette identity to carry).
+    delete userSettings.codePaletteColors;
     applyOwnTheme();
     // Same stale-placeholder issue as applyPreset: the first loop ran
     // before the overrides were cleared. Re-render so empty colour
@@ -2641,6 +2682,23 @@ function applyOwnPalette() {
         }
         root.setProperty(varName, out);
     }
+    // Mirror the palette's curated code-block colours into the dialog
+    // chrome too. Keeps the settings dialog's own code-block preview
+    // (if any) consistent with what the viewer will show after Apply.
+    const cc = userSettings.codePaletteColors;
+    const codeRoles = ['keyword','string','comment','number','function','type','operator','variable','punctuation'];
+    if (cc && typeof cc === 'object') {
+        for (const role of codeRoles) {
+            const v = cc[role];
+            if (typeof v === 'string' && v.length > 0) {
+                root.setProperty(`--code-${role}-palette-override`, v);
+            } else {
+                root.removeProperty(`--code-${role}-palette-override`);
+            }
+        }
+    } else {
+        for (const role of codeRoles) root.removeProperty(`--code-${role}-palette-override`);
+    }
 }
 
 function applyOwnTheme() {
@@ -2688,6 +2746,15 @@ function collectForSave() {
     // take priority).
     if (!currentCustomTheme && currentBuiltinPalette) {
         out.activePalette = currentBuiltinPalette;
+    }
+
+    // Persist the active palette's curated per-token code colours so
+    // the viewer can re-apply them on load without consulting the
+    // palette dict (which lives only on the settings side). The 9
+    // colours travel as a single nested object; viewer.js applies
+    // them via --code-<role>-palette-override CSS vars.
+    if (userSettings.codePaletteColors && typeof userSettings.codePaletteColors === 'object') {
+        out.codePaletteColors = { ...userSettings.codePaletteColors };
     }
 
     return out;

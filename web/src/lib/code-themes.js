@@ -209,23 +209,49 @@ export function applyCodeTheme(themeId, target = document.documentElement) {
     const id = themeId || MATCH_PALETTE;
     const theme = CODE_THEMES[id];
     const useOverride = theme && theme.colors;
+    // Write the theme's syntax-token colours into DEDICATED theme-override
+    // variables. They're a separate layer from the palette-override
+    // layer (written by applyPaletteCodeColors) so picking match-palette
+    // can clear ONLY this layer and let the palette layer show through.
+    // Previously both layers shared --code-<role>-override and a
+    // match-palette pick wiped the palette colours along with the
+    // theme (bug #2 — every global palette produced identical code
+    // tokens because nothing was filling the gap below the cleared
+    // override).
     for (const role of ROLES) {
-        const varName = `--code-${role}-override`;
+        const varName = `--code-${role}-theme-override`;
         if (useOverride) target.style.setProperty(varName, theme.colors[role]);
         else             target.style.removeProperty(varName);
     }
-    // Write the theme's block bg/fg into DEDICATED theme-override variables,
-    // distinct from the palette-driven --code-block-bg-override that the
-    // settings.js codeBg mapping writes. The CSS cascade in viewer.css
-    // resolves theme override -> palette override -> theme default, so
-    // picking match-palette clears the theme override and lets the
-    // palette's codeBg show through (previous behaviour cleared the
-    // palette's variable too, hiding it behind the theme default
-    // regardless of the active palette — bug #1 and #2).
+    // Same separate-layer treatment for the block bg/fg.
     if (useOverride && theme.bg) target.style.setProperty('--code-theme-block-bg-override', theme.bg);
     else                         target.style.removeProperty('--code-theme-block-bg-override');
     if (useOverride && theme.fg) target.style.setProperty('--code-theme-block-fg-override', theme.fg);
     else                         target.style.removeProperty('--code-theme-block-fg-override');
+}
+
+// Writes the active palette's curated per-token code colours into the
+// --code-<role>-palette-override layer. Called from viewer.js
+// applySettings whenever userSettings.codePaletteColors is present.
+// The layer sits BETWEEN the theme override (highest) and the
+// palette-derived CSS variable defaults (lowest), so:
+//   - codeBlockTheme = match-palette: theme layer absent ->
+//     palette layer wins -> user sees Dracula/Nord/etc. colours
+//   - codeBlockTheme = any specific theme: theme layer wins,
+//     palette layer is ignored
+// Each palette's codeColors lives in the palette definition in
+// settings.js and follows the same nine-role schema as CODE_THEMES.
+export function applyPaletteCodeColors(colors, target = document.documentElement) {
+    if (!colors || typeof colors !== 'object') {
+        for (const role of ROLES) target.style.removeProperty(`--code-${role}-palette-override`);
+        return;
+    }
+    for (const role of ROLES) {
+        const v = colors[role];
+        const varName = `--code-${role}-palette-override`;
+        if (typeof v === 'string' && v.length > 0) target.style.setProperty(varName, v);
+        else                                       target.style.removeProperty(varName);
+    }
 }
 
 // Convenience: settings UI can build the dropdown options from this list.
