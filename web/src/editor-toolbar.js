@@ -272,11 +272,22 @@ export function insertFootnote(view) {
     // widget, find the new <li>'s body <p> and synthesise a mousedown to
     // enter inline-edit mode. Poll for up to ~600ms because the widget
     // rebuild + DOM swap isn't synchronous with the dispatch.
+    //
+    // P2 audit #23: if the user switches viewer mode (Live -> Source,
+    // Live -> Reading) during the ~650ms poll window, the editor is
+    // torn down and rebuilt. Without the isConnected guard the poll
+    // would keep querying the document and eventually fire a mousedown
+    // on a freshly-built editor's <li> with different numbering. We
+    // capture view.dom at scheduling time and bail as soon as that
+    // node leaves the document — CodeMirror removes view.dom from the
+    // DOM as part of view.destroy().
     if (isLiveMode) {
         const targetId = id;
         const escapedId = (typeof CSS !== 'undefined' && CSS.escape) ? CSS.escape(targetId) : targetId;
+        const viewDom = view.dom;
         let attempts = 0;
         const tryOpen = () => {
+            if (!viewDom || !viewDom.isConnected) return;
             const li = document.querySelector(`li#fn-${escapedId}`);
             const p = li && li.querySelector('p.cm-md-fn-body');
             if (p) {

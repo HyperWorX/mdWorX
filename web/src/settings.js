@@ -2745,7 +2745,26 @@ function clearInstallWatchdog() {
 function onHostMessage(event) {
     let m = event.data;
     if (typeof m === 'string') {
-        try { m = JSON.parse(m); } catch { return; }
+        try { m = JSON.parse(m); }
+        catch (err) {
+            // P3 audit #36: silently dropping a malformed host message
+            // used to leave the install UI stuck on "Working…" with
+            // no recovery path (the same channel carries installResult,
+            // updateCheckResult, etc.). Surface the failure so the
+            // install watchdog can recover and a developer inspecting
+            // a debug build can see the malformed payload prefix.
+            const preview = (typeof event.data === 'string')
+                ? event.data.slice(0, 120) : '<non-string>';
+            console.error('[settings] malformed host message dropped:', err, preview);
+            const out = document.getElementById('update-status');
+            const installBt = document.getElementById('btn-install-update');
+            if (installBt && installBt.disabled && installBt.dataset.assetUrl) {
+                if (out) {
+                    out.textContent = 'Background communication error. Retry the install or close and reopen this dialog.';
+                }
+            }
+            return;
+        }
     }
     if (!m || !m.type) return;
 
