@@ -2869,6 +2869,16 @@ function onHostMessage(event) {
             if (!currentCustomTheme && typeof userSettings.activePalette === 'string' &&
                 userSettings.activePalette && palettes[userSettings.activePalette]) {
                 currentBuiltinPalette = userSettings.activePalette;
+                // Auto-rehydrate codePaletteColors from the palette
+                // definition if the saved settings predate this field
+                // (older mdWorX versions saved activePalette but not
+                // the curated codeColors). On next Apply the rehydrated
+                // map will round-trip into settings.json so the viewer
+                // picks it up on its own load.
+                if (!userSettings.codePaletteColors &&
+                    palettes[currentBuiltinPalette].codeColors) {
+                    userSettings.codePaletteColors = { ...palettes[currentBuiltinPalette].codeColors };
+                }
             } else {
                 currentBuiltinPalette = null;
             }
