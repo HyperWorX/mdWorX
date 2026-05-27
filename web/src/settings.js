@@ -2471,13 +2471,15 @@ function renderForm() {
                 const presetRow = makePresetRow();
                 target.appendChild(presetRow);
                 const palHelp = document.createElement('div');
-                palHelp.className = 'help preset-help';
-                palHelp.textContent =
-                    'Picking a preset palette retints the whole interface — text, ' +
-                    'headings, links, page background, and UI accents. The settings ' +
-                    'dialog itself updates live so you can scan presets without ' +
-                    'applying. Use the Save… button to save or delete your own ' +
-                    'palettes, styles, and themes.';
+                palHelp.className = 'help cm-md-rendered-block preset-help';
+                palHelp.innerHTML =
+                    'Use the Save… button to save or delete your own palettes, ' +
+                    'styles, and themes. Live preview: ' +
+                    '<strong>bold</strong>, <em>italic</em>, ' +
+                    '<del>strikethrough</del>, <code>inline code</code>, ' +
+                    '<mark>highlighted</mark> text, H<sub>2</sub>O, ' +
+                    'E=mc<sup>2</sup>, and ' +
+                    '<a href="#" data-noop="1">a link</a>.';
                 target.appendChild(palHelp);
             }
             continue;
@@ -2487,33 +2489,16 @@ function renderForm() {
         if (currentSection) row.dataset.section = currentSection;
         target.appendChild(row);
 
-        // After the syntax-theme picker, fold an inline-styled help
-        // sentence into the form. The bold / italic / strikethrough /
-        // mark / link spans demonstrate the wrapped-content colours;
-        // the .tok-* spans demonstrate the syntax-theme tokens. Same
-        // single-paragraph format as the pre-restructure preview —
-        // user-confirmed they prefer the inline-folded shape over the
-        // boxed two-surface block.
+        // Short note under the Syntax theme dropdown. Match palette
+        // is the default; any specific entry locks the syntax colours
+        // independently of the global palette.
         if (entry.key === 'codeBlockTheme') {
             const synHelp = document.createElement('div');
-            synHelp.className = 'help cm-md-rendered-block preset-help';
-            synHelp.innerHTML =
-                'The syntax theme governs both rendered code blocks AND the ' +
-                'source-mode editor — picking <em>Match palette</em> follows ' +
-                'whichever palette is active; picking any specific entry locks ' +
-                'the colours regardless of palette. ' +
-                'Looks like: <strong>bold</strong>, <em>italic</em>, ' +
-                '<del>strikethrough</del>, <code>inline code</code>, ' +
-                '<mark>highlighted</mark> text, and syntax tokens ' +
-                '<span class="tok-keyword">function</span> ' +
-                '<span class="tok-function">greet</span><span class="tok-punctuation">(</span>' +
-                '<span class="tok-variable">name</span><span class="tok-punctuation">)</span> ' +
-                '<span class="tok-punctuation">{</span> ' +
-                '<span class="tok-keyword">return</span> ' +
-                '<span class="tok-string">"hi"</span><span class="tok-punctuation">;</span> ' +
-                '<span class="tok-punctuation">}</span> ' +
-                '<span class="tok-comment">// note</span>, ' +
-                '<span class="tok-number">42</span>.';
+            synHelp.className = 'help preset-help';
+            synHelp.textContent =
+                'Match palette follows the active palette. ' +
+                'Any specific entry locks the syntax colours regardless ' +
+                'of palette, for rendered code blocks and source mode.';
             target.appendChild(synHelp);
         }
         if (entry.help) {
