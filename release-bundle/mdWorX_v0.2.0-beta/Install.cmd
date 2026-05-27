@@ -1,6 +1,10 @@
 @echo off
 chcp 65001 >nul
 
+REM Make the console wide enough that the 94-char banner does not
+REM wrap (default cmd is 80 cols which scrambles the box drawing).
+mode con: cols=100 lines=36 >nul 2>&1
+
 REM Enable ANSI color support
 reg add HKCU\Console /v VirtualTerminalLevel /t REG_DWORD /d 1 /f >nul 2>&1
 
