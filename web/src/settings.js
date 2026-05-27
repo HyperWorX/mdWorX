@@ -15,6 +15,7 @@
 //      dialog. (Plain X button works too via DOpus' window chrome.)
 
 import { TOOLBAR_MANIFESTS, reconcileLayout, defaultLayoutFor } from './lib/toolbar-manifest.js';
+import { CODE_THEMES } from './lib/code-themes.js';
 
 // ---------------------------------------------------------------------------
 // Preset palettes
@@ -804,6 +805,137 @@ const palettes = {
     },
 };
 
+// Merge each palette's curated codeColors into the global CODE_THEMES
+// registry so the Syntax theme dropdown can offer every palette as a
+// stand-alone theme choice (independent of the active global palette).
+// Existing CODE_THEMES entries (dracula, nord, monokai, etc.) stay put —
+// they were authored from canonical references, and the palettes that
+// share their names use the same colour values so this is a no-op
+// merge in those cases.
+function paletteIdFor(name) {
+    return name
+        .toLowerCase()
+        .normalize('NFD')          // strip accents (Rosé Pine -> Rose Pine)
+        .replace(/[̀-ͯ]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9-]/g, '');
+}
+for (const [name, p] of Object.entries(palettes)) {
+    if (!p.codeColors) continue;
+    const id = paletteIdFor(name);
+    if (CODE_THEMES[id]) continue;
+    CODE_THEMES[id] = {
+        label:  name,
+        isDark: p.theme === 'dark',
+        bg:     p.codeBg,
+        fg:     p.textColor,
+        colors: { ...p.codeColors },
+    };
+}
+
+// Build the codeBlockTheme dropdown's options list. Dark themes are
+// grouped first because the bulk of the palettes (and presumably the
+// usage pattern of a dark-mode-favouring user base) is dark; the user
+// asked for dark-first ordering across the dropdowns. The sentinel
+// 'match-palette' value stays pinned to the top regardless of theme
+// since it represents "follow whatever global palette is active"
+// rather than a specific theme. Within each dark/light group, themes
+// sort alphabetically by label.
+// Renders a two-surface preview block that the user sees directly
+// under the Syntax theme dropdown. The first surface mimics the
+// reading-mode markdown render (inline bold / italic / strike / code
+// / mark / sup / sub / link); the second mimics the source-mode
+// editor (fenced code with syntax-coloured tokens via .tok-* classes
+// that the same CSS cascade as the viewer drives). Both update live
+// when the user picks a different palette or syntax theme.
+function buildSyntaxPreviewBlock() {
+    const wrap = document.createElement('div');
+    wrap.className = 'syntax-preview';
+
+    const heading = document.createElement('div');
+    heading.className = 'syntax-preview-heading';
+    heading.textContent = 'Live preview · how rendered markdown looks';
+    wrap.appendChild(heading);
+
+    const proseEl = document.createElement('div');
+    proseEl.className = 'syntax-preview-prose cm-md-rendered-block';
+    proseEl.innerHTML =
+        'Plain text, <strong>bold</strong>, <em>italic</em>, ' +
+        '<del>strikethrough</del>, <code>inline code</code>, ' +
+        '<mark>highlighted</mark>, H<sub>2</sub>O, E=mc<sup>2</sup>, ' +
+        'and <a href="#" data-noop="1">a link</a>.';
+    wrap.appendChild(proseEl);
+
+    const sourceHeading = document.createElement('div');
+    sourceHeading.className = 'syntax-preview-heading';
+    sourceHeading.textContent = 'Source preview · how fenced code looks';
+    wrap.appendChild(sourceHeading);
+
+    // Build a minimal fenced-code-block sample using the same .tok-*
+    // classes as the live editor + viewer. Hand-tokenised so the
+    // preview doesn't need to spin up a real Lezer parser inside the
+    // settings dialog. Each token type appears at least once so the
+    // user sees the full mapping under the chosen theme.
+    const codeEl = document.createElement('pre');
+    codeEl.className = 'syntax-preview-code';
+    codeEl.innerHTML =
+        '<code>' +
+            '<span class="tok-comment">// fenced code block sample</span>\n' +
+            '<span class="tok-keyword">function</span> ' +
+                '<span class="tok-function">greet</span>' +
+                '<span class="tok-punctuation">(</span>' +
+                '<span class="tok-variable">name</span>' +
+                '<span class="tok-punctuation">: </span>' +
+                '<span class="tok-type">string</span>' +
+                '<span class="tok-punctuation">) {</span>\n' +
+            '  <span class="tok-keyword">const</span> ' +
+                '<span class="tok-variable">n</span> ' +
+                '<span class="tok-operator">=</span> ' +
+                '<span class="tok-number">42</span>' +
+                '<span class="tok-punctuation">;</span>\n' +
+            '  <span class="tok-keyword">return</span> ' +
+                '<span class="tok-string">`hello ${name}`</span>' +
+                '<span class="tok-punctuation">;</span>\n' +
+            '<span class="tok-punctuation">}</span>' +
+        '</code>';
+    wrap.appendChild(codeEl);
+
+    // Footnote-style help. Smaller, ink-soft, separates the preview
+    // from the explanation. Calls out that source mode uses the same
+    // colour scheme so users know one decision drives both surfaces.
+    const note = document.createElement('div');
+    note.className = 'syntax-preview-note';
+    note.innerHTML =
+        'Match palette derives the syntax colours from your active ' +
+        'palette. Picking any specific entry locks the syntax theme ' +
+        'regardless of palette. The source editor uses the same ' +
+        'colours so what you see here is what your <code>.md</code> ' +
+        'file looks like in source mode too.';
+    wrap.appendChild(note);
+
+    return wrap;
+}
+
+function buildCodeThemeOptions() {
+    const matchEntry = CODE_THEMES['match-palette'];
+    const opts = [
+        { value: 'match-palette',
+          label: matchEntry ? matchEntry.label + ' (default)' : 'Match palette (default)' },
+    ];
+    const dark = [];
+    const light = [];
+    for (const [id, t] of Object.entries(CODE_THEMES)) {
+        if (id === 'match-palette') continue;
+        const entry = { value: id, label: t.label || id };
+        if (t.isDark === true) dark.push(entry);
+        else                    light.push(entry);
+    }
+    dark.sort((a, b)  => a.label.localeCompare(b.label));
+    light.sort((a, b) => a.label.localeCompare(b.label));
+    opts.push(...dark, ...light);
+    return opts;
+}
+
 const ENCODINGS_FULL = [
     'auto', 'utf-8', 'utf-16', 'utf-16le', 'utf-16be', 'system',
     'cp1250', 'cp1251', 'cp1252', 'cp1253', 'cp1254', 'cp1255', 'cp1256', 'cp1257', 'cp1258',
@@ -826,6 +958,17 @@ const schema = [
     // from the dialog (the regression that caused commit 9cf896e's
     // sibling bug-fix).
     { section: 'Theme & presets', tab: 'appearance' },
+    // codeBlockTheme lives here (not in 'Code blocks' below) because the
+    // syntax theme governs BOTH the rendered fenced code block bg/tokens
+    // AND the source-mode editor's per-token highlighting. Putting it
+    // next to the global palette picker matches the mental model of "I'm
+    // choosing the overall colour scheme for code and structure".
+    // Options are built dynamically from CODE_THEMES at boot time so
+    // every palette appears as a stand-alone theme choice; the helper
+    // groups them with dark themes first.
+    { key: 'codeBlockTheme', label: 'Syntax theme', type: 'select',
+      options: buildCodeThemeOptions(),
+      tooltip: '"Match palette" derives token colours from the active palette and uses the palette\'s code background. Pick any other entry to lock the syntax theme to a specific palette\'s colours regardless of the global palette.' },
 
     // ---- Document handling (file decode + source-rendering behaviour) -
     { section: 'Document handling', tab: 'document' },
@@ -891,21 +1034,6 @@ const schema = [
     { section: 'Code blocks', tab: 'appearance' },
     { key: 'codeBg',      label: 'Code background',    type: 'colour',
       tooltip: 'Used for inline code, code blocks, blockquotes, and table headers. Supports rgba().' },
-    { key: 'codeBlockTheme', label: 'Syntax theme', type: 'select',
-      options: [
-          { value: 'match-palette',   label: 'Match palette (default)' },
-          { value: 'github-light',    label: 'GitHub Light' },
-          { value: 'github-dark',     label: 'GitHub Dark' },
-          { value: 'solarized-light', label: 'Solarized Light' },
-          { value: 'solarized-dark',  label: 'Solarized Dark' },
-          { value: 'monokai',         label: 'Monokai' },
-          { value: 'dracula',         label: 'Dracula' },
-          { value: 'nord',            label: 'Nord' },
-          { value: 'tomorrow',        label: 'Tomorrow' },
-          { value: 'tomorrow-night',  label: 'Tomorrow Night' },
-          { value: 'one-dark',        label: 'One Dark' },
-      ],
-      tooltip: '"Match palette" derives token colours from the active palette and uses the palette\'s code background. Other entries override both with the classic syntax theme\'s native colours and background.' },
     { key: 'codeFont',       label: 'Code font',  type: 'font',
       placeholder: "Start typing or pick. Fallbacks: 'Cascadia Code', Consolas, monospace",
       tooltip: 'Monospace font for inline code and code blocks. Accepts a CSS font stack with fallbacks.' },
@@ -1805,19 +1933,22 @@ function buildPresetOptions(select) {
     lightNames.sort((a, b) => a.localeCompare(b));
     darkNames.sort((a, b)  => a.localeCompare(b));
 
-    // Light group: Default Light pinned first, then palettes alphabetical.
-    const lightGroup = document.createElement('optgroup');
-    lightGroup.label = 'Light';
-    appendOption(lightGroup, 'Default Light', 'Default Light');
-    for (const name of lightNames) appendOption(lightGroup, name, name);
-    select.appendChild(lightGroup);
-
-    // Dark group: Default Dark pinned first, then palettes alphabetical.
+    // Dark group FIRST per user preference — the majority of the
+    // bundled palettes are dark and the user-base skews dark-mode,
+    // so it reads as the primary option set. Default Dark pinned
+    // first within the group.
     const darkGroup = document.createElement('optgroup');
     darkGroup.label = 'Dark';
     appendOption(darkGroup, 'Default Dark', 'Default Dark');
     for (const name of darkNames) appendOption(darkGroup, name, name);
     select.appendChild(darkGroup);
+
+    // Light group second. Default Light pinned first within.
+    const lightGroup = document.createElement('optgroup');
+    lightGroup.label = 'Light';
+    appendOption(lightGroup, 'Default Light', 'Default Light');
+    for (const name of lightNames) appendOption(lightGroup, name, name);
+    select.appendChild(lightGroup);
 
     // User-saved entries. Until native sends per-entry _kind metadata in
     // customThemesList, we partition opportunistically: any entry whose
@@ -2382,23 +2513,13 @@ function renderForm() {
             // presets section so it sits at the top of the Appearance
             // tab. Save / delete actions for custom themes and palettes
             // live in the footer "Themes ▾" menu (see settings.html +
-            // boot wire-up).
+            // boot wire-up). The preview-cum-help block used to live
+            // here too; it's been moved down to sit under codeBlockTheme
+            // (the actual control governing the syntax colours that the
+            // preview reflects).
             if (entry.section === 'Theme & presets') {
                 const presetRow = makePresetRow();
                 target.appendChild(presetRow);
-                const helpEl = document.createElement('div');
-                helpEl.className = 'help cm-md-rendered-block preset-help';
-                helpEl.innerHTML =
-                    'Picking a preset palette changes only the colours; fonts, ' +
-                    'sizes, and layout stay as they are. Use the Save… button to ' +
-                    'save or delete your own palettes, styles, and themes. ' +
-                    'Sample: Plain text, <strong>bold</strong>, <em>italic</em>, ' +
-                    '<del>strikethrough</del>, <code>inline code</code>, ' +
-                    '<mark>highlighted</mark> text, H<sub>2</sub>O and ' +
-                    'E=mc<sup>2</sup>, and a link to ' +
-                    '<a href="https://www.gpsoft.com.au" target="_blank" rel="noopener noreferrer">' +
-                    'the GPSoftware site</a>.';
-                presetRow.appendChild(helpEl);
             }
             continue;
         }
@@ -2406,6 +2527,16 @@ function renderForm() {
         const target = panels[currentTab] || panels[DEFAULT_TAB];
         if (currentSection) row.dataset.section = currentSection;
         target.appendChild(row);
+
+        // After the syntax-theme picker, inject a live preview block
+        // showing what the inline-markdown colours and the fenced
+        // code block will look like under the current palette + theme.
+        // Two surfaces, clearly labelled, so the user understands the
+        // distinction between "live preview / reading mode rendering"
+        // and "what the source code editor will look like".
+        if (entry.key === 'codeBlockTheme') {
+            target.appendChild(buildSyntaxPreviewBlock());
+        }
         if (entry.help) {
             const help = document.createElement('div');
             help.className = 'help';
@@ -2651,6 +2782,28 @@ const settingsCssMap = {
     accentColor:           '--accent-override',
     linkColor:             '--link-override',
     codeBg:                '--code-block-bg-override',
+    // Wrapped-content + highlight + rule overrides so the syntax
+    // preview's inline elements (strong / em / del / mark / inline
+    // code / link) and the surrounding rule borders actually reflect
+    // the active palette. Without these the preview sentence rendered
+    // in the bundled theme defaults and "moving palettes" looked
+    // static (bug surfaced when the user reported the preview text
+    // stayed the same regardless of palette pick).
+    strongColor:           '--strong-override',
+    emphasisColor:         '--emphasis-override',
+    strikeColor:           '--strike-override',
+    monoColor:             '--mono-override',
+    highlightBg:           '--highlight-bg-override',
+    highlightFg:           '--highlight-fg-override',
+    ruleColor:             '--rule-override',
+    hrColor:               '--hr-color-override',
+    headingUnderlineColor: '--heading-underline-override',
+    h1Color:               '--h1-color-override',
+    h2Color:               '--h2-color-override',
+    h3Color:               '--h3-color-override',
+    h4Color:               '--h4-color-override',
+    h5Color:               '--h5-color-override',
+    h6Color:               '--h6-color-override',
     fontFamily:            '--font-prose-override',
     proseFontWeight:       '--font-weight-prose-override',
     fontSize:              '--font-size-override',

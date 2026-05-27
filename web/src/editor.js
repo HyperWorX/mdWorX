@@ -4,10 +4,10 @@
 // that re-uses the viewer's CSS variables so the editor inherits page bg,
 // ink colour, monospace font etc. without a separate palette.
 
-import { EditorState, Annotation } from '@codemirror/state';
+import { EditorState, Annotation, RangeSetBuilder } from '@codemirror/state';
 import { EditorView, keymap, drawSelection, highlightActiveLine,
          highlightActiveLineGutter, lineNumbers, highlightWhitespace,
-         highlightTrailingWhitespace } from '@codemirror/view';
+         highlightTrailingWhitespace, ViewPlugin, Decoration } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
@@ -345,6 +345,11 @@ export function createEditor({ parent, doc, onChange, onSave, onSaveAs,
         // (registered above) emits the .tok-* class names that resolve
         // to palette --code-* CSS variables.
         markdown({base: markdownLanguage, codeLanguages}),
+        // Colour the `#` / `##` / ... heading marks in source mode so
+        // the structural marker reads as distinct syntax rather than
+        // blending into the heading text colour. See plugin docstring
+        // above for the cascade rationale.
+        headerMarkDecorationPlugin,
         // List-aware Tab/Shift-Tab MUST come before defaultKeymap so it wins
         // over indentMore/indentLess for list lines. Falls through (returns
         // false) for non-list lines so indentWithTab still works elsewhere.
@@ -399,3 +404,55 @@ export function createEditor({ parent, doc, onChange, onSave, onSaveAs,
 // (file load, mode switch, reload-from-disk) so the updateListener can
 // skip onChange and avoid stashing the just-loaded content. See bug #3.
 const programmaticDocUpdate = Annotation.define();
+
+// Source-mode heading-mark decoration plugin.
+//
+// Lezer-markdown styles ATXHeading1/2/3/... with the heading1/2/3 tag
+// applied to ALL descendant nodes (the `/...` wildcard in styleTags).
+// HeaderMark tokens (the `#` characters) inherit BOTH heading1 AND
+// processingInstruction, but CodeMirror's highlighter picks
+// heading-N as the more-specific style and the `#` ends up the same
+// colour as the heading text — invisible-as-syntax in source mode.
+//
+// This plugin walks the syntax tree, finds HeaderMark nodes inside
+// ATXHeadingN (or SetextHeadingN) parents, and decorates them with
+// `cm-md-headermark cm-md-headermark-hN` classes. CSS in viewer.css
+// gives those classes the corresponding --h<N>-color (so the # marks
+// match the heading text colour) plus a bold weight so they stand
+// out from the prose. To make the mark COLOURFUL vs the heading
+// text — the user's actual ask — we additionally set --accent on
+// the cm-md-headermark base class, which CSS resolves to the
+// palette accent. Per-level classes give CSS room to tweak each
+// level independently if needed.
+const headerMarkDecorationPlugin = ViewPlugin.fromClass(class {
+    constructor(view) { this.decorations = this.build(view); }
+    update(u) {
+        if (u.docChanged || u.viewportChanged ||
+            syntaxTree(u.startState) !== syntaxTree(u.state)) {
+            this.decorations = this.build(u.view);
+        }
+    }
+    build(view) {
+        const builder = new RangeSetBuilder();
+        for (const { from, to } of view.visibleRanges) {
+            syntaxTree(view.state).iterate({
+                from, to,
+                enter(node) {
+                    if (node.name !== 'HeaderMark') return;
+                    let level = 0;
+                    let p = node.node.parent;
+                    while (p) {
+                        const m = /^ATXHeading([1-6])$|^SetextHeading([1-2])$/.exec(p.name);
+                        if (m) { level = parseInt(m[1] || m[2], 10); break; }
+                        p = p.parent;
+                    }
+                    if (level >= 1 && level <= 6) {
+                        builder.add(node.from, node.to,
+                            Decoration.mark({ class: `cm-md-headermark cm-md-headermark-h${level}` }));
+                    }
+                }
+            });
+        }
+        return builder.finish();
+    }
+}, { decorations: v => v.decorations });
