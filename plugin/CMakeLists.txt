@@ -110,6 +110,8 @@ target_link_libraries(mdWorX PRIVATE
     comctl32
     comdlg32   # GetSaveFileNameW for editor Save As
     urlmon     # URLDownloadToFileW for "Copy to file folder" of URL sources
+    winhttp    # WinHttp* for the in-app update download (HTTPS-only, redirect-controlled)
+    bcrypt     # BCrypt* for SHA256 of downloaded release zip + secure-temp-dir randomness
     version
 )
 
