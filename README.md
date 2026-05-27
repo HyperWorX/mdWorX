@@ -55,7 +55,9 @@ Image dimensions and alignment ride along in the alt-text using Obsidian-compati
 
 ## What it renders
 
-GitHub-flavoured Markdown plus footnotes, definition lists, abbreviations, highlights (`==text==`), subscript (`H~2~O`), superscript (`E=mc^2^`), task lists (clickable in Live mode), autolinks, and emoji shortcodes. Code blocks are syntax-highlighted by [Shiki](https://shiki.style) and have a copy button in the corner that flashes green to confirm. Footnote definitions at the bottom of the document are editable in place: click the text and start typing.
+GitHub-flavoured Markdown plus footnotes, definition lists, abbreviations, highlights (`==text==`), subscript (`H~2~O`), superscript (`E=mc^2^`), task lists (clickable in Live mode), autolinks, and emoji shortcodes. Code blocks are syntax-highlighted by [Lezer](https://lezer.codemirror.net/) — the same parser family that powers the CodeMirror 6 editor — so the rendered HTML and the source-mode editor use a single set of token colours, and a palette switch re-tints both surfaces together. Each block has a copy button in the corner that flashes green to confirm. Footnote definitions at the bottom of the document are editable in place: click the text and start typing.
+
+The Syntax theme picker sits next to the global palette picker because the choice governs both surfaces — fenced code in reading mode and inline-coloured tokens in source mode. `Match palette` (default) derives the nine token colours (keyword, string, comment, number, function, type, operator, variable, punctuation) from whichever palette is active. Each of the bundled palettes carries its own curated set, so Dracula renders pink keywords / yellow strings / green functions, Nord uses frost + aurora, One Dark uses its canonical scheme, and so on. Pick any specific entry in the Syntax theme dropdown to lock the syntax colours independently of the palette choice.
 
 ## Settings
 
