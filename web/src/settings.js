@@ -938,6 +938,20 @@ const schema = [
       tooltip: 'Colour for H5 headings. Renders in small caps with letter-spacing in Reading mode.' },
     { key: 'h6Color', label: 'H6 colour', type: 'colour',
       tooltip: 'Colour for H6 headings. Smallest level, paired with H5 for caption-style headings.' },
+    // P1 audit #13: wrapped-content colours per palette. All 27
+    // built-in palettes set these but the schema previously omitted
+    // them, so applyPreset's `if (!entry) continue` dropped them on
+    // the floor and the viewer read undefined. CSS variables already
+    // exist in viewer.css (--strong-override etc.) — this just wires
+    // the data path through the form.
+    { key: 'strongColor', label: 'Bold colour', type: 'colour',
+      tooltip: 'Colour for **bold** text. Falls back to the palette\'s default when unset.' },
+    { key: 'emphasisColor', label: 'Italic colour', type: 'colour',
+      tooltip: 'Colour for *italic* / _emphasised_ text. Falls back to the palette\'s default when unset.' },
+    { key: 'strikeColor', label: 'Strikethrough colour', type: 'colour',
+      tooltip: 'Colour for ~~strikethrough~~ text. Falls back to the muted text colour when unset.' },
+    { key: 'monoColor', label: 'Inline code colour', type: 'colour',
+      tooltip: 'Colour for `inline code` text. Falls back to the palette\'s default when unset.' },
     { key: 'headingUnderlineColor', label: 'Underline colour (H1 / H2)', type: 'colour',
       tooltip: 'Colour of the line under H1 and H2 headings. Ignored when underline style is "gradient" (gradient uses each heading\'s own colour).' },
     { key: 'headingUnderlineThickness', label: 'Underline thickness', type: 'number',
@@ -1416,6 +1430,15 @@ const themeDefaultStatic = {
     codeFont:                  "'Cascadia Code', Consolas, ui-monospace, monospace",
 };
 
+// Returns whether `value` is a CSS-parseable colour for the keys we
+// use this function for. Most callers consume colour values; the
+// guard is cheap so we apply it across the board for non-colour
+// keys too (the helper's `property` arg is generic enough).
+function isCssValidValue(property, value) {
+    if (!value) return false;
+    try { return CSS.supports(property, value); } catch { return false; }
+}
+
 function themeDefaultFor(key) {
     const varName = themeDefaultVarMap[key];
     if (varName) {
@@ -1431,13 +1454,24 @@ function themeDefaultFor(key) {
         // underline in the correct palette accent via the cascade.
         const o = getComputedStyle(document.documentElement)
             .getPropertyValue(varName + '-override').trim();
-        if (o) return o;
+        // P3 audit #37: an override that doesn't parse as a colour
+        // (typo, invalid hex, stray literal text) would previously
+        // return as the literal string and the swatch silently fell
+        // through to grey. Now we log and ignore the bad value so
+        // the user sees the next valid step in the cascade.
+        if (o) {
+            if (isCssValidValue('color', o)) return o;
+            console.warn('[settings] invalid CSS colour in', varName + '-override:', o);
+        }
         // Theme variables (--ink, --page, --accent, ...) are declared on
         // body.theme-light / body.theme-dark in viewer.css, NOT on :root,
         // so getComputedStyle(documentElement) returns '' for them. Must
         // read from document.body.
         const v = getComputedStyle(document.body).getPropertyValue(varName).trim();
-        if (v) return v;
+        if (v) {
+            if (isCssValidValue('color', v)) return v;
+            console.warn('[settings] invalid CSS colour in', varName + ':', v);
+        }
     }
     return themeDefaultStatic[key] || null;
 }
@@ -2039,7 +2073,47 @@ const STYLE_KEYS = [
     'maxWidth', 'pagePadding',
     'hrThickness', 'headingUnderlineThickness',
     'hardLineBreaks', 'showFormattingMarks',
+    // P1 audit #12: these seven were silently dropped by Save-as-Style
+    // because they were absent from STYLE_KEYS. The "THEMABLE_KEYS
+    // invariant" claim in the comments was false. The startup
+    // validateKeyLists() check below will scream if these drift again.
+    'codeBlockTheme',
+    'topToolbarMode', 'editToolbarMode', 'editToolbarLayout',
+    'allowRemoteImages', 'alwaysReloadExternal',
+    'autoSaveMinutes',
 ];
+
+// P2 audit #27: four hand-maintained key lists with no enforcement was
+// the root cause of #12 (Save-as-Style dropping 7 fields) and #13
+// (palette wrapped-content colours never reaching viewer). Full
+// unification into a single schema-derived source of truth is a larger
+// refactor flagged as follow-up; this invariant check is the cheap
+// defence in the meantime — startup error if PALETTE_KEYS or STYLE_KEYS
+// drift relative to the schema.
+function validateKeyLists() {
+    if (!Array.isArray(schema) || schema.length === 0) return;
+    const schemaKeys = new Set(
+        schema.filter(e => !e.section && e.key !== 'encoding' &&
+                          e.key !== 'fallbackEncoding').map(e => e.key));
+    const styleSet   = new Set(STYLE_KEYS);
+    const paletteSet = new Set(PALETTE_KEYS);
+
+    const styleNotInSchema = STYLE_KEYS.filter(k => !schemaKeys.has(k));
+    const paletteNotInSchema = PALETTE_KEYS.filter(k => !schemaKeys.has(k));
+    const themableNotCovered = [...schemaKeys].filter(k =>
+        !styleSet.has(k) && !paletteSet.has(k));
+
+    if (styleNotInSchema.length) {
+        console.error('[settings] STYLE_KEYS entries missing from schema:', styleNotInSchema);
+    }
+    if (paletteNotInSchema.length) {
+        console.error('[settings] PALETTE_KEYS entries missing from schema:', paletteNotInSchema);
+    }
+    if (themableNotCovered.length) {
+        console.error('[settings] schema entries not covered by PALETTE_KEYS or STYLE_KEYS:',
+                      themableNotCovered);
+    }
+}
 
 function keysForKind(kind) {
     if (kind === 'palette') return PALETTE_KEYS;
@@ -2101,11 +2175,22 @@ function applyCustomTheme(themeData) {
 
 // True if the current form state differs from the most recently applied
 // custom theme's snapshot. Drives the asterisk on the picker.
+//
+// P2 audit #26: the previous implementation compared against the union
+// of appliedSnapshot keys and a full THEMABLE_KEYS snapshotCurrentTheme(),
+// which produced false drift for palette-only and style-only loads —
+// any non-empty field outside the loaded snapshot's scope would show
+// as a divergence even though the user hadn't touched the loaded
+// snapshot's values. Now we compare only the keys that were actually
+// in the loaded snapshot. Anything outside that set is form state that
+// existed before the load and isn't part of "what's drifted from the
+// thing I just loaded".
 function formDivergesFromSnapshot() {
     if (!appliedSnapshot) return false;
+    const snapshotKeys = Object.keys(appliedSnapshot);
+    if (snapshotKeys.length === 0) return false;
     const current = snapshotCurrentTheme();
-    const keys = new Set([...Object.keys(appliedSnapshot), ...Object.keys(current)]);
-    for (const k of keys) {
+    for (const k of snapshotKeys) {
         const a = appliedSnapshot[k];
         const b = current[k];
         if (String(a == null ? '' : a) !== String(b == null ? '' : b)) return true;
@@ -3125,6 +3210,12 @@ async function boot() {
     } else {
         console.warn('[settings] no chrome.webview — standalone preview only');
     }
+
+    // P2 audit #27: scream-loud invariant check on the four parallel
+    // key lists vs the schema. Runs once after the schema is fully
+    // built and after PALETTE_KEYS / STYLE_KEYS are defined. Errors
+    // surface in DevTools (debug builds) and via the host log path.
+    try { validateKeyLists(); } catch (e) { console.error('[settings] validateKeyLists failed', e); }
 }
 
 boot();
