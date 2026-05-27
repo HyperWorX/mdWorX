@@ -307,72 +307,174 @@ std::wstring ReadFileUtf8(const std::wstring& path) {
 // ---------------------------------------------------------------------------
 // Settings string extractor (bounded, NOT a general JSON parser)
 //
-// Extracts the string value for a single top-level key from the user's
-// settings.json. Pattern-matches "<key>"\s*:\s*"<value>" and unescapes
-// the common JSON escapes (\", \\, \/, \n, \r, \t). Encoding values are
-// ASCII so unescape coverage is intentionally minimal. Returns empty
-// string if the key is absent, non-string, or the file is malformed.
+// Extracts the string value for a single top-level key from a JSON
+// document. Pattern-matches "<key>"\s*:\s*"<value>" and unescapes JSON
+// escapes (\", \\, \/, \n, \r, \t, \b, \f, \uXXXX, surrogate pairs).
 //
-// This deliberately stays narrow: we only use it for the 'encoding' and
-// 'fallbackEncoding' keys which native must read BEFORE the file load
-// happens (so we can't punt them to the JS layer like the CSS settings).
-// KEY DECISION 15 (no native JSON parser) still holds for the rest of
-// the settings file.
+// Hardened against P2 audit #14 + P3 audit #34:
+//
+//   * Top-level scope tracking. The previous implementation
+//     literal-substring-matched the key name, so a nested object's
+//     "tag_name" or a string body containing the literal token would
+//     match first. The new walker tracks {} and [] depth (and string
+//     state with backslash escapes) and only matches keys at depth 1
+//     (the document's top-level object). This is still NOT a general
+//     JSON parser — we accept the limitations on arrays-of-strings
+//     and other shapes mdWorX does not currently consume — but it is
+//     no longer brittle on caller-controlled body content.
+//
+//   * Surrogate pair decoding. 😀 etc. now combine into a
+//     pair of wchar_t code units (UTF-16 surrogate pair) rather than
+//     emitting only the high surrogate. Windows-only DLL so this
+//     mostly matters for emoji in release notes / commit messages
+//     reflected back into update-check UI.
+//
+// Callers still get an empty wstring on "key missing" and on
+// "key present but non-string". P3 audit #33 separately notes that
+// some callers care about distinguishing these; the std::optional
+// signature is the cleanest fix but is a 20-caller rewrite and is
+// tracked as follow-up.
+//
+// KEY DECISION 15 (no native JSON parser) still holds for the rest
+// of the settings file.
 std::wstring ExtractJsonStringKey(const std::wstring& json, const wchar_t* key) {
     auto isWs = [](wchar_t c) {
         return c == L' ' || c == L'\t' || c == L'\n' || c == L'\r';
     };
-    std::wstring needle = L"\"";
-    needle += key;
-    needle += L"\"";
-    size_t pos = 0;
-    while ((pos = json.find(needle, pos)) != std::wstring::npos) {
-        size_t after = pos + needle.size();
-        while (after < json.size() && isWs(json[after])) ++after;
-        if (after >= json.size() || json[after] != L':') {
-            pos = after;
-            continue;
+    auto decodeHex4 = [](const std::wstring& s, size_t from) -> int {
+        if (from + 4 > s.size()) return -1;
+        unsigned v = 0;
+        for (int k = 0; k < 4; ++k) {
+            wchar_t c = s[from + k];
+            unsigned d;
+            if      (c >= L'0' && c <= L'9') d = c - L'0';
+            else if (c >= L'a' && c <= L'f') d = c - L'a' + 10;
+            else if (c >= L'A' && c <= L'F') d = c - L'A' + 10;
+            else return -1;
+            v = (v << 4) | d;
         }
-        ++after;
-        while (after < json.size() && isWs(json[after])) ++after;
-        if (after >= json.size() || json[after] != L'"') return L"";  // null/number/bool
-        ++after;
-        std::wstring out;
-        while (after < json.size() && json[after] != L'"') {
-            if (json[after] == L'\\' && after + 1 < json.size()) {
-                wchar_t esc = json[after + 1];
-                // \uXXXX: decode four hex digits to a wchar (handles JSON
-                // engines that escape control chars and high BMP chars).
-                if (esc == L'u' && after + 5 < json.size()) {
-                    wchar_t hex[5] = {
-                        json[after + 2], json[after + 3],
-                        json[after + 4], json[after + 5], 0,
-                    };
-                    wchar_t* endp = nullptr;
-                    unsigned long v = wcstoul(hex, &endp, 16);
-                    if (endp == hex + 4) {
-                        out += static_cast<wchar_t>(v);
-                        after += 6;
+        return static_cast<int>(v);
+    };
+
+    int depth = 0;
+    size_t i = 0;
+    const std::wstring keyStr(key);
+    while (i < json.size()) {
+        wchar_t c = json[i];
+        if (c == L'{' || c == L'[') { ++depth; ++i; continue; }
+        if (c == L'}' || c == L']') { --depth; ++i; continue; }
+        if (c == L'"') {
+            // Capture this string. Track whether we're then looking at a
+            // key (next non-ws is ':') or a value.
+            size_t startQuote = i;
+            ++i;
+            std::wstring lit;
+            bool ok = true;
+            while (i < json.size() && json[i] != L'"') {
+                if (json[i] == L'\\' && i + 1 < json.size()) {
+                    wchar_t esc = json[i + 1];
+                    if (esc == L'u') {
+                        int v = decodeHex4(json, i + 2);
+                        if (v < 0) { ok = false; break; }
+                        i += 6;
+                        // Surrogate pair: high surrogate (D800-DBFF)
+                        // followed by \u low surrogate (DC00-DFFF).
+                        if (v >= 0xD800 && v <= 0xDBFF &&
+                            i + 5 < json.size() &&
+                            json[i] == L'\\' && json[i + 1] == L'u') {
+                            int v2 = decodeHex4(json, i + 2);
+                            if (v2 >= 0xDC00 && v2 <= 0xDFFF) {
+                                // UTF-16: emit both surrogates as-is.
+                                lit.push_back(static_cast<wchar_t>(v));
+                                lit.push_back(static_cast<wchar_t>(v2));
+                                i += 6;
+                                continue;
+                            }
+                        }
+                        lit.push_back(static_cast<wchar_t>(v));
                         continue;
                     }
+                    switch (esc) {
+                        case L'"':  lit += L'"';  break;
+                        case L'\\': lit += L'\\'; break;
+                        case L'/':  lit += L'/';  break;
+                        case L'n':  lit += L'\n'; break;
+                        case L'r':  lit += L'\r'; break;
+                        case L't':  lit += L'\t'; break;
+                        case L'b':  lit += L'\b'; break;
+                        case L'f':  lit += L'\f'; break;
+                        default:    lit += esc;   break;
+                    }
+                    i += 2;
+                } else {
+                    lit.push_back(json[i++]);
                 }
-                switch (esc) {
-                    case L'"':  out += L'"';  break;
-                    case L'\\': out += L'\\'; break;
-                    case L'/':  out += L'/';  break;
-                    case L'n':  out += L'\n'; break;
-                    case L'r':  out += L'\r'; break;
-                    case L't':  out += L'\t'; break;
-                    case L'b':  out += L'\b'; break;
-                    case L'f':  out += L'\f'; break;
-                    default:    out += esc;   break;
-                }
-                after += 2;
-            } else {
-                out += json[after++];
             }
+            if (!ok || i >= json.size()) { ++i; continue; }
+            // Past the closing quote.
+            ++i;
+            // Determine key-vs-value by peeking at next non-ws.
+            size_t p = i;
+            while (p < json.size() && isWs(json[p])) ++p;
+            if (p < json.size() && json[p] == L':') {
+                // This is a key. If we're at depth 1 and it matches,
+                // start parsing the value.
+                if (depth == 1 && lit == keyStr) {
+                    ++p;
+                    while (p < json.size() && isWs(json[p])) ++p;
+                    if (p >= json.size() || json[p] != L'"') return L"";
+                    // Recurse the string-parsing loop on the value.
+                    ++p;
+                    std::wstring out;
+                    while (p < json.size() && json[p] != L'"') {
+                        if (json[p] == L'\\' && p + 1 < json.size()) {
+                            wchar_t esc = json[p + 1];
+                            if (esc == L'u') {
+                                int v = decodeHex4(json, p + 2);
+                                if (v < 0) { out += esc; p += 2; continue; }
+                                p += 6;
+                                if (v >= 0xD800 && v <= 0xDBFF &&
+                                    p + 5 < json.size() &&
+                                    json[p] == L'\\' && json[p + 1] == L'u') {
+                                    int v2 = decodeHex4(json, p + 2);
+                                    if (v2 >= 0xDC00 && v2 <= 0xDFFF) {
+                                        out.push_back(static_cast<wchar_t>(v));
+                                        out.push_back(static_cast<wchar_t>(v2));
+                                        p += 6;
+                                        continue;
+                                    }
+                                }
+                                out.push_back(static_cast<wchar_t>(v));
+                                continue;
+                            }
+                            switch (esc) {
+                                case L'"':  out += L'"';  break;
+                                case L'\\': out += L'\\'; break;
+                                case L'/':  out += L'/';  break;
+                                case L'n':  out += L'\n'; break;
+                                case L'r':  out += L'\r'; break;
+                                case L't':  out += L'\t'; break;
+                                case L'b':  out += L'\b'; break;
+                                case L'f':  out += L'\f'; break;
+                                default:    out += esc;   break;
+                            }
+                            p += 2;
+                        } else {
+                            out.push_back(json[p++]);
+                        }
+                    }
+                    return out;
+                }
+                // Skip past the colon and the value. The value is one
+                // of: object {...}, array [...], string, number, bool,
+                // null. The outer walker handles {}/[] and strings; we
+                // just step past the colon here.
+                i = p + 1;
+            }
+            (void)startQuote;
+            continue;
         }
-        return out;
+        ++i;
     }
     return L"";
 }
