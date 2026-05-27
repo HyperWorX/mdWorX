@@ -4,7 +4,7 @@
 // that re-uses the viewer's CSS variables so the editor inherits page bg,
 // ink colour, monospace font etc. without a separate palette.
 
-import { EditorState } from '@codemirror/state';
+import { EditorState, Annotation } from '@codemirror/state';
 import { EditorView, keymap, drawSelection, highlightActiveLine,
          highlightActiveLineGutter, lineNumbers, highlightWhitespace,
          highlightTrailingWhitespace } from '@codemirror/view';
@@ -360,7 +360,18 @@ export function createEditor({ parent, doc, onChange, onSave, onSaveAs,
         EditorView.lineWrapping,
         buildEditorTheme(livePreview),
         EditorView.updateListener.of(u => {
-            if (u.docChanged && onChange) onChange(u.state.doc.toString());
+            if (!u.docChanged || !onChange) return;
+            // Programmatic doc replacements (setDoc — file load, mode
+            // switch, reload-from-disk) flag their transaction with the
+            // programmaticDocUpdate annotation. Without this guard the
+            // file-load setDoc fires onChange -> scheduleStash, which
+            // creates a stash entry whose content equals the just-loaded
+            // buffer. The next time the user opens the same file, native
+            // sees the stash and JS shows the conflict banner because
+            // CodeMirror's LF normalisation makes the stash differ from
+            // the next disk read on Windows (CRLF files). Bug #3.
+            if (u.transactions.some(tr => tr.annotation(programmaticDocUpdate))) return;
+            onChange(u.state.doc.toString());
         }),
     ];
     if (livePreview) baseExtensions.push(livePreviewExtension());
@@ -376,9 +387,15 @@ export function createEditor({ parent, doc, onChange, onSave, onSaveAs,
         setDoc(text) {
             view.dispatch({
                 changes: { from: 0, to: view.state.doc.length, insert: text || '' },
+                annotations: programmaticDocUpdate.of(true),
             });
         },
         focus: () => view.focus(),
         destroy: () => view.destroy(),
     };
 }
+
+// Annotation that marks a transaction as a programmatic doc replacement
+// (file load, mode switch, reload-from-disk) so the updateListener can
+// skip onChange and avoid stashing the just-loaded content. See bug #3.
+const programmaticDocUpdate = Annotation.define();

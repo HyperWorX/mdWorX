@@ -77,35 +77,50 @@ body.theme-light {
     --mono:      #b45309;    /* amber-brown — inline code conventional warm tone */
 
     /* Fenced-code-block token colours. Nine roles, each pulled into the
-     * `.tok-*` rules at the bottom of this file. Defaults are tuned for the
-     * built-in light theme background; per-palette overrides are pushed by
-     * settings.js as `--code-<role>-override`. Code-theme presets (Solarized,
-     * Monokai, etc.) replace these values wholesale when picked. */
-    --code-keyword:     #cf222e;
-    --code-string:      #0a3069;
-    --code-comment:     #6e7781;
-    --code-number:      #0550ae;
-    --code-function:    #8250df;
-    --code-type:        #953800;
-    --code-operator:    #cf222e;
-    --code-variable:    #1f2328;
-    --code-punctuation: #57606a;
+     * `.tok-*` rules at the bottom of this file. Each default routes
+     * through the corresponding palette variable so picking a code-theme
+     * preset (Solarized, Monokai, etc.) writes --code-<role>-override
+     * and wins, while the match-palette default falls through to the
+     * active palette's identity colours. Previously these were hardcoded
+     * GitHub-ish hex values that ignored the active palette (bug #2 —
+     * every global palette looked the same in code blocks). The mapping:
+     *   keyword  -> accent      (structural punctuation hue)
+     *   string   -> strong      (one of the four wrapped-content colours)
+     *   comment  -> ink-soft    (always muted)
+     *   number   -> emphasis    (italic-family wrapped-content colour)
+     *   function -> h1          (top heading colour reads as "primary")
+     *   type     -> mono        (inline-code wrapped-content colour)
+     *   operator -> accent      (same family as keyword)
+     *   variable -> ink         (body text)
+     *   punctuation -> ink-soft (muted, separates structure from value) */
+    --code-keyword:     var(--accent-override,    var(--accent));
+    --code-string:      var(--strong-override,    var(--strong));
+    --code-comment:     var(--ink-soft);
+    --code-number:      var(--emphasis-override,  var(--emphasis));
+    --code-function:    var(--h1-color-override,  var(--h1));
+    --code-type:        var(--mono-override,      var(--mono));
+    --code-operator:    var(--accent-override,    var(--accent));
+    --code-variable:    var(--ink-override,       var(--ink));
+    --code-punctuation: var(--ink-soft);
 
     /* Content-specific surfaces. Each element now has its own variable so
      * adjusting one (e.g. blockquote bg) doesn't ripple into others
      * (table headers, code blocks). Defaults inherit the palette's --code
      * / --rule values so existing palettes look the same out of the box;
      * users can override each independently via settings. */
-    /* Cascade through the override variants so palette-driven codeBg /
-     * textColor changes propagate to blockquote + table-header surfaces
-     * automatically, instead of these defaults staying frozen on the
-     * theme-default --code / --ink. User overrides for the dedicated
-     * blockquote-* / table-header-* keys still win via the
-     * -override-on-self chain at the consuming rule. */
-    --blockquote-bg:    var(--code-block-bg-override, var(--code));
+    /* Cascade priority for code-block / blockquote / table-header bg:
+     *   1. --code-theme-block-bg-override (written by applyCodeTheme
+     *      when a non-match-palette syntax theme is picked)
+     *   2. --code-block-bg-override (written by the codeBg setting,
+     *      pushed from the active palette via PRESET_KEYS or by the
+     *      user editing the field directly)
+     *   3. --code (per-theme default in :root / body.theme-dark)
+     * Match-palette clears layer 1 so layer 2's palette colour shows
+     * through; previously match-palette also cleared layer 2 (bug #1). */
+    --blockquote-bg:    var(--code-theme-block-bg-override, var(--code-block-bg-override, var(--code)));
     --blockquote-fg:    var(--ink-soft);
-    --table-header-bg:  var(--code-block-bg-override, var(--code));
-    --table-header-fg:  var(--ink-override, var(--ink));
+    --table-header-bg:  var(--code-theme-block-bg-override, var(--code-block-bg-override, var(--code)));
+    --table-header-fg:  var(--code-theme-block-fg-override, var(--ink-override, var(--ink)));
     --content-rule:     var(--rule);
 }
 
@@ -139,31 +154,24 @@ body.theme-dark {
     --strike:    #6b7280;    /* muted mid-grey — strike reads as "removed" */
     --mono:      #7dd3a8;    /* seafoam green — inline code distinct cool tone */
 
-    /* Fenced-code-block token colours — dark theme defaults, tuned for the
-     * built-in #26262a background. Same `--code-<role>` variable names so
-     * palette overrides and code-theme presets flow through the same path
-     * as the light defaults above. */
-    --code-keyword:     #ff7b72;
-    --code-string:      #a5d6ff;
-    --code-comment:     #8b949e;
-    --code-number:      #79c0ff;
-    --code-function:    #d2a8ff;
-    --code-type:        #ffa657;
-    --code-operator:    #ff7b72;
-    --code-variable:    #c9d1d9;
-    --code-punctuation: #8b949e;
+    /* Fenced-code-block token colours — dark theme. Same palette-derived
+     * cascade as light theme so each global palette renders code blocks
+     * in its own identity colours when codeBlockTheme = match-palette. */
+    --code-keyword:     var(--accent-override,    var(--accent));
+    --code-string:      var(--strong-override,    var(--strong));
+    --code-comment:     var(--ink-soft);
+    --code-number:      var(--emphasis-override,  var(--emphasis));
+    --code-function:    var(--h1-color-override,  var(--h1));
+    --code-type:        var(--mono-override,      var(--mono));
+    --code-operator:    var(--accent-override,    var(--accent));
+    --code-variable:    var(--ink-override,       var(--ink));
+    --code-punctuation: var(--ink-soft);
 
-    /* Content-specific surfaces — see light theme for rationale. */
-    /* Cascade through the override variants so palette-driven codeBg /
-     * textColor changes propagate to blockquote + table-header surfaces
-     * automatically, instead of these defaults staying frozen on the
-     * theme-default --code / --ink. User overrides for the dedicated
-     * blockquote-* / table-header-* keys still win via the
-     * -override-on-self chain at the consuming rule. */
-    --blockquote-bg:    var(--code-block-bg-override, var(--code));
+    /* Content-specific surfaces — see light theme for cascade priority. */
+    --blockquote-bg:    var(--code-theme-block-bg-override, var(--code-block-bg-override, var(--code)));
     --blockquote-fg:    var(--ink-soft);
-    --table-header-bg:  var(--code-block-bg-override, var(--code));
-    --table-header-fg:  var(--ink-override, var(--ink));
+    --table-header-bg:  var(--code-theme-block-bg-override, var(--code-block-bg-override, var(--code)));
+    --table-header-fg:  var(--code-theme-block-fg-override, var(--ink-override, var(--ink)));
     --content-rule:     var(--rule);
 }
 
@@ -1131,12 +1139,13 @@ body.mode-live .cm-md-rendered-hr {
      * is small enough that an accidental click in the gap is unlikely. */
     margin: 0.7em 0 0;
     padding: var(--code-block-padding);
-    /* Background chain: code-theme preset > palette override > theme default.
-     * `--code-block-bg-override` is only written when the user picks a
-     * built-in code theme (Monokai, Solarized, etc.), so the rest of the
-     * palette (blockquote bg, inline code bg) stays untouched. */
-    background: var(--code-block-bg-override, var(--code));
-    color: var(--code-block-fg-override, inherit);
+    /* Background chain: code-theme preset > palette codeBg override >
+     * theme default. --code-theme-block-bg-override only gets written
+     * when the user picks a built-in code theme (Monokai, Solarized,
+     * etc.); --code-block-bg-override is the palette's codeBg pushed
+     * via settings. */
+    background: var(--code-theme-block-bg-override, var(--code-block-bg-override, var(--code)));
+    color: var(--code-theme-block-fg-override, var(--code-block-fg-override, inherit));
     border-radius: 5px;
     /* min-width: 0 + max-width: 100% breaks the min-content propagation
      * chain. <code style="white-space: pre"> has an intrinsic min-content
@@ -1655,10 +1664,8 @@ body.mode-live .cm-md-superscript { vertical-align: super; }
 :is(#content, .cm-md-rendered-block) pre {
     margin: 1.2em 0 14px;
     padding: var(--code-block-padding);
-    /* Same override chain as .cm-md-codeblock — see comment there. The
-     * code-theme bg is scoped to <pre> alone so blockquote, tables, and
-     * inline code keep the palette colour. */
-    background: var(--code-block-bg-override, var(--code));
+    /* Same override chain as .cm-md-codeblock — see comment there. */
+    background: var(--code-theme-block-bg-override, var(--code-block-bg-override, var(--code)));
     border-radius: 5px;
     overflow-x: auto;
     line-height: var(--line-height-code-override, var(--line-height-override, 1.5));
@@ -1669,7 +1676,7 @@ body.mode-live .cm-md-superscript { vertical-align: super; }
     padding: 0;
     font-size: var(--font-size-code-override, 12px);
     border-radius: 0;
-    color: var(--code-block-fg-override, var(--ink-override, var(--ink)));
+    color: var(--code-theme-block-fg-override, var(--code-block-fg-override, var(--ink-override, var(--ink))));
 }
 
 :is(#content, .cm-md-rendered-block) blockquote {

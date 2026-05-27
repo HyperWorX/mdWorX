@@ -214,10 +214,18 @@ export function applyCodeTheme(themeId, target = document.documentElement) {
         if (useOverride) target.style.setProperty(varName, theme.colors[role]);
         else             target.style.removeProperty(varName);
     }
-    if (useOverride && theme.bg) target.style.setProperty('--code-block-bg-override', theme.bg);
-    else                         target.style.removeProperty('--code-block-bg-override');
-    if (useOverride && theme.fg) target.style.setProperty('--code-block-fg-override', theme.fg);
-    else                         target.style.removeProperty('--code-block-fg-override');
+    // Write the theme's block bg/fg into DEDICATED theme-override variables,
+    // distinct from the palette-driven --code-block-bg-override that the
+    // settings.js codeBg mapping writes. The CSS cascade in viewer.css
+    // resolves theme override -> palette override -> theme default, so
+    // picking match-palette clears the theme override and lets the
+    // palette's codeBg show through (previous behaviour cleared the
+    // palette's variable too, hiding it behind the theme default
+    // regardless of the active palette — bug #1 and #2).
+    if (useOverride && theme.bg) target.style.setProperty('--code-theme-block-bg-override', theme.bg);
+    else                         target.style.removeProperty('--code-theme-block-bg-override');
+    if (useOverride && theme.fg) target.style.setProperty('--code-theme-block-fg-override', theme.fg);
+    else                         target.style.removeProperty('--code-theme-block-fg-override');
 }
 
 // Convenience: settings UI can build the dropdown options from this list.
