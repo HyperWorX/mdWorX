@@ -805,33 +805,11 @@ const palettes = {
     },
 };
 
-// Merge each palette's curated codeColors into the global CODE_THEMES
-// registry so the Syntax theme dropdown can offer every palette as a
-// stand-alone theme choice (independent of the active global palette).
-// Existing CODE_THEMES entries (dracula, nord, monokai, etc.) stay put —
-// they were authored from canonical references, and the palettes that
-// share their names use the same colour values so this is a no-op
-// merge in those cases.
-function paletteIdFor(name) {
-    return name
-        .toLowerCase()
-        .normalize('NFD')          // strip accents (Rosé Pine -> Rose Pine)
-        .replace(/[̀-ͯ]/g, '')
-        .replace(/\s+/g, '-')
-        .replace(/[^a-z0-9-]/g, '');
-}
-for (const [name, p] of Object.entries(palettes)) {
-    if (!p.codeColors) continue;
-    const id = paletteIdFor(name);
-    if (CODE_THEMES[id]) continue;
-    CODE_THEMES[id] = {
-        label:  name,
-        isDark: p.theme === 'dark',
-        bg:     p.codeBg,
-        fg:     p.textColor,
-        colors: { ...p.codeColors },
-    };
-}
+// Palette-derived syntax themes are now declared directly in
+// code-themes.js so both the settings bundle and the viewer bundle
+// see them (each is its own module graph; settings.js can't mutate
+// CODE_THEMES into existence for the viewer). When adding a new
+// palette here, also add the corresponding entry in code-themes.js.
 
 // Build the codeBlockTheme dropdown's options list. Dark themes are
 // grouped first because the bulk of the palettes (and presumably the

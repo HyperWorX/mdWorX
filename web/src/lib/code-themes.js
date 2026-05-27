@@ -191,6 +191,105 @@ export const CODE_THEMES = {
             punctuation: '#abb2bf',
         },
     },
+    // Palette-derived themes. Each entry mirrors the codeColors map on
+    // the corresponding palette in settings.js so picking the palette's
+    // name as a syntax theme renders the palette's canonical syntax
+    // colours regardless of the active global palette.
+    //
+    // Important: this duplicates the codeColors data already declared
+    // on the palette object in settings.js. The duplication is
+    // intentional — code-themes.js is imported by BOTH the settings
+    // dialog and the viewer, but the palettes dict lives only in
+    // settings.js, so the viewer can't read the palettes object at all.
+    // Earlier attempt: settings.js mutated CODE_THEMES at boot, which
+    // populated the dialog but not the viewer (separate module graphs
+    // per bundle entry point). Visible symptom: picking 'Red Rascal'
+    // in the Syntax theme dropdown updated the dialog mini-preview but
+    // the actual code blocks in the viewer fell back to match-palette
+    // because CODE_THEMES['red-rascal'] was undefined there.
+    //
+    // When adding a new palette to settings.js, ALSO add its
+    // palette-derived theme here so both bundles see it.
+    'ayu-dark': {
+        label: 'Ayu Dark', isDark: true, bg: '#01060e', fg: '#cccac2',
+        colors: { keyword: '#ff8f40', string: '#aad94c', comment: '#5c6773', number: '#d2a6ff', function: '#ffb454', type: '#73d0ff', operator: '#f29668', variable: '#cccac2', punctuation: '#cccac2' },
+    },
+    'catppuccin-mocha': {
+        label: 'Catppuccin Mocha', isDark: true, bg: '#181825', fg: '#cdd6f4',
+        colors: { keyword: '#cba6f7', string: '#a6e3a1', comment: '#6c7086', number: '#fab387', function: '#89b4fa', type: '#f9e2af', operator: '#94e2d5', variable: '#cdd6f4', punctuation: '#9399b2' },
+    },
+    'gruvbox-dark': {
+        label: 'Gruvbox Dark', isDark: true, bg: '#3c3836', fg: '#ebdbb2',
+        colors: { keyword: '#fb4934', string: '#b8bb26', comment: '#928374', number: '#d3869b', function: '#8ec07c', type: '#fabd2f', operator: '#fe8019', variable: '#ebdbb2', punctuation: '#a89984' },
+    },
+    'tokyo-night': {
+        label: 'Tokyo Night', isDark: true, bg: '#24283b', fg: '#c0caf5',
+        colors: { keyword: '#bb9af7', string: '#9ece6a', comment: '#565f89', number: '#ff9e64', function: '#7aa2f7', type: '#0db9d7', operator: '#89ddff', variable: '#c0caf5', punctuation: '#a9b1d6' },
+    },
+    'obsidianite': {
+        label: 'Obsidianite', isDark: true, bg: '#191621', fg: '#e5e7eb',
+        colors: { keyword: '#c084fc', string: '#86efac', comment: '#71717a', number: '#fb923c', function: '#60a5fa', type: '#fde047', operator: '#f87171', variable: '#e5e7eb', punctuation: '#9ca3af' },
+    },
+    'pln-dark': {
+        label: 'PLN Dark', isDark: true, bg: '#2e3440', fg: '#9cdcfe',
+        colors: { keyword: '#f48771', string: '#ce9178', comment: '#6a9955', number: '#b5cea8', function: '#dcdcaa', type: '#4ec9b0', operator: '#d4d4d4', variable: '#9cdcfe', punctuation: '#808080' },
+    },
+    'pln-light': {
+        label: 'PLN Light', isDark: false, bg: '#eceff4', fg: '#001080',
+        colors: { keyword: '#0000ff', string: '#a31515', comment: '#008000', number: '#098658', function: '#795e26', type: '#267f99', operator: '#000000', variable: '#001080', punctuation: '#808080' },
+    },
+    'anuppuccin-frappe': {
+        label: 'AnuPpuccin Frappé', isDark: true, bg: '#232634', fg: '#c6d0f5',
+        colors: { keyword: '#ca9ee6', string: '#a6d189', comment: '#737994', number: '#ef9f76', function: '#8caaee', type: '#e5c890', operator: '#81c8be', variable: '#c6d0f5', punctuation: '#949cbb' },
+    },
+    'everforest': {
+        label: 'Everforest', isDark: true, bg: '#343f44', fg: '#d3c6aa',
+        colors: { keyword: '#e67e80', string: '#a7c080', comment: '#7a8478', number: '#d699b6', function: '#a7c080', type: '#dbbc7f', operator: '#83c092', variable: '#d3c6aa', punctuation: '#9da9a0' },
+    },
+    'rose-pine': {
+        label: 'Rosé Pine', isDark: true, bg: '#1f1d2e', fg: '#e0def4',
+        colors: { keyword: '#c4a7e7', string: '#f6c177', comment: '#6e6a86', number: '#eb6f92', function: '#9ccfd8', type: '#ebbcba', operator: '#31748f', variable: '#e0def4', punctuation: '#908caa' },
+    },
+    'vesper': {
+        label: 'Vesper', isDark: true, bg: '#1C1C1C', fg: '#FFFFFF',
+        colors: { keyword: '#A0A0A0', string: '#90B99F', comment: '#505050', number: '#FFC799', function: '#FFC799', type: '#A0A0A0', operator: '#FFC799', variable: '#FFFFFF', punctuation: '#A0A0A0' },
+    },
+    'red-rascal': {
+        label: 'Red Rascal', isDark: true, bg: '#3e1414', fg: '#f0d8d0',
+        colors: { keyword: '#FF6347', string: '#E5C07B', comment: '#737373', number: '#FF9F43', function: '#DE5757', type: '#FFAB91', operator: '#FF6E6E', variable: '#FFD8D8', punctuation: '#E0A0A0' },
+    },
+    'ayu-light': {
+        label: 'Ayu Light', isDark: false, bg: '#f6f8fa', fg: '#5c6166',
+        colors: { keyword: '#fa8d3e', string: '#86b300', comment: '#abb0b6', number: '#a37acc', function: '#f2ae49', type: '#399ee6', operator: '#ed9366', variable: '#5c6166', punctuation: '#5c6166' },
+    },
+    'gruvbox-light': {
+        label: 'Gruvbox Light', isDark: false, bg: '#ebdbb2', fg: '#3c3836',
+        colors: { keyword: '#9d0006', string: '#79740e', comment: '#928374', number: '#8f3f71', function: '#427b58', type: '#b57614', operator: '#af3a03', variable: '#3c3836', punctuation: '#7c6f64' },
+    },
+    'catppuccin-latte': {
+        label: 'Catppuccin Latte', isDark: false, bg: '#e6e9ef', fg: '#4c4f69',
+        colors: { keyword: '#8839ef', string: '#40a02b', comment: '#9ca0b0', number: '#fe640b', function: '#1e66f5', type: '#df8e1d', operator: '#179299', variable: '#4c4f69', punctuation: '#7c7f93' },
+    },
+    'one-light': {
+        label: 'One Light', isDark: false, bg: '#f0f0f0', fg: '#383a42',
+        colors: { keyword: '#a626a4', string: '#50a14f', comment: '#a0a1a7', number: '#986801', function: '#4078f2', type: '#c18401', operator: '#0184bc', variable: '#383a42', punctuation: '#383a42' },
+    },
+    'tokyo-night-day': {
+        label: 'Tokyo Night Day', isDark: false, bg: '#d0d5e3', fg: '#3760bf',
+        colors: { keyword: '#9854f1', string: '#587539', comment: '#9699a3', number: '#965027', function: '#2e7de9', type: '#007197', operator: '#3e6968', variable: '#3760bf', punctuation: '#6172b0' },
+    },
+    'nord-light': {
+        label: 'Nord Light', isDark: false, bg: '#e5e9f0', fg: '#2e3440',
+        colors: { keyword: '#5e81ac', string: '#a3be8c', comment: '#7b88a1', number: '#b48ead', function: '#5e81ac', type: '#88c0d0', operator: '#5e81ac', variable: '#2e3440', punctuation: '#4c566a' },
+    },
+    'alucard': {
+        label: 'Alucard', isDark: false, bg: '#eeeed8', fg: '#1f1f1f',
+        colors: { keyword: '#9844c5', string: '#947100', comment: '#a4a6a8', number: '#cb3a2a', function: '#1f8f00', type: '#036a96', operator: '#cb3a2a', variable: '#1f1f1f', punctuation: '#5e5e5e' },
+    },
+    'obsidianite-light': {
+        label: 'Obsidianite Light', isDark: false, bg: '#f3f4f5', fg: '#18181b',
+        colors: { keyword: '#7c3aed', string: '#15803d', comment: '#71717a', number: '#c2410c', function: '#2563eb', type: '#a16207', operator: '#dc2626', variable: '#18181b', punctuation: '#52525b' },
+    },
 };
 
 // Roles we override. Tied to the `--code-<role>` set defined in viewer.css.
