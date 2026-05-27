@@ -41,8 +41,8 @@ Click Source a second time while already in Source mode and the pane splits in t
 
 **Editing toolbar** (visible in Live and Source modes):
 
-- Bold, italic, strikethrough, inline code, link, footnote
-- H1 / H2 / H3
+- Bold, italic, strikethrough, highlight, inline code, link, footnote
+- One cycling Heading button (H1 through H6)
 - Bulleted list, numbered list, task list
 - Outdent / indent
 - Blockquote, fenced code block, image insert

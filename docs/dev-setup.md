@@ -46,6 +46,10 @@ npm run build
 
 Output lands in `web/dist/` and is copied next to the DLL during the C++ build's POST_BUILD step.
 
+### Iterative web development against the live install
+
+When iterating on web files only (no native rebuild needed), the staged copy next to the DLL is what DOpus actually reads — not `web/dist/` and not the release bundle. After each `npm run build`, copy the contents of `build-out/mdWorX_assets/` into the live install location (the same path you copied the DLL to in the Install section below). DOpus reads the assets on viewer pane open, so a viewer restart (close + reopen the pane) is enough to pick up the new bundle — no DOpus restart needed.
+
 ## Build the plugin
 
 From the repo root:
@@ -57,6 +61,8 @@ cd plugin
 
 Output: `build-out\Release\mdWorX.dll` plus the staged `build-out\mdWorX_assets\` folder.
 
+The script accepts a `-Install` switch that also copies the freshly-built DLL into the per-user DOpus viewers folder (`%APPDATA%\GPSoftware\Directory Opus\Viewers\`) — no admin required, no manual file ops, but note that this is the per-user path. The README documents the system Program Files path used by the full install pipeline; `-Install` is the developer shortcut for iterative work.
+
 ## Install the built plugin into DOpus
 
 For a one-off install or after the first build:
@@ -66,7 +72,7 @@ For a one-off install or after the first build:
 3. Restart Directory Opus.
 4. Confirm in Preferences → Plugins → Viewer that "Markdown" appears.
 
-The `release/Install.cmd` script in the repo does this automatically (self-elevates, closes DOpus, copies, restarts).
+The `release-bundle/mdWorX_v<version>/Install.cmd` script in a built release zip does this automatically (self-elevates, closes DOpus, copies, restarts). During development you don't have a release zip yet — use the manual copy above or `build.ps1 -Install` for the per-user path.
 
 ## Uninstall
 
@@ -77,6 +83,6 @@ The `release/Install.cmd` script in the repo does this automatically (self-eleva
 5. Optionally delete `%APPDATA%\HyperWorX\mdWorX\` (user settings file and saved custom themes).
 6. Restart DOpus.
 
-The `release/Uninstall.cmd` script does the same automatically.
+The `release-bundle/mdWorX_v<version>/Uninstall.cmd` script (shipped in built release zips) does the same automatically.
 
 No registry keys are written by the plugin (USB-safe).
