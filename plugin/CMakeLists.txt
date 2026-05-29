@@ -1,9 +1,17 @@
 cmake_minimum_required(VERSION 3.20)
 project(mdWorX
-    VERSION 0.2.0
+    VERSION 0.2.1
     DESCRIPTION "mdWorX — Directory Opus markdown viewer/editor plugin"
     LANGUAGES CXX
 )
+
+# Full version string the binary reports and the in-app updater compares
+# against the GitHub release tag. Must equal the release tag WITHOUT the
+# leading 'v' (e.g. "0.2.0-beta"). Kept separate from PROJECT_VERSION because
+# the numeric FILEVERSION resource can't carry a pre-release suffix, and
+# because a binary that reports a bare "0.2.0" outranks a "0.2.0-beta" release
+# under semver and would never offer the beta. Update per release.
+set(MDWORX_VERSION_FULL "0.2.1" CACHE STRING "Full semver incl. prerelease tag; match the GitHub release tag")
 
 if(NOT WIN32)
     message(FATAL_ERROR "This plugin is Windows-only.")
@@ -85,7 +93,7 @@ target_compile_definitions(mdWorX PRIVATE
     WIN32_LEAN_AND_MEAN
     NOMINMAX
     _CRT_SECURE_NO_WARNINGS
-    MDWORX_VERSION_STR=L"${PROJECT_VERSION}"
+    MDWORX_VERSION_STR=L"${MDWORX_VERSION_FULL}"
 )
 
 target_compile_options(mdWorX PRIVATE

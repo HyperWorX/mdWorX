@@ -1,8 +1,8 @@
-# mdWorX
+# mdWorX by HyperWorX
 
 A Markdown viewer and editor that runs inside Directory Opus, in the viewer pane or popped out into its own window.
 
-![mdWorX in the DOpus viewer pane](img/hero.png)
+![Switching modes in mdWorX: Reading, Live, Source, then the split preview](img/hero.gif)
 
 I built this because I work with a lot of Markdown files day to day and didn't want to fire up another app every time I needed a small edit. The existing DOpus options kept throwing errors for me, partly because of a WebView2 DPI bug they don't work around, so I rolled my own. It's a solo project, shared in case it's useful to anyone else.
 
@@ -14,21 +14,28 @@ There are three views, switched from the top toolbar:
 - **Live** keeps the formatting visible until your cursor enters a line, at which point the raw markdown markers reveal themselves for that line only. Click somewhere else and they hide again.
 - **Source** for raw Markdown. Click Source a second time to split the pane (see below).
 
-![Live editing inside the DOpus viewer pane](img/liveedit.png)
+![Live mode keeps formatting visible while you edit](img/liveedit.png)
 
-Double-click an `.md` file and the viewer pops out into its own window. Same modes, same split view, just without the DOpus chrome around it. The pop-out window keeps unsaved edits if you switch focus to DOpus and come back; the in-pane viewer reloads when you click a different file, so save first.
+Double-click an `.md` file and the viewer pops out into its own window (you may need to point DOpus at its viewer for markdown first; see [Tips](#tips)). Same modes, same split view, just without the DOpus chrome around it. The pop-out window keeps unsaved edits if you switch focus to DOpus and come back; the in-pane viewer reloads when you click a different file, so save first.
 
 ### Split preview in Source mode
 
-Click Source a second time while already in Source mode and the pane splits in two: raw markdown on the left, live-rendered preview on the right. Click Source a third time to close the split and return to single-pane Source.
+Source mode can split into two panes: raw markdown on the left, live-rendered preview on the right.
 
 ![Source mode with split-pane preview](img/split_pane.png)
 
+- **Click Source again to toggle the split.** A third click closes it and returns to single-pane Source.
 - **Drag the centre handle** to resize the two panes. The split position is remembered for the session.
 - **Linked scrolling is on by default.** Scrolling either side scrolls the other to the matching position, so the preview tracks the source as you write. The link icon sits in the middle of the split handle.
 - **Click the link icon to unlink** the two panes. Each side then scrolls independently — handy when you want to read one section in the preview while editing somewhere else in the source. Click again to re-link; the panes resync from the active side.
 - **Both panes use the same word-wrap setting.** Toggling word wrap in the top toolbar applies to source and preview together.
 - **The editing toolbar stays available** at the bottom in split mode and acts on the source pane.
+
+### Formatting marks
+
+Turn on **Show formatting characters** (Settings, Document tab) to reveal an `LF` or `CRLF` badge at the end of every line, so a file with mixed line endings shows its actual mix at a glance. Live mode also marks spaces and tabs. mdWorX preserves each file's line endings on save, so a CRLF file stays CRLF.
+
+![Source mode with per-line LF and CRLF badges](img/formatting-marks.png)
 
 ## Toolbars
 
@@ -55,9 +62,9 @@ Image dimensions and alignment ride along in the alt-text using Obsidian-compati
 
 ## What it renders
 
-GitHub-flavoured Markdown plus footnotes, definition lists, abbreviations, highlights (`==text==`), subscript (`H~2~O`), superscript (`E=mc^2^`), task lists (clickable in Live mode), autolinks, and emoji shortcodes. Code blocks are syntax-highlighted by [Lezer](https://lezer.codemirror.net/) — the same parser family that powers the CodeMirror 6 editor — so the rendered HTML and the source-mode editor use a single set of token colours, and a palette switch re-tints both surfaces together. Each block has a copy button in the corner that flashes green to confirm. Footnote definitions at the bottom of the document are editable in place: click the text and start typing.
+GitHub-flavoured Markdown plus footnotes, definition lists, abbreviations, highlights (`==text==`), sub/superscript (`H~2~O`, `E=mc^2^`), task lists (clickable in Live), autolinks, and emoji shortcodes. Footnote definitions are editable in place. Code blocks get a copy button and [Lezer](https://lezer.codemirror.net/) syntax highlighting shared by the reading view and the source editor, so a palette switch re-tints both at once.
 
-The Syntax theme picker sits next to the global palette picker because the choice governs both surfaces — fenced code in reading mode and inline-coloured tokens in source mode. `Match palette` (default) derives the nine token colours (keyword, string, comment, number, function, type, operator, variable, punctuation) from whichever palette is active. Each of the bundled palettes carries its own curated set, so Dracula renders pink keywords / yellow strings / green functions, Nord uses frost + aurora, One Dark uses its canonical scheme, and so on. Pick any specific entry in the Syntax theme dropdown to lock the syntax colours independently of the palette choice.
+The Syntax theme picker sits beside the palette picker. `Match palette` (default) derives the nine token colours from the active palette, each bundled palette carrying its own set; pick a specific entry to lock them regardless of palette. By default it colours rendered code blocks only; tick **Use syntax theme in source mode** to include the Source editor.
 
 ## Settings
 
@@ -71,7 +78,7 @@ What it covers:
 
 - **Theme and preset picker** — 29 built-in palettes (17 dark, 12 light — see [`docs/palettes.md`](docs/palettes.md) for the visual reference) plus any custom entries you've saved. Picker grouped Light / Dark / Your themes.
 - **Save menu** — capture the current state three ways: **Save as palette** keeps just the colours, **Save as style** keeps just typography and layout (fonts, weights, sizes, line-heights, padding, max-width), **Save as theme** bundles everything. Saved entries appear in the picker alongside the built-ins; your own can be deleted, built-ins can't.
-- **Document handling** — encoding (`auto`, `utf-8`, `utf-16` / `-le` / `-be`, `system`, the `cp1250`–`cp1258` family, ISO-8859 single-byte, Shift-JIS, GBK, Big5, EUC-KR, KOI8-R / -U), fallback encoding for when auto-detection fails, "render single newlines as line breaks" (hard line breaks), "show formatting characters in Live mode" (overlays every space, tab, and line ending; LF and CRLF lines get distinct badges), "allow remote images" (off by default — `![alt](https://...)` URLs render as a placeholder icon and no network request is made, so the hosting server can't learn the document was opened), "always reload external changes" (skips the conflict banner and always uses the disk version on file-return), and "auto-save every (minutes)" (0 disables; periodic save while the buffer is dirty).
+- **Document handling** — encoding (`auto`, `utf-8`, `utf-16` / `-le` / `-be`, `system`, the `cp1250`–`cp1258` family, ISO-8859 single-byte, Shift-JIS, GBK, Big5, EUC-KR, KOI8-R / -U), fallback encoding for when auto-detection fails, "render single newlines as line breaks" (hard line breaks), "show formatting characters" (an LF or CRLF badge at the end of every line in Live and Source modes, so a mixed-ending file shows its mix; Live mode also marks spaces and tabs), "allow remote images" (off by default — `![alt](https://...)` URLs render as a placeholder icon and no network request is made, so the hosting server can't learn the document was opened), "always reload external changes" (skips the conflict banner and always uses the disk version on file-return), and "auto-save every (minutes)" (0 disables; periodic save while the buffer is dirty).
 - **Page surface** — background, border colour and thickness, drop-shadow depth (`none` through `floating`), body text colour.
 - **Rules and dividers** — horizontal-rule colour and thickness, heading underline colour, thickness, and style (`solid`, `gradient`, or `none`). Heading underline thickness is independent of HR thickness, so a thin rule with a chunky H1 underline (or vice-versa) works fine. Default style is `gradient`.
 - **Per-level heading colours** — H1 through H6, each independent.
@@ -81,11 +88,9 @@ What it covers:
 
 ## Palettes
 
-29 preset palettes ship with mdWorX: 17 dark, 12 light. The full visual reference is in [`docs/palettes.md`](docs/palettes.md) with side-by-side rendered samples.
+29 preset palettes ship with mdWorX: 17 dark, 12 light. Each one re-tints the whole document, the toolbars, and the syntax highlighting. The full visual reference is in [`docs/palettes.md`](docs/palettes.md) with side-by-side rendered samples.
 
-| Light palette                                  | Dark palette                                 |
-| ---------------------------------------------- | -------------------------------------------- |
-| ![Light palette example](docs/palette_light.png) | ![Dark palette example](docs/palette_dark.png) |
+![A range of the built-in palettes, each rendered live in the editor](img/palette-cascade.png)
 
 Built-in dark: Default Dark, Dracula, Solarized Dark, Nord, Gruvbox Dark, One Dark, Tokyo Night, Ayu Dark, Catppuccin Mocha, GitHub Dark, Obsidianite, PLN Dark, AnuPpuccin Frappé, Everforest, Rosé Pine, Vesper, Red Rascal.
 
@@ -127,9 +132,16 @@ User settings live at `%APPDATA%\HyperWorX\mdWorX\settings.json`; saved custom t
 
 ## Tips
 
-- In Source mode, click Source again to toggle the split preview. Drag the handle to resize; click the link icon in the middle of the handle to unlink scrolling.
+- **Make double-click open mdWorX.** By default DOpus opens a markdown file with whatever program Windows has it associated with. To open it in the mdWorX viewer window instead:
+  1. In DOpus, go to **Settings → File Types**.
+  2. Edit (or create) the Markdown file type covering `md, markdown, mdown, mdwn, mkd, mkdn`.
+  3. Open the **Events** tab.
+  4. Select **Left double-click**, click **Edit**, and set the command to just `Show`.
+
+  This applies inside DOpus only. In Windows Explorer a double-click still uses the Windows default app, because mdWorX is a DOpus viewer plugin (a DLL), not a standalone program.
 - The disk icons save the file. The icon next to them toggles word wrap on code blocks and long URLs.
 - Click the copy button in the corner of any rendered code block to copy the snippet.
+- Right-click rendered text in Reading mode for a copy menu.
 - In the viewer pane: unsaved edits are stashed when you switch to another file. Click back and a banner asks whether to keep them or reload from disk. The stash lasts only for the current DOpus session and clears on save. Tick "Always reload external changes" in settings to skip the banner, or set an auto-save interval. Pop-out windows edit a single file and aren't affected.
 
 ## Building from source

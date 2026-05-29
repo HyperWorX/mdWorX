@@ -103,24 +103,19 @@ body.theme-light {
     --code-variable:    var(--ink-override,       var(--ink));
     --code-punctuation: var(--ink-soft);
 
-    /* Content-specific surfaces. Each element now has its own variable so
-     * adjusting one (e.g. blockquote bg) doesn't ripple into others
-     * (table headers, code blocks). Defaults inherit the palette's --code
-     * / --rule values so existing palettes look the same out of the box;
-     * users can override each independently via settings. */
-    /* Cascade priority for code-block / blockquote / table-header bg:
-     *   1. --code-theme-block-bg-override (written by applyCodeTheme
-     *      when a non-match-palette syntax theme is picked)
-     *   2. --code-block-bg-override (written by the codeBg setting,
-     *      pushed from the active palette via PRESET_KEYS or by the
-     *      user editing the field directly)
-     *   3. --code (per-theme default in :root / body.theme-dark)
-     * Match-palette clears layer 1 so layer 2's palette colour shows
-     * through; previously match-palette also cleared layer 2 (bug #1). */
-    --blockquote-bg:    var(--code-theme-block-bg-override, var(--code-block-bg-override, var(--code)));
+    /* Content-specific surfaces, each independent. The blockquoteBg /
+     * blockquoteFg / tableHeaderBg / tableHeaderFg settings own their
+     * surfaces through the -override layer at the usage site; the defaults
+     * below are PALETTE-DERIVED but deliberately decoupled from the
+     * code-block colour. blockquote / table-header backgrounds are a faint
+     * tint of the palette's ink over its page (both pushed per-palette via
+     * the -override layer), so they shift with the active palette WITHOUT
+     * tracking codeBg or the code-theme picker. Editing codeBg or picking
+     * a syntax theme changes ONLY the code block. */
+    --blockquote-bg:    color-mix(in srgb, var(--ink-override, var(--ink)) 6%, var(--page-override, var(--page)));
     --blockquote-fg:    var(--ink-soft);
-    --table-header-bg:  var(--code-theme-block-bg-override, var(--code-block-bg-override, var(--code)));
-    --table-header-fg:  var(--code-theme-block-fg-override, var(--ink-override, var(--ink)));
+    --table-header-bg:  color-mix(in srgb, var(--ink-override, var(--ink)) 9%, var(--page-override, var(--page)));
+    --table-header-fg:  var(--accent-override, var(--accent));
     --content-rule:     var(--rule);
 }
 
@@ -167,11 +162,13 @@ body.theme-dark {
     --code-variable:    var(--ink-override,       var(--ink));
     --code-punctuation: var(--ink-soft);
 
-    /* Content-specific surfaces — see light theme for cascade priority. */
-    --blockquote-bg:    var(--code-theme-block-bg-override, var(--code-block-bg-override, var(--code)));
+    /* Content-specific surfaces — palette-derived, decoupled from the
+     * code-block colour. Same formula as the light theme; page + ink are
+     * palette-driven so the tint adapts per palette. */
+    --blockquote-bg:    color-mix(in srgb, var(--ink-override, var(--ink)) 6%, var(--page-override, var(--page)));
     --blockquote-fg:    var(--ink-soft);
-    --table-header-bg:  var(--code-theme-block-bg-override, var(--code-block-bg-override, var(--code)));
-    --table-header-fg:  var(--code-theme-block-fg-override, var(--ink-override, var(--ink)));
+    --table-header-bg:  color-mix(in srgb, var(--ink-override, var(--ink)) 9%, var(--page-override, var(--page)));
+    --table-header-fg:  var(--accent-override, var(--accent));
     --content-rule:     var(--rule);
 }
 
@@ -923,10 +920,14 @@ body.mode-live .cm-md-list-item-L3 { padding-left: 5.6em !important; }
  * { color: var(--ink-soft) }` so this colour always wins over any inherited
  * ink-soft on the cm-line. Without this prefix the previous rule was
  * (0,0,1,0) and could be overridden by per-line decorator rules added
- * later. Reading mode uses the ol > li::marker rule below for the same
- * accent colour. */
+ * later. Reading mode matches via the ol > li::marker rule below. */
 body.mode-live .cm-md-list-number {
-    color: var(--accent-override, var(--accent)) !important;
+    /* Ordered-list numbers render in body ink, NOT the accent. The accent
+     * class is added by a live decorator that does not always land on a
+     * given repaint, so accent numbers used to flicker in and out; keeping
+     * them plain makes the numbering stable and consistent with Reading.
+     * Bullets keep the accent (li::marker rule below). */
+    color: var(--ink-override, var(--ink-soft)) !important;
     font-weight: 700;
 }
 
@@ -1206,7 +1207,11 @@ body.mode-live .cm-md-rendered-hr {
 }
 .cm-md-table th {
     font-weight: 600;
-    color: var(--accent-override, var(--accent));
+    /* Header cells inherit thead's colour (tableHeaderFg override or its
+     * default — accent-driven) so the tableHeaderFg setting actually
+     * controls what the user sees. Without this `color: inherit` the
+     * th selector would win at the cascade and lock cells to accent. */
+    color: inherit;
 }
 
 /* Editor sits inside .page in mode-live — make CodeMirror inherit the
@@ -1219,6 +1224,12 @@ body.mode-live .cm-md-rendered-hr {
  * Source is unaffected. */
 body.mode-live .cm-editor {
     background: transparent;
+    /* Main prose colour: match Reading's body ink so plain paragraph text in
+     * Live mode follows the textColor setting. List items, deflist terms, etc.
+     * set their own colour via their decorators (direct rules win over this
+     * inherited base); plain prose had no colour rule and fell back to the
+     * editor default. */
+    color: var(--ink-override, var(--ink));
     height: auto;
     min-height: calc(100vh - 80px);
     color: var(--ink-override, var(--ink));
@@ -1527,7 +1538,11 @@ body.heading-underline-gradient.mode-live .cm-md-heading-6 {
 
 :is(#content, .cm-md-rendered-block) p {
     margin: 0 0 12px;
-    color: var(--ink-soft);
+    /* Body text colour (textColor -> --ink-override) reaches paragraphs in
+     * both Reading and Live. Falls back to the muted ink when unset, so the
+     * default look is unchanged; only a user-set colour applies. Keeps
+     * Reading and Live prose in step (Live prose is set on .cm-editor). */
+    color: var(--ink-override, var(--ink-soft));
     line-height: var(--line-height-override, 2);
 }
 
@@ -1579,7 +1594,7 @@ body.mode-live .cm-md-superscript { vertical-align: super; }
     padding-left: 1.8em;    /* identical for ul, ol, and task lists so
                              * markers (bullet, "1.", checkbox) line up
                              * vertically regardless of list kind */
-    color: var(--ink-soft);
+    color: var(--ink-override, var(--ink-soft));
 }
 /* Pull top-level lists slightly closer to the element immediately before
  * them (paragraph, heading, etc.) so the gap above the list reads tighter
@@ -1602,6 +1617,14 @@ body.mode-live .cm-md-superscript { vertical-align: super; }
  * font-weight. */
 :is(#content, .cm-md-rendered-block) li::marker {
     color: var(--accent-override, var(--accent));
+}
+
+/* Ordered-list numbers stay in body ink rather than the accent, so the
+ * numbering reads as plain and matches Live mode (whose decorator-driven
+ * accent could flicker). More specific than the li::marker catch-all
+ * above, so it wins for ol markers; ul bullets keep the accent. */
+:is(#content, .cm-md-rendered-block) ol > li::marker {
+    color: var(--ink-override, var(--ink-soft));
 }
 
 /* Task list (GFM) — custom checkbox so we control bg + tick colour
@@ -1737,7 +1760,7 @@ body.mode-live .cm-md-rendered-block blockquote {
     text-align: left;
     color: var(--ink-override, var(--ink));
 }
-:is(#content, .cm-md-rendered-block) th { font-weight: 600; color: var(--accent-override, var(--accent)); }
+:is(#content, .cm-md-rendered-block) th { font-weight: 600; color: inherit; }
 
 :is(#content, .cm-md-rendered-block) hr {
     border: 0;
@@ -1991,8 +2014,10 @@ body.mode-live .cm-md-rendered-block > * { margin: 0 !important; }
  * classes to every line based on the per-line EOL info captured from the
  * raw file content at load. The body class gates visibility — toggling
  * the setting flips CSS only, no editor rebuild required. */
-body.mdwx-show-formatting.mode-live .cm-md-eol-lf::after,
-body.mdwx-show-formatting.mode-live .cm-md-eol-crlf::after {
+body.mdwx-show-formatting.mode-live   .cm-md-eol-lf::after,
+body.mdwx-show-formatting.mode-live   .cm-md-eol-crlf::after,
+body.mdwx-show-formatting.mode-source .cm-md-eol-lf::after,
+body.mdwx-show-formatting.mode-source .cm-md-eol-crlf::after {
     display: inline-block;
     margin-left: 0.4em;
     padding: 0 5px;
@@ -2008,8 +2033,10 @@ body.mdwx-show-formatting.mode-live .cm-md-eol-crlf::after {
     user-select: none;
     pointer-events: none;
 }
-body.mdwx-show-formatting.mode-live .cm-md-eol-lf::after   { content: 'LF'; }
-body.mdwx-show-formatting.mode-live .cm-md-eol-crlf::after { content: 'CRLF'; }
+body.mdwx-show-formatting.mode-live   .cm-md-eol-lf::after,
+body.mdwx-show-formatting.mode-source .cm-md-eol-lf::after   { content: 'LF'; }
+body.mdwx-show-formatting.mode-live   .cm-md-eol-crlf::after,
+body.mdwx-show-formatting.mode-source .cm-md-eol-crlf::after { content: 'CRLF'; }
 /* cm-md-eol-none = last line with no trailing newline. No badge: the
  * absence of one in the line above's stream is the information. */
 
@@ -2070,6 +2097,67 @@ body.mode-source .cm-highlightSpace {
 }
 body.mode-source .cm-highlightTab {
     opacity: 0.5;
+}
+
+/* Syntax theme in Source mode (opt-in via the "Use syntax theme in source
+ * mode" setting). By DEFAULT the editor's source colours read the *-src
+ * theme-override vars below, which are UNSET, so each token falls back to its
+ * palette colour and the syntax theme touches only rendered code blocks. When
+ * the setting is on, viewer.js adds body.mdwx-code-theme-source; in Source mode
+ * that maps each -src var to the live theme override, so the source view adopts
+ * the active syntax theme. Scoped to .mode-source so Live keeps palette markers.
+ * (When the syntax theme is "match-palette" the source overrides are unset, so
+ * each -src var resolves to the guaranteed-invalid value and editor.js falls
+ * back to the palette colour — i.e. source matches the palette, as intended.) */
+body.mdwx-code-theme-source.mode-source {
+    --code-keyword-theme-override-src:  var(--code-keyword-theme-override);
+    --code-string-theme-override-src:   var(--code-string-theme-override);
+    --code-comment-theme-override-src:  var(--code-comment-theme-override);
+    --code-type-theme-override-src:     var(--code-type-theme-override);
+    --code-operator-theme-override-src: var(--code-operator-theme-override);
+    --code-variable-theme-override-src: var(--code-variable-theme-override);
+    --code-theme-block-bg-override-src: var(--code-theme-block-bg-override);
+    --code-theme-block-fg-override-src: var(--code-theme-block-fg-override);
+}
+
+/* Right-click context menu (viewer.js builds the items). Styled to match the
+ * app chrome rather than the generic WebView2 menu (which is disabled). */
+.context-menu {
+    position: fixed;
+    z-index: 1000;
+    min-width: 184px;
+    padding: 4px;
+    background: var(--page-override, var(--page));
+    border: 1px solid var(--rule-override, var(--rule));
+    border-radius: 8px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
+    font-size: 13px;
+    color: var(--ink-override, var(--ink));
+    user-select: none;
+}
+.context-menu .ctx-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 7px 12px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    border-radius: 5px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.context-menu .ctx-item:hover,
+.context-menu .ctx-item:focus-visible {
+    background: var(--accent-faded);
+    outline: none;
+}
+.context-menu .ctx-sep {
+    height: 1px;
+    margin: 4px 6px;
+    background: var(--rule-override, var(--rule));
+    opacity: 0.6;
 }
 
 /* ---- Fenced code block syntax token colours -------------------------
@@ -2165,44 +2253,60 @@ body.mode-source .cm-highlightTab {
  * is centred via translateX(-50%)), so the peek is a short pill at the
  * top/bottom centre, not a viewport-wide bar.
  *
- * Hovering the visible peek (or anything inside it holding keyboard
- * focus) brings the toolbar back to its anchored position. Mouse-leave
- * retracts after a 400ms grace.
+ * Reveal is triggered by a stable full-width edge hot-zone (below), not by
+ * hovering the peek itself, so the toolbar can't slide out from under the
+ * cursor. Hovering the zone or the toolbar (or focus within) holds it open;
+ * leaving both retracts after a 350ms grace.
  */
+/* Stable hover zones. A thin fixed strip is pinned to the top/bottom edge and
+ * does NOT move when a toolbar slides in. Hovering the zone is what holds the
+ * toolbar open, so the reveal can't pull the toolbar out from under the cursor
+ * (the old peek-only :hover oscillated: revealing slid the bar away from the
+ * edge, hover was lost, it retracted, regained the peek, revealed again...).
+ * The zone also gives a large, easy edge target instead of a 4px sliver.
+ * z-index sits below the toolbars (50 / 49) so revealed buttons stay clickable;
+ * the zone overlaps the revealed toolbar so moving onto it keeps hover. */
 #toolbar-hotzone,
 #editing-toolbar-hotzone {
     display: none;
 }
+body.top-toolbar-autohide #toolbar-hotzone {
+    display: block;
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 18px;
+    z-index: 40;
+}
+body.edit-toolbar-autohide #editing-toolbar-hotzone {
+    display: block;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    height: 18px;
+    z-index: 40;
+}
 
-/* Animate `transform` instead of `top`/`bottom` so the slide composites
- * on the GPU rather than re-running layout each frame. Both anchors
- * stay constant (top: 8px on the wrapper, bottom: 14px on the edit pill);
- * only the transform value changes. The edit toolbar's existing
- * `translateX(-50%)` centring is preserved by including it on both
- * states.
- *
- * cubic-bezier(0.4, 0, 0.2, 1) is Material's "standard" easing — slow
- * start, slow end, no acceleration spike. Reads as a soft drawer rather
- * than a snap. 280ms is just slow enough to feel deliberate without
- * dragging. 400ms transition-delay applies only to the hiding direction:
- * the hover-to-reveal swap sets `transition-delay: 0ms` so the toolbar
- * pops in immediately. */
+/* Animate `transform` (GPU composite, no layout). cubic-bezier(0.4,0,0.2,1) is
+ * Material's standard easing. Reveal is immediate (transition-delay 0); hide
+ * waits a 350ms grace so a brief cursor excursion doesn't snap it shut. */
 body.top-toolbar-autohide #toolbar {
     transform: translateY(calc(-100% - 4px));
-    transition: transform 280ms cubic-bezier(0.4, 0, 0.2, 1) 400ms;
+    transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1) 350ms;
     will-change: transform;
 }
 body.top-toolbar-autohide .toolbar-group {
     box-shadow:
         0 6px 22px color-mix(in srgb, var(--accent-override, var(--accent)) 50%, transparent),
         0 2px 8px  color-mix(in srgb, var(--accent-override, var(--accent)) 30%, transparent);
-    transition: box-shadow 280ms cubic-bezier(0.4, 0, 0.2, 1) 400ms;
+    transition: box-shadow 300ms cubic-bezier(0.4, 0, 0.2, 1) 350ms;
 }
+/* Reveal: hover the stable hot-zone, the toolbar itself, or focus within. */
+body.top-toolbar-autohide #toolbar-hotzone:hover ~ #toolbar,
 body.top-toolbar-autohide #toolbar:hover,
 body.top-toolbar-autohide #toolbar:focus-within {
     transform: translateY(0);
     transition-delay: 0ms;
 }
+body.top-toolbar-autohide #toolbar-hotzone:hover ~ #toolbar .toolbar-group,
 body.top-toolbar-autohide #toolbar:hover .toolbar-group,
 body.top-toolbar-autohide #toolbar:focus-within .toolbar-group {
     box-shadow:
@@ -2212,18 +2316,17 @@ body.top-toolbar-autohide #toolbar:focus-within .toolbar-group {
 }
 
 body.edit-toolbar-autohide #editing-toolbar {
-    /* Combine the existing horizontal centring with the vertical slide.
-     * 100% + 10px slides the whole pill down past the bottom: 14px anchor
-     * leaving ~4px of the top edge peeking above the viewport bottom. */
+    /* Existing horizontal centring + vertical slide; only ~4px peeks. */
     transform: translate(-50%, calc(100% + 8.5px));
     transition:
-        transform 280ms cubic-bezier(0.4, 0, 0.2, 1) 400ms,
-        box-shadow 280ms cubic-bezier(0.4, 0, 0.2, 1) 400ms;
+        transform 300ms cubic-bezier(0.4, 0, 0.2, 1) 350ms,
+        box-shadow 300ms cubic-bezier(0.4, 0, 0.2, 1) 350ms;
     will-change: transform;
     box-shadow:
         0 -6px 22px color-mix(in srgb, var(--accent-override, var(--accent)) 50%, transparent),
         0 -2px 8px  color-mix(in srgb, var(--accent-override, var(--accent)) 30%, transparent);
 }
+body.edit-toolbar-autohide #editing-toolbar-hotzone:hover ~ #editing-toolbar,
 body.edit-toolbar-autohide #editing-toolbar:hover,
 body.edit-toolbar-autohide #editing-toolbar:focus-within {
     transform: translate(-50%, 0);

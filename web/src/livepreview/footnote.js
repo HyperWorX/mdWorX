@@ -6,6 +6,7 @@ import { Decoration, WidgetType, ViewPlugin } from '@codemirror/view';
 import { RangeSetBuilder } from '@codemirror/state';
 import { decoratorStateField, isCursorInRange } from './util.js';
 import { renderInline } from '../lib/markdown-it-shared.js';
+import { programmaticBaselineUpdate } from '../lib/doc-annotations.js';
 
 // ============= Normalizer: move all def lines to end of doc =============
 // Runs ONCE when the editor mounts. Scans for footnote def lines anywhere
@@ -82,6 +83,13 @@ function normalizeFootnoteDefs(view) {
     view.dispatch({
         changes,
         userEvent: 'footnote.normalize',
+        // Programmatic, NOT a user edit. This auto-canonicalises footnote
+        // definition positions every time a footnote-bearing doc opens in
+        // Live mode. Without this annotation the dispatch trips the editor's
+        // updateListener -> onChange -> dirty -> a stash is written with no
+        // user edit, so the conflict banner then fires on the next swap-back
+        // ("restored unsaved edits but I made none").
+        annotations: programmaticBaselineUpdate.of(true),
     });
 }
 

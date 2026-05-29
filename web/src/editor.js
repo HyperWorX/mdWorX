@@ -13,8 +13,9 @@ import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { syntaxHighlighting, HighlightStyle,
          bracketMatching, indentOnInput, syntaxTree,
-         LanguageDescription, StreamLanguage } from '@codemirror/language';
+         LanguageDescription, StreamLanguage, LanguageSupport } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
+import { programmaticDocUpdate, programmaticBaselineUpdate } from './lib/doc-annotations.js';
 import { javascript } from '@codemirror/lang-javascript';
 import { python } from '@codemirror/lang-python';
 import { cpp } from '@codemirror/lang-cpp';
@@ -60,19 +61,26 @@ const codeLanguages = [
     LanguageDescription.of({ name: 'yaml',       alias: ['yml'],                                           support: yaml() }),
     LanguageDescription.of({ name: 'html',       alias: ['htm'],                                           support: html() }),
     LanguageDescription.of({ name: 'css',        alias: ['scss', 'less'],                                  support: css() }),
-    LanguageDescription.of({ name: 'shell',      alias: ['sh', 'bash', 'zsh'],                             support: StreamLanguage.define(shell) }),
-    LanguageDescription.of({ name: 'powershell', alias: ['ps1', 'pwsh'],                                   support: StreamLanguage.define(powerShell) }),
-    LanguageDescription.of({ name: 'ruby',       alias: ['rb'],                                            support: StreamLanguage.define(ruby) }),
-    LanguageDescription.of({ name: 'lua',        alias: [],                                                support: StreamLanguage.define(lua) }),
-    LanguageDescription.of({ name: 'perl',       alias: ['pl'],                                            support: StreamLanguage.define(perl) }),
-    LanguageDescription.of({ name: 'swift',      alias: [],                                                support: StreamLanguage.define(swift) }),
-    LanguageDescription.of({ name: 'dockerfile', alias: ['docker'],                                        support: StreamLanguage.define(dockerFile) }),
-    LanguageDescription.of({ name: 'toml',       alias: [],                                                support: StreamLanguage.define(toml) }),
-    LanguageDescription.of({ name: 'diff',       alias: ['patch'],                                         support: StreamLanguage.define(diff) }),
-    LanguageDescription.of({ name: 'properties', alias: ['ini', 'conf'],                                   support: StreamLanguage.define(properties) }),
+    // Legacy stream-mode languages MUST be wrapped in LanguageSupport. A bare
+    // StreamLanguage is a Language, not a LanguageSupport, so lang-markdown's
+    // fenced-code nesting (which reads support.language.parser) hits an
+    // undefined .language and throws, which kills ALL live-preview decorations
+    // for the whole document. The Lezer langs above already return a
+    // LanguageSupport from their support() call, so only these need wrapping.
+    LanguageDescription.of({ name: 'shell',      alias: ['sh', 'bash', 'zsh'],                             support: new LanguageSupport(StreamLanguage.define(shell)) }),
+    LanguageDescription.of({ name: 'powershell', alias: ['ps1', 'pwsh'],                                   support: new LanguageSupport(StreamLanguage.define(powerShell)) }),
+    LanguageDescription.of({ name: 'ruby',       alias: ['rb'],                                            support: new LanguageSupport(StreamLanguage.define(ruby)) }),
+    LanguageDescription.of({ name: 'lua',        alias: [],                                                support: new LanguageSupport(StreamLanguage.define(lua)) }),
+    LanguageDescription.of({ name: 'perl',       alias: ['pl'],                                            support: new LanguageSupport(StreamLanguage.define(perl)) }),
+    LanguageDescription.of({ name: 'swift',      alias: [],                                                support: new LanguageSupport(StreamLanguage.define(swift)) }),
+    LanguageDescription.of({ name: 'dockerfile', alias: ['docker'],                                        support: new LanguageSupport(StreamLanguage.define(dockerFile)) }),
+    LanguageDescription.of({ name: 'toml',       alias: [],                                                support: new LanguageSupport(StreamLanguage.define(toml)) }),
+    LanguageDescription.of({ name: 'diff',       alias: ['patch'],                                         support: new LanguageSupport(StreamLanguage.define(diff)) }),
+    LanguageDescription.of({ name: 'properties', alias: ['ini', 'conf'],                                   support: new LanguageSupport(StreamLanguage.define(properties)) }),
 ];
 import { codeHighlighter } from './lib/code-highlight.js';
 import { livePreviewExtension } from './editor-livepreview.js';
+import { formattingMarksField } from './livepreview/formatting-marks.js';
 
 // Source-mode markdown highlighting.
 //
@@ -121,11 +129,16 @@ const markdownSyntaxStyle = HighlightStyle.define([
     // accent-coloured punctuation read as a deliberate syntax-emphasis layer
     // rather than blending into prose, especially when the same accent is
     // used for ordered-list numbers and the heading H3 default colour.
-    { tag: tags.processingInstruction, color: 'var(--accent-override, var(--accent))', fontWeight: '700' },
-    { tag: tags.meta,                  color: 'var(--accent-override, var(--accent))', fontWeight: '700' },
-    { tag: tags.contentSeparator,      color: 'var(--accent-override, var(--accent))', fontWeight: '700' },
-    { tag: tags.labelName,             color: 'var(--accent-override, var(--accent))', fontWeight: '700' },
-    { tag: tags.url,                   color: 'var(--accent-override, var(--accent))', fontWeight: '700' },
+    // Source-mode marker colour reads the *-src theme-override vars, which are
+    // set (from the live theme override) only when "Use syntax theme in source
+    // mode" is on (see viewer.css body.mdwx-code-theme-source.mode-source).
+    // Otherwise they're unset and each token falls back to its palette colour,
+    // so the syntax theme colours only rendered code blocks by default.
+    { tag: tags.processingInstruction, color: 'var(--code-keyword-theme-override-src, var(--accent-override, var(--accent)))', fontWeight: '700' },
+    { tag: tags.meta,                  color: 'var(--code-keyword-theme-override-src, var(--accent-override, var(--accent)))', fontWeight: '700' },
+    { tag: tags.contentSeparator,      color: 'var(--code-keyword-theme-override-src, var(--accent-override, var(--accent)))', fontWeight: '700' },
+    { tag: tags.labelName,             color: 'var(--code-type-theme-override-src, var(--accent-override, var(--accent)))', fontWeight: '700' },
+    { tag: tags.url,                   color: 'var(--code-string-theme-override-src, var(--accent-override, var(--accent)))', fontWeight: '700' },
     { tag: tags.heading,               fontWeight: '600', textDecoration: 'none' },
     // Wrapped CONTENT colours: each inline-emphasis kind gets its own
     // palette-derived hue so prose reads like a real syntax-highlighter view,
@@ -133,10 +146,10 @@ const markdownSyntaxStyle = HighlightStyle.define([
     // pushed by settings.js for the per-palette overrides; non-override
     // fallback resolves to --strong / --emphasis / --strike / --mono defined
     // per-theme in viewer.css.
-    { tag: tags.emphasis,              fontStyle: 'italic',  color: 'var(--emphasis-override, var(--emphasis))' },
-    { tag: tags.strong,                fontWeight: '600',    color: 'var(--strong-override, var(--strong))' },
-    { tag: tags.strikethrough,         textDecoration: 'line-through', color: 'var(--strike-override, var(--strike))' },
-    { tag: tags.monospace,             color: 'var(--mono-override, var(--mono))' },
+    { tag: tags.emphasis,              fontStyle: 'italic',  color: 'var(--code-string-theme-override-src, var(--emphasis-override, var(--emphasis)))' },
+    { tag: tags.strong,                fontWeight: '600',    color: 'var(--code-keyword-theme-override-src, var(--strong-override, var(--strong)))' },
+    { tag: tags.strikethrough,         textDecoration: 'line-through', color: 'var(--code-comment-theme-override-src, var(--strike-override, var(--strike)))' },
+    { tag: tags.monospace,             color: 'var(--code-variable-theme-override-src, var(--mono-override, var(--mono)))' },
     // Heading TEXT colour intentionally NOT set per level here. Source
     // mode shows the heading text in plain body ink so the only thing
     // visually distinct is the # marker (handled by
@@ -150,25 +163,24 @@ const markdownSyntaxStyle = HighlightStyle.define([
     // Block-quote text: muted relative to body ink so the > marker
     // (handled via processingInstruction above) is visibly the leading
     // structural element and the quote body recedes a touch.
-    { tag: tags.quote,                 color: 'var(--blockquote-fg-override, var(--blockquote-fg, var(--ink-muted, var(--ink))))' },
+    { tag: tags.quote,                 color: 'var(--code-comment-theme-override-src, var(--blockquote-fg-override, var(--blockquote-fg, var(--ink-muted, var(--ink)))))' },
     // Link content (the [bracketed] text portion of [text](url)). The
     // URL itself is tagged tags.url and styled with the accent
     // earlier. tags.link covers the whole link incl. brackets and the
     // bracketed text — match the rendered viewer where links inherit
     // the link colour.
-    { tag: tags.link,                  color: 'var(--link-color-override, var(--link-color, var(--accent-override, var(--accent))))' },
+    { tag: tags.link,                  color: 'var(--code-string-theme-override-src, var(--link-color-override, var(--link-color, var(--accent-override, var(--accent)))))' },
     // Link title (the "title" inside [text](url "title")). Italicised
     // to disambiguate from the URL it sits next to.
-    { tag: tags.string,                color: 'var(--link-color-override, var(--link-color, var(--accent-override, var(--accent))))',
+    { tag: tags.string,                color: 'var(--code-string-theme-override-src, var(--link-color-override, var(--link-color, var(--accent-override, var(--accent)))))',
                                        fontStyle: 'italic' },
-    // Backslash escapes (\\*, \\_, \\[) — surface them in the accent
-    // so the user can see at a glance that a character is being
-    // escaped rather than acting as markup.
-    { tag: tags.escape,                color: 'var(--accent-override, var(--accent))' },
-    // HTML entities (&amp; &#x2014; etc.) — same family as escapes.
-    { tag: tags.character,             color: 'var(--accent-override, var(--accent))' },
+    // Backslash escapes (\\*, \\_, \\[) and HTML entities ride the theme
+    // operator slot so they surface as inline-syntax markers rather than
+    // blending into prose; falls back to the palette accent when no theme.
+    { tag: tags.escape,                color: 'var(--code-operator-theme-override-src, var(--accent-override, var(--accent)))' },
+    { tag: tags.character,             color: 'var(--code-operator-theme-override-src, var(--accent-override, var(--accent)))' },
     // HTML comments (<!-- ... -->) — render as comment-style muted.
-    { tag: tags.comment,               color: 'var(--ink-muted, var(--ink))', fontStyle: 'italic' },
+    { tag: tags.comment,               color: 'var(--code-comment-theme-override-src, var(--ink-muted, var(--ink)))', fontStyle: 'italic' },
 ]);
 
 // List-aware Tab / Shift-Tab. When the cursor is on a line that is part of
@@ -257,34 +269,41 @@ function buildEditorTheme(livePreview) {
             '.cm-searchMatch': { backgroundColor: 'var(--accent-faded)', outline: '1px solid var(--accent)' },
         }, { dark: false });
     }
-    // Source mode: unchanged from prior implementation.
+    // Source mode: background/foreground cascade through the syntax-theme
+    // overrides first so picking a code theme (e.g. red-rascal) repaints the
+    // whole source view to match what a reading-mode code block would show,
+    // not just the palette page colour. When codeBlockTheme is match-palette,
+    // --code-theme-block-bg-override-src / --code-theme-block-fg-override-src are
+    // absent and the cascade falls back to the palette page/ink as before.
     return EditorView.theme({
         '&': {
             height: '100%',
-            backgroundColor: 'var(--page-override, var(--page))',
-            color: 'var(--ink-override, var(--ink))',
+            backgroundColor: 'var(--code-theme-block-bg-override-src, var(--page-override, var(--page)))',
+            color: 'var(--code-theme-block-fg-override-src, var(--ink-override, var(--ink)))',
             fontFamily: 'var(--font-mono-override, ui-monospace, Consolas, "Cascadia Code", "Segoe UI Mono", monospace)',
             fontSize: 'var(--font-size-code-override, 13px)',
         },
         '.cm-scroller': { fontFamily: 'inherit', overflow: 'auto' },
         '.cm-content': {
             padding: 'var(--page-pad-override, 32px 40px)',
-            caretColor: 'var(--ink-override, var(--ink))',
+            caretColor: 'var(--code-theme-block-fg-override-src, var(--ink-override, var(--ink)))',
             lineHeight: 'var(--line-height-code-override, var(--line-height-override, 1.55))',
         },
         '.cm-line': { padding: '0' },
         '&.cm-focused .cm-cursor': {
-            borderLeftColor: 'var(--accent-override, var(--accent))',
+            borderLeftColor: 'var(--code-keyword-theme-override-src, var(--accent-override, var(--accent)))',
             borderLeftWidth: '2px',
         },
-        '.cm-activeLine': { backgroundColor: 'var(--code)' },
+        '.cm-activeLine': {
+            backgroundColor: 'color-mix(in srgb, var(--code-theme-block-fg-override-src, var(--ink-override, var(--ink))) 6%, transparent)',
+        },
         '.cm-gutters': {
             backgroundColor: 'transparent',
-            color: 'var(--ink-soft)',
+            color: 'var(--code-comment-theme-override-src, var(--ink-soft))',
             border: 'none',
             opacity: 0.5,
         },
-        '.cm-activeLineGutter': { backgroundColor: 'transparent', color: 'var(--ink-override, var(--ink))' },
+        '.cm-activeLineGutter': { backgroundColor: 'transparent', color: 'var(--code-theme-block-fg-override-src, var(--ink-override, var(--ink)))' },
         '&.cm-focused .cm-selectionBackground, ::selection, .cm-selectionBackground': {
             backgroundColor: 'var(--accent-faded) !important',
         },
@@ -328,6 +347,9 @@ export function createEditor({ parent, doc, onChange, onSave, onSaveAs,
         // visibility instantly without an editor rebuild.
         highlightWhitespace(),
         highlightTrailingWhitespace(),
+        // EOL badges (per-line LF / CRLF) in BOTH source and live modes; shown
+        // only when body.mdwx-show-formatting is set (CSS-gated, no rebuild).
+        formattingMarksField,
         history(),
         drawSelection(),
         indentOnInput(),
@@ -375,7 +397,11 @@ export function createEditor({ parent, doc, onChange, onSave, onSaveAs,
             // CodeMirror's LF normalisation makes the stash differ from
             // the next disk read on Windows (CRLF files). Bug #3.
             if (u.transactions.some(tr => tr.annotation(programmaticDocUpdate))) return;
-            onChange(u.state.doc.toString());
+            // programmaticBaselineUpdate (footnote auto-normalise) IS mirrored
+            // but is not a user edit — viewer.js adopts it as the new clean
+            // baseline when the buffer is clean rather than marking it dirty.
+            const baseline = u.transactions.some(tr => tr.annotation(programmaticBaselineUpdate));
+            onChange(u.state.doc.toString(), baseline);
         }),
     ];
     if (livePreview) baseExtensions.push(livePreviewExtension());
@@ -399,10 +425,10 @@ export function createEditor({ parent, doc, onChange, onSave, onSaveAs,
     };
 }
 
-// Annotation that marks a transaction as a programmatic doc replacement
-// (file load, mode switch, reload-from-disk) so the updateListener can
-// skip onChange and avoid stashing the just-loaded content. See bug #3.
-const programmaticDocUpdate = Annotation.define();
+// programmaticDocUpdate now lives in ./lib/doc-annotations.js so live-preview
+// plugins (e.g. the footnote normaliser) can flag their own auto-dispatched,
+// non-user doc rewrites with the same annotation and be skipped by the
+// updateListener above. See bug #3 and the footnote-normalise phantom-stash.
 
 // Source-mode heading-mark decoration plugin.
 //

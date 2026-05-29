@@ -23,7 +23,6 @@ import { highlightField  } from './livepreview/highlight.js';
 import { hrField         } from './livepreview/hr.js';
 import { deflistField    } from './livepreview/deflist.js';
 import { footnoteField, footnoteNormalizer } from './livepreview/footnote.js';
-import { formattingMarksField } from './livepreview/formatting-marks.js';
 
 // blank-line collapser and heading-spacer fields are intentionally NOT
 // registered here. Both were experiments to make Live's vertical rhythm
@@ -49,6 +48,5 @@ export function livePreviewExtension() {
         deflistField,
         footnoteField,
         footnoteNormalizer,
-        formattingMarksField,
     ];
 }
