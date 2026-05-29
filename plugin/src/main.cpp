@@ -57,6 +57,12 @@ HWND      g_hwndDOpusMsg  = nullptr;
 // every pane create + REDRAW. Falls back to COLOR_WINDOW until the first
 // viewer pane has been created.
 COLORREF  g_lastViewerBg  = GetSysColor(COLOR_WINDOW);
+// Registry of every live viewer window (the pane plus any pop-out windows),
+// maintained in ViewerWndProc WM_CREATE / WM_DESTROY. A settings Apply
+// broadcasts DVPLUGINMSG_REINITIALIZE to all of these so new settings reach
+// EVERY open viewer, and so it never targets a stale pane that a file switch
+// has since recreated. All access is on the UI thread.
+std::vector<HWND> g_viewerWindows;
 
 // {74A3AE1F-C55E-4DAF-9107-F93E3A322CD8}
 constexpr GUID kPluginGuid =
@@ -337,7 +343,8 @@ std::wstring ReadFileUtf8(const std::wstring& path) {
 //
 // KEY DECISION 15 (no native JSON parser) still holds for the rest
 // of the settings file.
-std::wstring ExtractJsonStringKey(const std::wstring& json, const wchar_t* key) {
+std::wstring ExtractJsonStringKey(const std::wstring& json, const wchar_t* key,
+                                  bool topLevelOnly = true) {
     auto isWs = [](wchar_t c) {
         return c == L' ' || c == L'\t' || c == L'\n' || c == L'\r';
     };
@@ -417,9 +424,13 @@ std::wstring ExtractJsonStringKey(const std::wstring& json, const wchar_t* key) 
             size_t p = i;
             while (p < json.size() && isWs(json[p])) ++p;
             if (p < json.size() && json[p] == L':') {
-                // This is a key. If we're at depth 1 and it matches,
-                // start parsing the value.
-                if (depth == 1 && lit == keyStr) {
+                // This is a key. By default match only at the document's top
+                // level (depth 1) — keeps the settings/install-message parsing
+                // immune to caller-controlled nested keys. topLevelOnly=false
+                // matches the FIRST occurrence at any depth, used by the update
+                // check to read nested GitHub release fields (tag_name nested in
+                // the releases array, browser_download_url under assets[]).
+                if ((!topLevelOnly || depth == 1) && lit == keyStr) {
                     ++p;
                     while (p < json.size() && isWs(json[p])) ++p;
                     if (p >= json.size() || json[p] != L'"') return L"";
@@ -976,6 +987,7 @@ struct ViewerState {
     std::wstring currentFileDir;   // Updated each LOAD; used by /_local/ handler.
     std::wstring currentFilePath;  // Updated each LOAD; raw absolute path used as stash key.
     FILETIME     loadedDiskMtime{}; // Disk mtime captured at LOAD; baseline for conflict detection.
+    FILETIME     pollSeenMtime{};   // Last mtime the change-poll already reported, for dedup.
     COLORREF bgColour   = GetSysColor(COLOR_WINDOW);
 
     EncodingChoice lastReadEncoding{DK_AUTO, 0};
@@ -1142,6 +1154,12 @@ void PushUserSettingsToWebView(ViewerState* state) {
     state->webview->PostWebMessageAsJson(msg.c_str());
 }
 
+// External-change poll: the viewer plugin receives no reliable focus/activation
+// message, so while a file is loaded we re-check its disk mtime on a light
+// timer and tell the page when it changed under us (edited in another app).
+constexpr UINT_PTR MDWX_POLL_TIMER    = 1;
+constexpr UINT     MDWX_POLL_INTERVAL = 2000;  // ms
+
 void PushFileToWebView(ViewerState* state, const std::wstring& path) {
     if (!state || !state->webview) return;
 
@@ -1154,6 +1172,9 @@ void PushFileToWebView(ViewerState* state, const std::wstring& path) {
     // arbitrary local files could be fetched via the bypass route.
     AllowAbsDir(state, state->currentFileDir);
     state->loadedDiskMtime = ReadFileMtime(path);
+    state->pollSeenMtime   = state->loadedDiskMtime;
+    // Start (or restart) the external-change poll now that a file is loaded.
+    if (state->hwndSelf) SetTimer(state->hwndSelf, MDWX_POLL_TIMER, MDWX_POLL_INTERVAL, nullptr);
 
     DecodedFile df = ReadFileDecoded(path);
     state->lastReadEncoding = df.encoding;
@@ -1322,6 +1343,32 @@ void PostSaveAsResult(ViewerState* state, bool ok, bool cancelled,
     state->webview->PostWebMessageAsJson(msg.c_str());
 }
 
+// Re-apply a file's line-ending convention before writing. CodeMirror always
+// hands us an LF-only buffer, so a file that was CRLF on disk would otherwise
+// be silently rewritten with LF endings on every save. The JS layer passes
+// lineEnding ("crlf" | "lf" | "") derived from the file's content at load.
+// Defensive: normalise any mix down to LF first, then expand to CRLF.
+static std::wstring ApplyLineEnding(const std::wstring& text, const std::wstring& eol) {
+    std::wstring lf;
+    lf.reserve(text.size());
+    for (size_t i = 0; i < text.size(); ++i) {
+        if (text[i] == L'\r') {
+            if (i + 1 < text.size() && text[i + 1] == L'\n') continue; // CR of CRLF
+            lf += L'\n';                                               // lone CR -> LF
+        } else {
+            lf += text[i];
+        }
+    }
+    if (eol != L"crlf") return lf;
+    std::wstring out;
+    out.reserve(lf.size() + lf.size() / 16 + 1);
+    for (wchar_t c : lf) {
+        if (c == L'\n') out += L"\r\n";
+        else            out += c;
+    }
+    return out;
+}
+
 // Save dispatch from a {type:'saveFile', path, content, encoding} message.
 // MVP only handles utf-8 and utf-8-bom; other encodings fall through to an
 // error response so the page can surface the limitation. The save target
@@ -1351,11 +1398,37 @@ void HandleSaveFileMessage(ViewerState* state, const std::wstring& msg) {
     }
 
     std::wstring content = ExtractJsonStringKey(msg, L"content");
+    // Restore the file's line-ending convention (CM serves LF; JS tells us if
+    // the file was CRLF) so a CRLF file isn't silently converted to LF.
+    content = ApplyLineEnding(content, ExtractJsonStringKey(msg, L"lineEnding"));
+
+    // External-change guard: refuse to overwrite a file that changed on disk
+    // since we loaded or last saved it, unless the user explicitly forces it.
+    // Auto-save never forces. Without this, a save (especially an auto-save)
+    // silently clobbers edits made in another app (e.g. Obsidian).
+    bool force  = msg.find(L"\"force\":true") != std::wstring::npos;
+    bool isAuto = msg.find(L"\"auto\":true")  != std::wstring::npos;
+    if (!force) {
+        FILETIME cur = ReadFileMtime(state->filePath);
+        bool exists = (cur.dwLowDateTime || cur.dwHighDateTime);
+        if (exists && CompareFileTime(&cur, &state->loadedDiskMtime) != 0) {
+            std::wstring m =
+                std::wstring(L"{\"type\":\"saveResult\",\"ok\":false,\"conflict\":true,\"auto\":")
+                + (isAuto ? L"true" : L"false") + L"}";
+            if (state->webview) state->webview->PostWebMessageAsJson(m.c_str());
+            return;
+        }
+    }
+
     // Empty content is a legitimate edit (e.g. user cleared the file).
     if (!WriteUtf8FileAtomic(state->filePath, content, addBOM)) {
         PostSaveResult(state, false, L"atomic write failed", L"");
         return;
     }
+    // The buffer is now the disk version: advance the conflict baseline so our
+    // own write doesn't trip the guard or the poll on the next round.
+    state->loadedDiskMtime = ReadFileMtime(state->filePath);
+    state->pollSeenMtime   = state->loadedDiskMtime;
     PostSaveResult(state, true, nullptr, addBOM ? L"utf-8-bom" : L"utf-8");
 }
 
@@ -1421,6 +1494,7 @@ void HandleSaveAsMessage(ViewerState* state, const std::wstring& msg) {
 
     std::wstring chosen = pathBuf;
     std::wstring content = ExtractJsonStringKey(msg, L"content");
+    content = ApplyLineEnding(content, ExtractJsonStringKey(msg, L"lineEnding"));
     if (!WriteUtf8FileAtomic(chosen, content, addBOM)) {
         PostSaveAsResult(state, false, false, L"", L"",
             L"atomic write failed");
@@ -1434,6 +1508,10 @@ void HandleSaveAsMessage(ViewerState* state, const std::wstring& msg) {
     state->lastReadEncoding = addBOM ? EncodingChoice{DK_UTF8, 0}
                                      : EncodingChoice{DK_UTF8, 0};
     state->lastReadHadBOM   = addBOM;
+    // The chosen file is now the current file and its on-disk version is what
+    // we just wrote: set the conflict baseline accordingly.
+    state->loadedDiskMtime = ReadFileMtime(chosen);
+    state->pollSeenMtime   = state->loadedDiskMtime;
 
     PostSaveAsResult(state, true, false, chosen,
                      addBOM ? L"utf-8-bom" : L"utf-8", nullptr);
@@ -2222,6 +2300,25 @@ HRESULT OnControllerCreated(ViewerState* state,
                     return S_OK;
                 }
 
+                // {type:"requestReload"} - re-read the file from disk and push
+                // it to the page. Used when the user picks "Reload from disk"
+                // on an external-change banner, or on a clean external change.
+                if (msg.find(L"\"requestReload\"") != std::wstring::npos) {
+                    if (!state->filePath.empty()) PushFileToWebView(state, state->filePath);
+                    return S_OK;
+                }
+
+                // {type:"acknowledgeExternal"} - the user chose to keep their
+                // edits over an external change. Rebase the conflict baseline
+                // to the current disk version so their next save overwrites it
+                // rather than being blocked again.
+                if (msg.find(L"\"acknowledgeExternal\"") != std::wstring::npos) {
+                    FILETIME cur = ReadFileMtime(state->filePath);
+                    state->loadedDiskMtime = cur;
+                    state->pollSeenMtime   = cur;
+                    return S_OK;
+                }
+
                 // {type:"pickImage"} - Insert Image button in the editor
                 // toolbar. Opens the native image file picker and replies
                 // with {type:'imagePicked', cancelled, path, relative}.
@@ -2328,6 +2425,26 @@ void TeardownWebView2(ViewerState* state) {
 LRESULT CALLBACK ViewerWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
 
+    case WM_TIMER:
+        if (wParam == MDWX_POLL_TIMER) {
+            auto* state = GetState(hwnd);
+            if (state && state->webview && !state->filePath.empty()) {
+                FILETIME cur = ReadFileMtime(state->filePath);
+                bool exists = (cur.dwLowDateTime || cur.dwHighDateTime);
+                if (exists &&
+                    CompareFileTime(&cur, &state->loadedDiskMtime) != 0 &&
+                    CompareFileTime(&cur, &state->pollSeenMtime)   != 0) {
+                    // A new external version we haven't reported yet. Leave
+                    // loadedDiskMtime alone (the buffer is still based on the
+                    // old version until the user resolves); dedupe via
+                    // pollSeenMtime so we notify once per distinct change.
+                    state->pollSeenMtime = cur;
+                    state->webview->PostWebMessageAsJson(L"{\"type\":\"externalChange\"}");
+                }
+            }
+        }
+        return 0;
+
     case WM_CREATE: {
         auto* state = new ViewerState();
         state->hwndSelf   = hwnd;
@@ -2335,6 +2452,7 @@ LRESULT CALLBACK ViewerWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam
         state->bgColour   = QueryParentBgColour(state->hwndParent);
         g_lastViewerBg    = state->bgColour;   // settings dialog reads this
         SetState(hwnd, state);
+        g_viewerWindows.push_back(hwnd);
 
         // Best-effort COM init for the WebView2 callbacks. If COM is already
         // initialised on this thread with a compatible model, RPC_E_CHANGED_MODE
@@ -2354,6 +2472,12 @@ LRESULT CALLBACK ViewerWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam
     }
 
     case WM_DESTROY: {
+        for (size_t i = 0; i < g_viewerWindows.size(); ++i) {
+            if (g_viewerWindows[i] == hwnd) {
+                g_viewerWindows.erase(g_viewerWindows.begin() + i);
+                break;
+            }
+        }
         if (auto* state = GetState(hwnd)) {
             state->destroyed = true;
             TeardownWebView2(state);
@@ -2861,9 +2985,26 @@ HRESULT OnSettingsControllerCreated(SettingsState* s,
                 if (msg.find(L"\"saveSettings\"") != std::wstring::npos) {
                     std::wstring payload = ExtractJsonStringKey(msg, L"json");
                     bool ok = WriteUserSettingsAtomic(payload);
-                    if (ok && s->hwndNotify) {
-                        PostMessageW(s->hwndNotify, DVPLUGINMSG_REINITIALIZE,
-                                     0, static_cast<LPARAM>(s->dwNotifyData));
+                    if (ok) {
+                        // Apply to EVERY open viewer (pane + pop-out windows),
+                        // not just the pane that opened the dialog. Each viewer's
+                        // REINITIALIZE handler re-reads settings.json and
+                        // re-pushes it to its webview. Broadcasting to the live
+                        // registry also fixes the stale-target case: if the
+                        // opening pane was recreated by a file switch, its old
+                        // hwnd is gone, but every current pane still updates.
+                        for (HWND vw : g_viewerWindows) {
+                            if (IsWindow(vw)) {
+                                PostMessageW(vw, DVPLUGINMSG_REINITIALIZE, 0, 0);
+                            }
+                        }
+                        // The DOpus-initiated config path (Preferences ->
+                        // Configure) has an hwndNotify that is a DOpus window,
+                        // not one of our viewers — notify it too.
+                        if (s->hwndNotify && IsWindow(s->hwndNotify)) {
+                            PostMessageW(s->hwndNotify, DVPLUGINMSG_REINITIALIZE,
+                                         0, static_cast<LPARAM>(s->dwNotifyData));
+                        }
                     }
                     // Echo result back so the page can show a status line.
                     std::wstring out = std::wstring(L"{\"type\":\"saveResult\",\"ok\":") +
@@ -3708,7 +3849,12 @@ void HandleCheckForUpdatesMessage(SettingsState* s) {
         return;
     }
 
-    const wchar_t* url = L"https://api.github.com/repos/HyperWorX/mdWorX/releases/latest";
+    // Use the /releases LIST, not /releases/latest: GitHub defines "latest" to
+    // EXCLUDE pre-releases, which would make every -beta / -rc tag invisible to
+    // the in-app check. The list is sorted newest-first, so the first release
+    // object is the newest published release (prereleases included; drafts are
+    // not returned to unauthenticated callers).
+    const wchar_t* url = L"https://api.github.com/repos/HyperWorX/mdWorX/releases";
     HRESULT hr = URLDownloadToFileW(nullptr, url, tmpPath, 0, nullptr);
     if (FAILED(hr)) {
         DeleteFileW(tmpPath);
@@ -3737,17 +3883,24 @@ void HandleCheckForUpdatesMessage(SettingsState* s) {
         return;
     }
 
-    std::wstring tagName = ExtractJsonStringKey(body, L"tag_name");
-    std::wstring htmlUrl = ExtractJsonStringKey(body, L"html_url");
-    // browser_download_url only appears under assets[]; first occurrence
-    // is the release zip (mdWorX ships exactly one asset per release).
-    std::wstring assetUrl = ExtractJsonStringKey(body, L"browser_download_url");
+    // First-match, any-depth extraction (topLevelOnly=false). The response is
+    // an ARRAY of release objects, so the fields we want are nested: tag_name /
+    // html_url / body live on the newest (first) release object, and
+    // browser_download_url is deeper still, under that release's assets[]. The
+    // default top-level-only extractor can't reach them (this was the bug that
+    // left the Install button permanently disabled). Because the list is
+    // newest-first, the first occurrence of each belongs to the newest release.
+    // Safe: the asset URL is re-validated against the HTTPS host allowlist and
+    // SHA256-gated before anything is downloaded or executed.
+    std::wstring tagName  = ExtractJsonStringKey(body, L"tag_name", false);
+    std::wstring htmlUrl  = ExtractJsonStringKey(body, L"html_url", false);
+    std::wstring assetUrl = ExtractJsonStringKey(body, L"browser_download_url", false);
     // The release body is markdown; mdWorX releases include a line
     // matching `sha256: <64 hex>` so the in-app installer can verify
     // the downloaded zip against a value the GitHub API endpoint also
     // serves alongside the download URL. ExtractJsonStringKey gives us
     // the decoded body string; a regex pulls the hash out.
-    std::wstring releaseBody = ExtractJsonStringKey(body, L"body");
+    std::wstring releaseBody = ExtractJsonStringKey(body, L"body", false);
     std::wstring sha256;
     {
         static const std::wregex kShaRegex(

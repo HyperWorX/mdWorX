@@ -50,6 +50,7 @@
     "codeFontSize":        null,
     "codeLineHeight":      null,
     "codeBlockTheme":      "match-palette",
+    "codeThemeInSource":   false,
 
     "highlightFontWeight": null,
 

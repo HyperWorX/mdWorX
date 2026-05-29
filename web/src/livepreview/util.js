@@ -49,15 +49,33 @@ export const invisibleDecoration = Decoration.replace({});
 // a StateField that recomputes on every doc change AND every selection
 // change (so marker hide/reveal flips as the caret moves).
 export function decoratorStateField(stateToDecoratorSet) {
+    // Guard every decorator compute. A single decorator throwing on some
+    // construct (e.g. a RangeSetBuilder "ranges must be added sorted" error on
+    // an unusual nesting) would otherwise propagate out of StateField.create,
+    // fail EditorState.create, and break the ENTIRE Live editor build — so the
+    // file silently refuses to open in Live mode while simpler files work.
+    // Degrade to no decorations for the offending field instead, and record the
+    // error for diagnosis (window.__mdwxDecoErrors).
+    const safe = (state) => {
+        try {
+            return stateToDecoratorSet(state);
+        } catch (e) {
+            if (typeof window !== 'undefined') {
+                (window.__mdwxDecoErrors = window.__mdwxDecoErrors || [])
+                    .push(String((e && e.stack) || e));
+            }
+            return Decoration.none;
+        }
+    };
     return StateField.define({
         create(state) {
-            return stateToDecoratorSet(state);
+            return safe(state);
         },
         update(_oldSet, tr) {
             // Recompute on doc change OR selection change. Cheaper than
             // mapping the old set forward because our walks are visible-
             // viewport-only and stay fast on typical files.
-            return stateToDecoratorSet(tr.state);
+            return safe(tr.state);
         },
         provide(field) {
             return EditorView.decorations.from(field);

@@ -44,6 +44,7 @@
     "shiki": "^1.24.0"
   },
   "devDependencies": {
-    "esbuild": "^0.24.0"
+    "esbuild": "^0.24.0",
+    "playwright": "^1.60.0"
   }
 }

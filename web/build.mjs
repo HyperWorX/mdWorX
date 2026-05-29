@@ -9,7 +9,7 @@
 //   node build.mjs --watch   rebuild on change
 
 import { build, context } from 'esbuild';
-import { mkdir, copyFile, writeFile, rm } from 'node:fs/promises';
+import { mkdir, copyFile, writeFile, readFile, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -20,6 +20,13 @@ const srcDir    = path.join(root, 'src');
 const distDir   = path.join(root, 'dist');
 
 const isWatch = process.argv.includes('--watch');
+
+// Per-build cache-bust token appended to local css/js refs in the HTML.
+// WebView2 applies Chromium HTTP caching to virtual-host-mapped files, so
+// without a changing URL it serves a stale viewer.js / settings.js even
+// after the file is replaced on disk and DOpus is restarted. A fresh token
+// each build forces WebView2 to re-fetch.
+const BUILD_TOKEN = Date.now().toString(36);
 
 const commonOptions = {
     entryPoints: {
@@ -42,11 +49,20 @@ async function ensureClean() {
     await mkdir(distDir, { recursive: true });
 }
 
+async function copyHtmlCacheBusted(name) {
+    let html = await readFile(path.join(srcDir, name), 'utf8');
+    // Append ?v=<token> to local viewer/settings css+js refs so WebView2's
+    // HTTP cache can't serve a stale asset after an in-place update.
+    html = html.replace(/(href|src)="((?:viewer|settings)\.(?:css|js))"/g,
+                        `$1="$2?v=${BUILD_TOKEN}"`);
+    await writeFile(path.join(distDir, name), html);
+}
+
 async function copyStatic() {
-    await copyFile(path.join(srcDir, 'index.html'),             path.join(distDir, 'index.html'));
+    await copyHtmlCacheBusted('index.html');
     await copyFile(path.join(srcDir, 'viewer.css'),             path.join(distDir, 'viewer.css'));
     await copyFile(path.join(srcDir, 'settings-defaults.json'), path.join(distDir, 'settings-defaults.json'));
-    await copyFile(path.join(srcDir, 'settings.html'),          path.join(distDir, 'settings.html'));
+    await copyHtmlCacheBusted('settings.html');
     await copyFile(path.join(srcDir, 'settings.css'),           path.join(distDir, 'settings.css'));
     // settings.js is built by esbuild from settings.js entry point — no copy.
 }

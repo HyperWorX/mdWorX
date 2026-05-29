@@ -21,10 +21,9 @@
   <main class="settings-shell">
     <header class="settings-head">
       <h1>mdWorX Settings</h1>
-      <p class="settings-sub">
-        Changes apply to every open viewer pane when you click Apply.
-        Empty fields mean "use the theme default".
-      </p>
+      <!-- Default = the Appearance tab's line; settings.js setActiveTab()
+           swaps this per tab so the copy is always accurate. -->
+      <p class="settings-sub">Theme, colours, fonts, and layout. Empty fields follow the active palette.</p>
     </header>
     <!-- Tab strip. Frozen below the header so the active tab is always
          visible while the form scrolls. Buttons + active state are
@@ -37,7 +36,7 @@
         <span id="status" class="status"></span>
         <button type="button" id="btn-reset" class="btn btn-link" title="Clear every field back to its default (does NOT save until you click Apply)">Reset all fields</button>
         <button type="button" id="btn-close" class="btn">Close</button>
-        <button type="button" id="btn-apply" class="btn btn-primary">Apply</button>
+        <button type="button" id="btn-apply" class="btn btn-primary" title="Save these settings and apply them to every open mdWorX viewer">Apply</button>
       </div>
       <div id="save-theme-entry" class="custom-theme-entry footer-entry" style="display:none">
         <label id="save-theme-entry-label" class="entry-label">Save as theme</label>

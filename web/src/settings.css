@@ -118,6 +118,33 @@ body {
     border-top: none;
 }
 
+/* Developer credit + repo link, sat under the version/update row on the
+ * About tab. Muted, compact, palette-aware: the link picks up --accent so
+ * it matches the rest of the dialog chrome. */
+.about-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid var(--ink-faint, rgba(127, 127, 127, 0.18));
+    font-size: 12px;
+    color: var(--ink-soft);
+}
+.about-meta .about-dev strong {
+    color: var(--ink-override, var(--ink));
+    font-weight: 600;
+}
+.about-meta .about-link {
+    color: var(--accent);
+    text-decoration: none;
+    width: fit-content;
+}
+.about-meta .about-link:hover,
+.about-meta .about-link:focus-visible {
+    text-decoration: underline;
+}
+
 /* ---- Form ---------------------------------------------------------- */
 
 /* IMPORTANT: do NOT use `flex: 1` here. Combined with
@@ -190,6 +217,13 @@ body {
  * Live mode"). Wider label column here only. */
 .row[data-section="document-handling"] {
     grid-template-columns: 290px 1fr auto;
+}
+/* Theme & presets section gets extra vertical breathing room because
+ * it carries the preset picker, the syntax theme picker, their help
+ * blurbs, and the syntax preview block. Tight default row padding
+ * crowds those together. */
+.row[data-section="theme-presets"] {
+    padding: 10px 0;
 }
 .row label {
     font-size: 13px;
@@ -537,6 +571,9 @@ body.theme-dark .row select {
     font-size: 11px;
     color: var(--ink-soft);
     line-height: 1.6;
+    /* Vertical breathing room around the help blurb so it doesn't crowd
+     * the picker above it or the next row below. */
+    margin: 8px 0 14px;
 }
 .preset-help code {
     font-size: 0.95em;
@@ -558,7 +595,7 @@ body.theme-dark .row select {
  * to gauge keyword / function / string / comment / punctuation
  * colours at a glance. */
 .syntax-mini-preview {
-    margin: 4px 0 8px;
+    margin: 10px 0 14px;
     padding: 8px 12px;
     background: var(--code-theme-block-bg-override,
                   var(--code-block-bg-override,

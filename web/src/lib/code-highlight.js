@@ -210,16 +210,26 @@ export function highlightToHtml(code, infoString) {
     const lang = languageFor(infoString);
     if (!lang) return escapeHtml(code);
 
-    const tree = lang.parser.parse(code);
-    let out = '';
-    let pos = 0;
-    highlightTree(tree, codeHighlighter, (from, to, classes) => {
-        if (from > pos) out += escapeHtml(code.slice(pos, from));
-        out += `<span class="${classes}">${escapeHtml(code.slice(from, to))}</span>`;
-        pos = to;
-    });
-    if (pos < code.length) out += escapeHtml(code.slice(pos));
-    return out;
+    try {
+        const tree = lang.parser.parse(code);
+        let out = '';
+        let pos = 0;
+        highlightTree(tree, codeHighlighter, (from, to, classes) => {
+            if (from > pos) out += escapeHtml(code.slice(pos, from));
+            out += `<span class="${classes}">${escapeHtml(code.slice(from, to))}</span>`;
+            pos = to;
+        });
+        if (pos < code.length) out += escapeHtml(code.slice(pos));
+        return out;
+    } catch {
+        // A language parser (especially the stream-based legacy modes such as
+        // powershell / shell / toml) can throw on a degenerate or adversarial
+        // fence body. One fenced block must never blank the whole Reading view
+        // or break the Live editor build — fall back to escaped, unhighlighted
+        // source. (This, not a decorator throw, was the real cause of a
+        // complex README refusing to open in Live mode.)
+        return escapeHtml(code);
+    }
 }
 
 // Same as highlightToHtml but writes into a target DOM element via
@@ -232,20 +242,28 @@ export function highlightIntoElement(code, infoString, codeEl) {
         codeEl.textContent = code;
         return;
     }
-    const tree = lang.parser.parse(code);
-    let pos = 0;
-    highlightTree(tree, codeHighlighter, (from, to, classes) => {
-        if (from > pos) {
-            codeEl.appendChild(document.createTextNode(code.slice(pos, from)));
+    try {
+        const tree = lang.parser.parse(code);
+        let pos = 0;
+        highlightTree(tree, codeHighlighter, (from, to, classes) => {
+            if (from > pos) {
+                codeEl.appendChild(document.createTextNode(code.slice(pos, from)));
+            }
+            const span = document.createElement('span');
+            span.className = classes;
+            span.appendChild(document.createTextNode(code.slice(from, to)));
+            codeEl.appendChild(span);
+            pos = to;
+        });
+        if (pos < code.length) {
+            codeEl.appendChild(document.createTextNode(code.slice(pos)));
         }
-        const span = document.createElement('span');
-        span.className = classes;
-        span.appendChild(document.createTextNode(code.slice(from, to)));
-        codeEl.appendChild(span);
-        pos = to;
-    });
-    if (pos < code.length) {
-        codeEl.appendChild(document.createTextNode(code.slice(pos)));
+    } catch {
+        // See highlightToHtml: a throwing parser must not escape the Live-mode
+        // CodeBlockWidget.toDOM (which would break the editor render). Degrade
+        // to plain text — textContent also clears any partial spans appended
+        // before the throw.
+        codeEl.textContent = code;
     }
 }
 

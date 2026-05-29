@@ -388,16 +388,23 @@ function setDirty(d) {
     syncToolbar();
 }
 
-// Cheap content normalisation used when comparing two strings for
-// semantic equality on the conflict-banner path. Strips the UTF-8 BOM
-// if present and folds CRLF / CR line endings down to LF so a stash
-// that round-tripped through CodeMirror (which normalises everything
-// to LF internally) doesn't read as "different" from a fresh disk
-// read of the same file on a Windows machine writing CRLF.
+// Canonical content comparison used for EVERY "has this actually changed
+// vs disk?" decision: dirty tracking, stash sending, and the conflict
+// banner. Folds three non-semantic differences so two buffers that are
+// "the same document" compare equal:
+//   - UTF-8 BOM presence (comes and goes through the encoding pipeline)
+//   - CRLF / CR line-ending style (CodeMirror normalises its buffer to
+//     LF internally, while loadedBuffer holds the raw disk bytes, often
+//     CRLF on Windows)
+//   - trailing blank lines (a save / round-trip artefact)
+// Using ONE function everywhere keeps dirty, the stash, and the banner
+// from disagreeing about what "changed" means. That disagreement is what
+// produced the spurious conflict banner on swap-back: dirty/stash used a
+// raw compare while the banner used a normalised one.
 function normaliseForCompare(s) {
     if (typeof s !== 'string' || s.length === 0) return '';
     if (s.charCodeAt(0) === 0xFEFF) s = s.slice(1);
-    return s.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    return s.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\n+$/, '');
 }
 
 // Process-scoped unsaved-edits stash.
@@ -448,7 +455,7 @@ function applyAutoSave(minutesRaw) {
     if (!Number.isFinite(minutes) || minutes <= 0) return;
     const intervalMs = minutes * 60 * 1000;
     autoSaveTimer = setInterval(() => {
-        if (dirty && loadedPath) triggerSave();
+        if (dirty && loadedPath) triggerSave({ auto: true });
     }, intervalMs);
 }
 
@@ -460,15 +467,46 @@ function applyAutoSave(minutesRaw) {
 // explicitly choose one path or the other so unsaved work is never
 // silently lost.
 let pendingConflictStash = null;
+// Conflict-banner mode: 'stash' (unsaved edits restored on file re-open),
+// 'external' (file changed on disk while editing), or 'saveConflict' (a manual
+// save was blocked because the file changed on disk). The Keep / Reload button
+// handlers branch on this.
+let bannerMode = 'stash';
+function showExternalChangeBanner(isSaveConflict) {
+    bannerMode = isSaveConflict ? 'saveConflict' : 'external';
+    pendingConflictStash = null;
+    const msgEl = document.querySelector('#conflict-banner .conflict-banner-msg');
+    if (msgEl) {
+        msgEl.textContent = isSaveConflict
+            ? 'This file changed on disk since you opened it. "Keep my edits" overwrites it with your version; "Reload from disk" discards your edits.'
+            : 'This file changed on disk while you were editing. "Keep my edits" keeps yours; "Reload from disk" loads the new disk version.';
+    }
+    showConflictBanner();
+}
 function showConflictBanner() {
     if (conflictBannerEl) conflictBannerEl.hidden = false;
 }
 function hideConflictBanner() {
     if (conflictBannerEl) conflictBannerEl.hidden = true;
     pendingConflictStash = null;
+    bannerMode = 'stash';
 }
 if (conflictKeepBtn) {
     conflictKeepBtn.addEventListener('click', () => {
+        if (bannerMode === 'external') {
+            // Keep my edits and make them win: rebase the disk baseline so the
+            // next save overwrites the external change. Stay in the editor.
+            send({ type: 'acknowledgeExternal' });
+            hideConflictBanner();
+            setStatus('keeping your edits', 'ok');
+            return;
+        }
+        if (bannerMode === 'saveConflict') {
+            // Overwrite the disk version with my edits.
+            hideConflictBanner();
+            triggerSave({ force: true });
+            return;
+        }
         if (pendingConflictStash === null) { hideConflictBanner(); return; }
         editorBuffer = pendingConflictStash;
         if (mode === 'reading') {
@@ -476,13 +514,19 @@ if (conflictKeepBtn) {
         } else if (editor) {
             editor.setDoc(editorBuffer);
         }
-        setDirty(editorBuffer !== loadedBuffer);
+        setDirty(normaliseForCompare(editorBuffer) !== normaliseForCompare(loadedBuffer));
         setStatus('using your unsaved edits', 'ok');
         hideConflictBanner();
     });
 }
 if (conflictReloadBtn) {
     conflictReloadBtn.addEventListener('click', () => {
+        if (bannerMode === 'external' || bannerMode === 'saveConflict') {
+            // Discard local edits and re-load the current disk version.
+            send({ type: 'requestReload' });
+            hideConflictBanner();
+            return;
+        }
         editorBuffer = loadedBuffer;
         if (mode === 'reading') {
             render(loadedBuffer);
@@ -494,6 +538,85 @@ if (conflictReloadBtn) {
         setStatus('reloaded from disk', 'ok');
         hideConflictBanner();
     });
+}
+
+// ---------------------------------------------------------------------------
+// Right-click context menu. WebView2's built-in menu is disabled in release
+// builds, so provide a small app-styled menu: copy selection, copy/open link,
+// copy image address, select all, and copy the whole document as Markdown.
+// Items are context-sensitive (only shown when relevant).
+const ctxMenuEl = document.getElementById('context-menu');
+function hideCtxMenu() { if (ctxMenuEl) ctxMenuEl.hidden = true; }
+async function ctxCopy(text) {
+    if (!text) return;
+    try { await navigator.clipboard.writeText(text); setStatus('copied', 'ok'); }
+    catch { setStatus('copy failed', 'error'); }
+}
+function ctxItem(label, fn) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'ctx-item';
+    b.setAttribute('role', 'menuitem');
+    b.textContent = label;
+    b.addEventListener('click', () => { hideCtxMenu(); fn(); });
+    return b;
+}
+function ctxSep() {
+    const s = document.createElement('div');
+    s.className = 'ctx-sep';
+    return s;
+}
+if (ctxMenuEl) {
+    document.addEventListener('contextmenu', (e) => {
+        // Leave form fields (image popup, settings) with their default behaviour.
+        const tag = (e.target.tagName || '').toLowerCase();
+        if (tag === 'input' || tag === 'textarea') return;
+        e.preventDefault();
+        ctxMenuEl.innerHTML = '';
+
+        const sel  = (window.getSelection && window.getSelection().toString()) || '';
+        const link = e.target.closest ? e.target.closest('a[href]')  : null;
+        const img  = e.target.closest ? e.target.closest('img[src]') : null;
+        let contextual = false;
+
+        if (sel.trim()) { ctxMenuEl.appendChild(ctxItem('Copy', () => ctxCopy(sel))); contextual = true; }
+        if (link) {
+            ctxMenuEl.appendChild(ctxItem('Copy link address', () => ctxCopy(link.getAttribute('href'))));
+            ctxMenuEl.appendChild(ctxItem('Open link in browser', () => send({ type: 'openExternal', url: link.href })));
+            contextual = true;
+        }
+        if (img) {
+            ctxMenuEl.appendChild(ctxItem('Copy image address', () => ctxCopy(img.getAttribute('src'))));
+            contextual = true;
+        }
+        if (contextual) ctxMenuEl.appendChild(ctxSep());
+
+        ctxMenuEl.appendChild(ctxItem('Select all', () => {
+            const target = mode === 'reading' ? document.getElementById('content')
+                                              : document.getElementById('editor');
+            const s = window.getSelection();
+            if (target && s) {
+                s.removeAllRanges();
+                const r = document.createRange();
+                r.selectNodeContents(target);
+                s.addRange(r);
+            }
+        }));
+        ctxMenuEl.appendChild(ctxItem('Copy all as Markdown', () => ctxCopy(dirty ? editorBuffer : loadedBuffer)));
+
+        // Show, then position clamped to the viewport.
+        ctxMenuEl.hidden = false;
+        const mw = ctxMenuEl.offsetWidth, mh = ctxMenuEl.offsetHeight;
+        let x = e.clientX, y = e.clientY;
+        if (x + mw > window.innerWidth)  x = Math.max(0, window.innerWidth  - mw - 4);
+        if (y + mh > window.innerHeight) y = Math.max(0, window.innerHeight - mh - 4);
+        ctxMenuEl.style.left = x + 'px';
+        ctxMenuEl.style.top  = y + 'px';
+    });
+    document.addEventListener('mousedown', (e) => { if (!ctxMenuEl.contains(e.target)) hideCtxMenu(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideCtxMenu(); });
+    document.addEventListener('scroll', hideCtxMenu, true);
+    window.addEventListener('blur', hideCtxMenu);
 }
 
 
@@ -548,10 +671,30 @@ function buildEditorFor(targetMode) {
         parent: editorWrapEl,
         doc: editorBuffer || loadedBuffer,
         livePreview: targetMode === 'live',
-        onChange: (text) => {
+        onChange: (text, baseline) => {
             editorBuffer = text;
-            if (!dirty && text !== loadedBuffer) setDirty(true);
-            else if (dirty && text === loadedBuffer) setDirty(false);
+            if (baseline && !dirty) {
+                // Programmatic normalisation (footnote reorder) on a clean,
+                // non-dirty buffer: adopt it as the new clean baseline rather
+                // than a user edit, so the file isn't marked dirty and an undo
+                // doesn't leave it stuck dirty. If the buffer is already dirty
+                // (real edits, or restored unsaved edits), fall through and
+                // treat the normalise as part of those edits.
+                loadedBuffer = text;
+                clearStash();
+                if (mode === 'source' && splitMode) scheduleSplitRender();
+                return;
+            }
+            // Compare normalised, not raw: CodeMirror serves its buffer as
+            // LF while loadedBuffer holds raw disk bytes (often CRLF on
+            // Windows), so a raw !== reads as dirty on the first edit AND
+            // never clears on undo (LF never re-equals CRLF) — leaving the
+            // buffer stuck dirty and a stash orphaned. When the user reverts
+            // to a buffer that matches disk, clear the orphaned stash so a
+            // later swap-back doesn't resurrect the conflict banner.
+            const diverged = normaliseForCompare(text) !== normaliseForCompare(loadedBuffer);
+            if (!dirty && diverged) setDirty(true);
+            else if (dirty && !diverged) { setDirty(false); clearStash(); }
             if (mode === 'source' && splitMode) scheduleSplitRender();
             scheduleStash();
         },
@@ -587,20 +730,25 @@ function cycleMode() {
     setMode(MODES[(MODES.indexOf(mode) + 1) % MODES.length]);
 }
 
-function triggerSave() {
-    if (!loadedPath) { setStatus('use Save As — no path yet', 'error'); return; }
-    if (!dirty)      { setStatus('nothing to save'); return; }
+function triggerSave(opts) {
+    const force = !!(opts && opts.force);
+    const auto  = !!(opts && opts.auto);
+    if (!loadedPath) { if (!auto) setStatus('use Save As, no path yet', 'error'); return; }
+    if (!dirty)      { if (!auto) setStatus('nothing to save'); return; }
     const enc = (loadedEncoding || '').toLowerCase();
     if (enc !== 'utf-8' && enc !== 'utf-8-bom') {
-        setStatus(`save not yet supported for encoding "${loadedEncoding}"`, 'error');
+        if (!auto) setStatus(`save not yet supported for encoding "${loadedEncoding}"`, 'error');
         return;
     }
-    setStatus('saving...');
+    if (!auto) setStatus('saving...');
     send({
-        type:     'saveFile',
-        path:     loadedPath,
-        content:  editorBuffer,
-        encoding: enc,
+        type:       'saveFile',
+        path:       loadedPath,
+        content:    editorBuffer,
+        encoding:   enc,
+        lineEnding: window.mdwxDominantEol || 'lf',
+        auto:       auto,
+        force:      force,
     });
 }
 
@@ -615,6 +763,7 @@ function triggerSaveAs() {
         suggestedPath: loadedPath || '',
         content:       editorBuffer || loadedBuffer,
         encoding:      useEnc,
+        lineEnding:    window.mdwxDominantEol || 'lf',
     });
 }
 
@@ -1125,6 +1274,7 @@ function applySettings(s) {
     // formattingMarksField decorator always emits per-line classes; the
     // body class controls only whether the ::after badges show.
     document.body.classList.toggle('mdwx-show-formatting', s.showFormattingMarks === true);
+    document.body.classList.toggle('mdwx-code-theme-source', s.codeThemeInSource === true);
 
     // Remote-image gate. Read by lib/markdown-it-shared.js (Reading mode
     // renderer) and livepreview/image.js (Live mode widget) when deciding
@@ -1234,7 +1384,8 @@ function onHostMessage(event) {
             // lost from the stash, and the "click back to see the
             // banner" flow can't fire because there's nothing to
             // compare disk against.
-            if (loadedPath && loadedPath !== m.path && dirty && editorBuffer !== loadedBuffer) {
+            if (loadedPath && loadedPath !== m.path && dirty &&
+                normaliseForCompare(editorBuffer) !== normaliseForCompare(loadedBuffer)) {
                 send({ type: 'stashBuffer', path: loadedPath, content: editorBuffer });
             }
             if (stashTimer) { clearTimeout(stashTimer); stashTimer = null; }
@@ -1244,29 +1395,31 @@ function onHostMessage(event) {
             editorBuffer   = loadedBuffer;
             loadedEncoding = m.encoding || 'utf-8';
 
-            // Build per-line EOL type array from the raw content so the
-            // formatting-marks decorator in Live mode can render the right
-            // badge per line. CodeMirror normalizes line endings internally
-            // (default to LF) — this is the only point where the original
-            // CRLF/LF/CR-only distinction is preserved. Stored on window so
-            // the decorator can read it without an EditorState facet.
+            // Per-line EOL types from the raw content (CodeMirror normalises its
+            // own buffer to LF, so this is the only record of each line's
+            // original CRLF/LF). Drives the Live- AND Source-mode badges so a
+            // MIXED file shows its actual mix. Also derive the dominant
+            // convention, used as the badge default for newly inserted lines
+            // and as the lineEnding written back on save (so a CRLF file
+            // round-trips as CRLF instead of being silently converted to LF).
             window.mdwxEolPerLine = (() => {
                 const text = loadedBuffer;
                 const result = [];
                 let i = 0;
                 while (i < text.length) {
                     const lf = text.indexOf('\n', i);
-                    if (lf < 0) {
-                        // Final line has no terminator.
-                        result.push('none');
-                        break;
-                    }
+                    if (lf < 0) { result.push('none'); break; }   // final line, no terminator
                     result.push(lf > 0 && text.charCodeAt(lf - 1) === 13 ? 'crlf' : 'lf');
                     i = lf + 1;
                 }
                 if (text.length === 0) result.push('none');
-                else if (text.endsWith('\n')) result.push('none');   // trailing-newline file has one empty line after
+                else if (text.endsWith('\n')) result.push('none');
                 return result;
+            })();
+            window.mdwxDominantEol = (() => {
+                const crlf  = (loadedBuffer.match(/\r\n/g) || []).length;
+                const allLf = (loadedBuffer.match(/\n/g)   || []).length;
+                return crlf > 0 && crlf >= (allLf - crlf) ? 'crlf' : 'lf';
             })();
             // Always hide the "Loading file..." placeholder once content
             // arrives, regardless of which mode we're in. (Only render()
@@ -1287,25 +1440,22 @@ function onHostMessage(event) {
             //   pendingConflictStash for the banner's "Keep my edits"
             //   button to apply.
             pendingConflictStash = null;
-            // What the editor should display on load + whether to show
-            // the banner:
+            // What the editor shows on load + whether to show the banner:
             //
-            // Any stash present (restoredFromStash OR conflictDetected) +
-            // setting OFF: show the banner asking "Keep my edits / Reload
-            // original". Editor under the banner shows the stashed
-            // (in-progress) content so the user sees what they would keep.
+            //   Unsaved stash that differs from disk + setting OFF: show the
+            //   banner ("Keep my edits / Reload from disk"). The editor shows
+            //   the stashed (in-progress) content so the user sees what they
+            //   would keep. Fires for ANY real unsaved edits, with the copy
+            //   adapting to whether the disk also changed externally.
             //
-            // conflictDetected + "Always reload external changes" ON:
-            // silently use disk content. The user accepted that trade-off
-            // when they enabled the setting; the persistent auto-reload
-            // warning banner near the bottom keeps them aware of it.
+            //   "Always reload external changes" ON: silently use disk
+            //   content; the persistent auto-reload warning banner near the
+            //   bottom keeps the user aware of the trade-off.
             //
-            // restoredFromStash + setting ON: still show the banner. The
-            // setting only auto-discards when there's been an EXTERNAL
-            // change — without one, no work would be saved by skipping
-            // the prompt.
-            //
-            // No stash: plain load, disk content.
+            //   No stash, or stash == disk after normalisation: plain load,
+            //   disk content, no banner. A stash only exists after a real
+            //   user edit — programmatic doc rewrites (load, mode switch,
+            //   footnote normalise) are annotated and never create one.
             const haveStash = (m.restoredFromStash || m.conflictDetected) &&
                               typeof m.stashedContent === 'string';
             // Only meaningful to surface a stash when it actually differs
@@ -1335,13 +1485,21 @@ function onHostMessage(event) {
                     displayBuffer = loadedBuffer;
                     setStatus('reloaded from disk (auto-reload on)', 'ok');
                 } else {
+                    // Unsaved edits exist for this file (stash differs from
+                    // disk). Show the banner so the user chooses: keep their
+                    // edits or reload the disk version. This is the intended
+                    // feature — it fires whenever there are real unsaved
+                    // edits, NOT merely on an external disk change. (The
+                    // no-edit phantom-stash case that used to trip this is
+                    // fixed at the source: programmatic doc rewrites like the
+                    // footnote normaliser no longer mark the buffer dirty.)
+                    bannerMode = 'stash';
                     pendingConflictStash = m.stashedContent;
                     editorBuffer = m.stashedContent;
                     displayBuffer = m.stashedContent;
-                    shouldBeDirty = (m.stashedContent !== loadedBuffer);
-                    // Banner copy adapts to whether there was an external
-                    // change since the stash, so the user knows what
-                    // "Reload original" actually reverts to.
+                    shouldBeDirty = normaliseForCompare(m.stashedContent) !== normaliseForCompare(loadedBuffer);
+                    // Banner copy adapts to whether the disk ALSO changed
+                    // externally, so the user knows what "Reload" reverts to.
                     const bannerMsg = document.querySelector('#conflict-banner .conflict-banner-msg');
                     if (bannerMsg) {
                         bannerMsg.textContent = m.conflictDetected
@@ -1483,6 +1641,17 @@ function onHostMessage(event) {
         case 'settings':
             // Legacy/direct-set path (kept for in-page configuration UI later).
             applySettings(m.settings || {});
+            break;
+        case 'externalChange':
+            // Native poll detected the file changed on disk under us.
+            // Unsaved edits -> let the user choose; clean buffer -> just take
+            // the new disk version.
+            if (dirty) {
+                showExternalChangeBanner(false);
+            } else {
+                send({ type: 'requestReload' });
+                setStatus('reloaded: file changed on disk', 'ok');
+            }
             break;
         case 'clear':
             clearContent();

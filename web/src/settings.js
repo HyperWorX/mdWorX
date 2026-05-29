@@ -865,17 +865,17 @@ const schema = [
     // from the dialog (the regression that caused commit 9cf896e's
     // sibling bug-fix).
     { section: 'Theme & presets', tab: 'appearance' },
-    // codeBlockTheme lives here (not in 'Code blocks' below) because the
-    // syntax theme governs BOTH the rendered fenced code block bg/tokens
-    // AND the source-mode editor's per-token highlighting. Putting it
-    // next to the global palette picker matches the mental model of "I'm
-    // choosing the overall colour scheme for code and structure".
-    // Options are built dynamically from CODE_THEMES at boot time so
-    // every palette appears as a stand-alone theme choice; the helper
+    // codeBlockTheme sits next to the global palette picker because it sets the
+    // overall colour scheme for code. By DEFAULT the syntax theme colours only
+    // rendered fenced code blocks; the codeThemeInSource toggle below extends it
+    // to the Source-mode editor. Options are built dynamically from CODE_THEMES
+    // at boot so every palette appears as a stand-alone theme choice; the helper
     // groups them with dark themes first.
     { key: 'codeBlockTheme', label: 'Syntax theme', type: 'select',
       options: buildCodeThemeOptions(),
-      tooltip: '"Match palette" derives token colours from the active palette and uses the palette\'s code background. Pick any other entry to lock the syntax theme to a specific palette\'s colours regardless of the global palette.' },
+      tooltip: '"Match palette" derives token colours from the active palette and uses the palette\'s code background. Pick any other entry to lock the syntax theme to a specific colour scheme, independent of the active palette. By default this colours rendered code blocks only. Turn on "Use syntax theme in source mode" to apply it to the Source editor too.' },
+    { key: 'codeThemeInSource', label: 'Use syntax theme in source mode', type: 'check',
+      tooltip: 'OFF (default): the syntax theme colours only rendered fenced code blocks; the Source editor uses the active palette. ON: the Source editor adopts the syntax theme\'s token colours and background too.' },
 
     // ---- Document handling (file decode + source-rendering behaviour) -
     { section: 'Document handling', tab: 'document' },
@@ -886,11 +886,11 @@ const schema = [
       options: ENCODINGS_NO_AUTO,
       tooltip: 'Used only when "Decode markdown as" is "auto". "system" = your Windows ANSI codepage.' },
     { key: 'hardLineBreaks', label: 'Render single newlines as line breaks', type: 'check',
-      tooltip: 'ON: each newline shows as a visible break in Reading. OFF (default): newlines flow as whitespace.' },
-    { key: 'showFormattingMarks', label: 'Show formatting characters in Live mode', type: 'check',
-      tooltip: 'Shows an LF or CRLF badge at the end of each line in Live mode. Spaces appear as · and tabs as → so whitespace is visible too.' },
+      tooltip: 'ON: each single newline renders as a visible line break in Reading and Live. OFF (default): newlines flow as whitespace.' },
+    { key: 'showFormattingMarks', label: 'Show formatting characters', type: 'check',
+      tooltip: 'Shows an LF / CRLF badge at the end of each line in Live and Source modes (a mixed file shows its mix). In Live mode it also reveals whitespace: spaces as · and tabs as →. Source mode always shows those whitespace marks.' },
     { key: 'allowRemoteImages', label: 'Allow remote images', type: 'check',
-      tooltip: 'OFF (default): markdown images with http(s) URLs render as a placeholder icon, no network request is made. ON: external URLs load directly, which lets the hosting server learn each time you open a document that references them (IP, time, user agent). Turn ON only if you trust the document and the hosts. If you see a broken-image placeholder for a URL you trust, this is the setting to flip — or use the Insert Image popup, which always downloads URLs into the document folder so the markdown never references third-party hosts.' },
+      tooltip: 'OFF (default): markdown images with http(s) URLs render as a placeholder icon, no network request is made. ON: external URLs load directly, which lets the hosting server learn each time you open a document that references them (IP, time, user agent). Turn ON only if you trust the document and the hosts. If you see a broken-image placeholder for a URL you trust, this is the setting to flip. Or use the Insert Image popup: while this setting is off it always downloads URLs into the document folder so the markdown never references third-party hosts; with it on you can choose to keep the URL instead.' },
     { key: 'alwaysReloadExternal', label: 'Always reload external changes', type: 'check',
       tooltip: 'ON: skip the banner on file-return; always use the disk version, even if you had unsaved edits. Save before switching files or your work is lost.' },
     { key: 'autoSaveMinutes', label: 'Auto-save every (minutes)', type: 'range',
@@ -913,7 +913,7 @@ const schema = [
       options: ['none', 'subtle', 'soft', 'medium', 'strong', 'floating'],
       tooltip: 'Drop shadow behind the page card. Higher levels lift the page off the pane background.' },
     { key: 'accentColor', label: 'Accent',             type: 'colour',
-      tooltip: 'Used for bullet markers, list numbers, H3, ::marker, blockquote left bar, code-block left bar, ::selection.' },
+      tooltip: 'Used for bullet markers, ::marker, blockquote left bar, code-block left bar, ::selection.' },
 
     // ---- Body typography + colour --------------------------------------
     { section: 'Body text', tab: 'appearance' },
@@ -940,7 +940,7 @@ const schema = [
     // the font / size / weight fields.
     { section: 'Code blocks', tab: 'appearance' },
     { key: 'codeBg',      label: 'Code background',    type: 'colour',
-      tooltip: 'Used for inline code, code blocks, blockquotes, and table headers. Supports rgba().' },
+      tooltip: 'Used for fenced code blocks only. Inline code, blockquotes, and table headers have their own colours. Supports rgba().' },
     { key: 'codeFont',       label: 'Code font',  type: 'font',
       placeholder: "Start typing or pick. Fallbacks: 'Cascadia Code', Consolas, monospace",
       tooltip: 'Monospace font for inline code and code blocks. Accepts a CSS font stack with fallbacks.' },
@@ -952,13 +952,13 @@ const schema = [
       tooltip: 'CSS length. em = relative to body, px = absolute. Defaults: inline 0.92em, pre 12px.' },
     { key: 'codeLineHeight', label: 'Code line height', type: 'number',
       min: 1.0, max: 3.0, step: 0.05,
-      tooltip: 'Multiplier for code blocks. Default 1.5.' },
+      tooltip: 'Multiplier for code blocks. Follows the body line height when unset (1.5 if neither is set).' },
 
     // ---- Quotes & tables ----------------------------------------------
     // Background + text colour for blockquotes and table headers are
     // independent of the code-block background so changing one doesn't
-    // bleed into the others. Borders for tables / images / footnotes
-    // are controlled by the "Table / image / footnote borders" setting
+    // bleed into the others. Borders for table cells and the footnote
+    // divider are controlled by the "Table / footnote borders" setting
     // in "Rules and dividers" below.
     { section: 'Quotes & tables', tab: 'appearance' },
     { key: 'blockquoteBg',  label: 'Blockquote background', type: 'colour',
@@ -968,7 +968,7 @@ const schema = [
     { key: 'tableHeaderBg', label: 'Table header background', type: 'colour',
       tooltip: 'Background colour of <thead> cells. Independent of code-block background.' },
     { key: 'tableHeaderFg', label: 'Table header text colour', type: 'colour',
-      tooltip: 'Text colour inside table header cells. Falls back to body text colour when unset.' },
+      tooltip: 'Text colour inside table header cells. Falls back to the accent colour when unset.' },
 
     // ---- Highlight (mark) ----------------------------------------------
     { section: 'Highlight (==marked text==)', tab: 'appearance' },
@@ -1033,8 +1033,8 @@ const schema = [
     { key: 'hrThickness',           label: 'Horizontal rule thickness', type: 'number',
       min: 1, max: 8, step: 1, suffix: 'px',
       tooltip: 'Pixel height of the <hr> divider. Default 1px.' },
-    { key: 'ruleColor',             label: 'Table / image / footnote borders', type: 'colour',
-      tooltip: 'Border colour for tables, images, the footnote section divider, and the page-card border (when set). Defaults to the palette accent.' },
+    { key: 'ruleColor',             label: 'Table / footnote borders', type: 'colour',
+      tooltip: 'Border colour for table cells, the footnote section divider, and the page-card border (when shown). Tables default to the rule colour; the footnote divider and page border default to the palette accent.' },
 
     // ---- Page layout ---------------------------------------------------
     { section: 'Page layout', tab: 'appearance' },
@@ -1052,13 +1052,13 @@ const schema = [
           { value: 'always',    label: 'Always visible' },
           { value: 'auto-hide', label: 'Auto-hide on hover' },
       ],
-      tooltip: '"Always visible" keeps the top toolbar pinned. "Auto-hide on hover" slides it out of view until you bring the mouse to the top edge of the viewer.' },
+      tooltip: '"Always visible" keeps the top toolbar pinned. "Auto-hide on hover" slides it up out of view; hover the strip at the top-centre to bring it back.' },
     { key: 'editToolbarMode', label: 'Edit toolbar display', type: 'select',
       options: [
           { value: 'always',    label: 'Always visible' },
           { value: 'auto-hide', label: 'Auto-hide on hover' },
       ],
-      tooltip: '"Always visible" keeps the formatting toolbar pinned in Live / Source modes. "Auto-hide on hover" slides it down out of view until you bring the mouse to the bottom of the viewer.' },
+      tooltip: '"Always visible" keeps the formatting toolbar pinned in Live / Source modes. "Auto-hide on hover" slides it down out of view; hover the pill at the bottom-centre to bring it back.' },
     { key: 'editToolbarLayout', label: 'Edit toolbar layout', type: 'toolbar-layout',
       manifestKey: 'edit',
       tooltip: 'Reorder or hide buttons in the formatting toolbar shown in Live / Source modes. Drag a row to a new position to reorder; untick to hide. Reset returns to defaults.' },
@@ -1423,7 +1423,7 @@ function makeRow(entry) {
         if (entry.key === 'alwaysReloadExternal' && entry.type === 'check' &&
             control.checked) {
             showRowToast(row,
-                'Heads-up: with this on, unsaved edits in the DOpus viewer pane are discarded when you switch files. Save (Ctrl+S) first. Pop-out windows are independent and not affected.');
+                'Heads-up: with this on, unsaved edits in the DOpus viewer pane are discarded when you switch files. Save first via the toolbar Save button. Pop-out windows are independent and not affected.');
         }
         // codeBg and codeBlockTheme are mutually exclusive: each one
         // controls the same fenced-code-block background. Setting either
@@ -1482,10 +1482,11 @@ const themeDefaultVarMap = {
     h6Color:               '--ink-soft',
     highlightBg:           '--mark-bg',
     highlightFg:           '--mark-fg',
-    // viewer.css defaults --blockquote-bg / --table-header-bg through
-    // the code-block override chain and --table-header-fg through the
-    // ink override chain, so these dialog placeholders pick up the
-    // active palette's codeBg / textColor automatically.
+    // Independent content surfaces. Each falls back through its own
+    // --override layer (driven by the setting) to its base variable,
+    // which defaults to --code / --ink-soft / --ink (palette-driven)
+    // at the declaration site. Picking a syntax theme or editing
+    // codeBg no longer ripples into these placeholders.
     blockquoteBg:          '--blockquote-bg',
     blockquoteFg:          '--blockquote-fg',
     tableHeaderBg:         '--table-header-bg',
@@ -2004,7 +2005,7 @@ function makePresetRow() {
     menu.hidden = true;
     menu.innerHTML =
         '<button type="button" class="menu-item" data-action="save-palette" role="menuitem">Save as palette<span class="menu-hint">colours only</span></button>' +
-        '<button type="button" class="menu-item" data-action="save-style" role="menuitem">Save as style<span class="menu-hint">typography, sizes, layout</span></button>' +
+        '<button type="button" class="menu-item" data-action="save-style" role="menuitem">Save as style<span class="menu-hint">everything but colours and encoding</span></button>' +
         '<button type="button" class="menu-item" data-action="save-theme" role="menuitem">Save as theme<span class="menu-hint">palette + style</span></button>' +
         '<div class="menu-sep"></div>' +
         '<button type="button" class="menu-item" data-action="delete" id="menu-delete" role="menuitem" disabled>Delete current<span class="menu-hint" id="menu-delete-hint">no custom selection</span></button>';
@@ -2162,7 +2163,7 @@ const STYLE_KEYS = [
     // because they were absent from STYLE_KEYS. The "THEMABLE_KEYS
     // invariant" claim in the comments was false. The startup
     // validateKeyLists() check below will scream if these drift again.
-    'codeBlockTheme',
+    'codeBlockTheme', 'codeThemeInSource',
     'topToolbarMode', 'editToolbarMode', 'editToolbarLayout',
     'allowRemoteImages', 'alwaysReloadExternal',
     'autoSaveMinutes',
@@ -2308,6 +2309,20 @@ const TAB_META = [
 ];
 const DEFAULT_TAB = 'appearance';
 
+// One concise, accurate line per tab, shown under the title. Kept to a
+// single short sentence each so the header height (and its wrapping)
+// stays consistent as you switch tabs. The old static subtitle claimed
+// "empty fields mean use the theme default" on every tab, which is false
+// on Toolbars and About (no value fields there); each tab now describes
+// only what it actually contains. The "applies on Apply" fact lives on
+// the Apply button's tooltip instead, since it's true everywhere.
+const TAB_SUBTITLE = {
+    appearance: 'Theme, colours, fonts, and layout. Empty fields follow the active palette.',
+    document:   'Text encoding, line breaks, image loading, and saving behaviour.',
+    toolbars:   'Show or auto-hide the toolbars, and reorder or hide formatting buttons.',
+    about:      'Version, software updates, and the project link.',
+};
+
 function setActiveTab(id) {
     const tabs   = document.getElementById('settings-tabs');
     const panels = form.querySelectorAll('.tab-panel');
@@ -2321,6 +2336,8 @@ function setActiveTab(id) {
     panels.forEach(p => {
         p.classList.toggle('active', p.dataset.tab === id);
     });
+    const sub = document.querySelector('.settings-sub');
+    if (sub && TAB_SUBTITLE[id]) sub.textContent = TAB_SUBTITLE[id];
 }
 
 function buildAboutPanel() {
@@ -2361,7 +2378,30 @@ function buildAboutPanel() {
     status.className = 'update-status';
     wrap.appendChild(status);
 
-    return wrap;
+    // Developer credit + project link. The repo anchor is a plain external
+    // link: the WebView2 navigation guard (InstallWebViewNavigationGuards
+    // in the native host) cancels the in-pane navigation and hands the
+    // https URL to the OS browser via ShellExecute, so this opens in the
+    // user's default browser rather than inside the settings dialog.
+    const meta = document.createElement('div');
+    meta.className = 'about-meta';
+
+    const dev = document.createElement('span');
+    dev.className = 'about-dev';
+    dev.innerHTML = 'mdWorX by <strong>HyperWorX</strong>';
+    meta.appendChild(dev);
+
+    const repo = document.createElement('a');
+    repo.className = 'about-link';
+    repo.href = 'https://github.com/HyperWorX/mdWorX';
+    repo.rel = 'noopener noreferrer';
+    repo.textContent = 'github.com/HyperWorX/mdWorX';
+    meta.appendChild(repo);
+
+    const frag = document.createDocumentFragment();
+    frag.appendChild(wrap);
+    frag.appendChild(meta);
+    return frag;
 }
 
 function renderForm() {
@@ -2579,13 +2619,20 @@ function applyDefault(theme) {
 
 // Re-run setControlValue(null) on every empty colour field so the
 // placeholder + swatch are recomputed against the current --*-override
-// state on documentElement. Called by applyPreset / applyDefault after
-// applyOwnTheme has refreshed the overrides.
+// state on documentElement. Called by applyPreset / applyDefault /
+// populateFromState / btn-reset AFTER applyOwnTheme has refreshed the
+// overrides on documentElement.
+//
+// Iterates every colour entry in the schema (not just PRESET_KEYS): the
+// preset-keys list excludes blockquoteBg / blockquoteFg / tableHeaderBg /
+// tableHeaderFg (they're not part of a palette's identity contract) but
+// their placeholders still need to refresh whenever the cascade
+// underneath them changes — picking a different palette shifts --code
+// which is what their default cascade ultimately reads.
 function refreshEmptyColourPlaceholders() {
-    for (const key of PRESET_KEYS) {
-        if (key === 'theme') continue;
-        const entry = schema.find(s => s.key === key);
-        if (!entry || entry.type !== 'colour') continue;
+    for (const entry of schema) {
+        if (entry.section) continue;
+        if (entry.type !== 'colour') continue;
         if (isEmpty(getControlValue(entry))) setControlValue(entry, null);
     }
 }
@@ -2663,7 +2710,7 @@ function syncPresetPicker() {
     const hasColourOverride = PRESET_KEYS.some(k => {
         if (k === 'theme') return false;
         const entry = schema.find(s => s.key === k);
-        if (!entry) return false;
+        if (!entry || entry.type !== 'colour') return false;   // colour overrides only
         return !isEmpty(getControlValue(entry));
     });
 
@@ -2678,17 +2725,25 @@ function syncPresetPicker() {
 }
 
 function presetMatches(palette) {
+    // codeBg and codeBlockTheme are mutually exclusive (see clearOtherCodeField).
+    // When the user picks a syntax theme, the mutex clears codeBg back to null
+    // because the theme now owns the code-block bg. Comparing form's null codeBg
+    // against the palette's defined codeBg in that state reports a false drift
+    // and fires the asterisk on what is conceptually still the active palette.
+    // Skip the codeBg leg when codeBlockTheme is overriding it.
+    const themeEntry = schema.find(s => s.key === 'codeBlockTheme');
+    const themeVal = themeEntry ? getControlValue(themeEntry) : null;
+    const themeOwnsCodeBg = themeVal && themeVal !== 'match-palette' && themeVal !== '';
     for (const k of PRESET_KEYS) {
-        let current, wanted;
-        if (k === 'theme') {
-            current = getThemeValue();
-            wanted  = palette.theme ?? 'auto';
-        } else {
-            const entry = schema.find(s => s.key === k);
-            if (!entry) continue;
-            current = getControlValue(entry);
-            wanted  = palette[k];
-        }
+        if (k === 'theme') continue;            // light/dark mode is not a colour
+        if (k === 'codeBg' && themeOwnsCodeBg) continue;
+        const entry = schema.find(s => s.key === k);
+        // The asterisk flags a COLOUR moved away from the palette. Non-colour
+        // styling (underline style, highlight opacity) must NOT raise it, so a
+        // fresh palette pick or a style-only tweak stays clean.
+        if (!entry || entry.type !== 'colour') continue;
+        const current = getControlValue(entry);
+        const wanted  = palette[k];
         const curNorm  = isEmpty(current) ? null : String(current).toLowerCase();
         const wantNorm = isEmpty(wanted)  ? null : String(wanted).toLowerCase();
         if (curNorm !== wantNorm) return false;
@@ -2704,6 +2759,14 @@ function populateFromState() {
         if (row) updateResetState(row, entry);
     }
     applyOwnTheme();
+    // setControlValue above computed each colour field's placeholder
+    // against the CSS-variable state BEFORE applyOwnTheme had a chance
+    // to push the new form values into documentElement.style. That left
+    // every empty colour placeholder reading the bare :root cascade
+    // (light theme defaults) instead of the active palette's resolved
+    // colour. Re-render empty colour placeholders now that the
+    // override layer reflects the populated form.
+    refreshEmptyColourPlaceholders();
 }
 
 // The settings dialog renders itself in the same light/dark palette as
@@ -2726,27 +2789,31 @@ function resolveTheme() {
 // the active custom palette instead of staying on the bundled defaults.
 // Live-preview map for the SETTINGS DIALOG only. Mirrors the viewer's
 // generic palette variables so the dialog chrome updates as the user
-// edits a palette. Most content-specific keys (ruleColor, blockquoteBg,
-// tableHeaderBg, hrColor, headingUnderlineColor, the heading colours,
-// etc.) are NOT mapped here on purpose — they're viewer-only and
-// shouldn't leak into the dialog's own borders / surfaces while the
-// user is still editing them.
+// edits a palette. Content-specific surfaces (blockquote / table-header
+// bg+fg) ARE mapped here so the dialog's inline preview (`.preset-help`
+// carries the `cm-md-rendered-block` class so blockquote / table rules
+// in viewer.css apply to it) tracks the user's edits live — picking a
+// blockquoteBg colour updates the preview's blockquote immediately
+// instead of waiting for Apply + viewer reload.
 //
-// codeBg IS mapped because the viewer.css blockquote / table-header
-// defaults cascade through --code-block-bg-override (so picking a
-// palette propagates the palette's code background into the blockquote
-// and table-header surfaces). themeDefaultFor reads the resolved
-// cascade out of getComputedStyle to populate the blockquote /
-// table-header swatch placeholders, which needs the override to be
-// visible on documentElement when the user has a codeBg value set.
-// No rule in settings.css consumes --code-block-bg-override directly,
-// so this propagation doesn't bleed into the dialog's own chrome.
+// blockquote-bg / table-header-bg default to var(--code) at the
+// declaration site (viewer.css :root), so picking a palette that sets
+// codeBg STILL propagates --code into both surfaces via the palette's
+// own --code value — codeBg writes --code-block-bg-override which the
+// code block reads but not blockquote/table (they read --code directly).
+// Independence is therefore at the OVERRIDE layer: each setting writes
+// only its own surface's override variable.
 const settingsCssMap = {
     textColor:             '--ink-override',
     pageColor:             '--page-override',
+    pageBorderColor:       '--page-border-color-override',
     accentColor:           '--accent-override',
     linkColor:             '--link-override',
     codeBg:                '--code-block-bg-override',
+    blockquoteBg:          '--blockquote-bg-override',
+    blockquoteFg:          '--blockquote-fg-override',
+    tableHeaderBg:         '--table-header-bg-override',
+    tableHeaderFg:         '--table-header-fg-override',
     // Wrapped-content + highlight + rule overrides so the syntax
     // preview's inline elements (strong / em / del / mark / inline
     // code / link) and the surrounding rule borders actually reflect
@@ -2760,7 +2827,13 @@ const settingsCssMap = {
     monoColor:             '--mono-override',
     highlightBg:           '--highlight-bg-override',
     highlightFg:           '--highlight-fg-override',
-    ruleColor:             '--rule-override',
+    // ruleColor writes --content-rule-override (matching the viewer's
+    // settingsCssMap). Previously this wrote --rule-override which is
+    // the generic UI rule colour driving the dialog's OWN chrome
+    // borders, so the dialog's live preview lied — editing ruleColor
+    // changed the dialog's own borders but the viewer applied the
+    // setting to content borders only.
+    ruleColor:             '--content-rule-override',
     hrColor:               '--hr-color-override',
     headingUnderlineColor: '--heading-underline-override',
     h1Color:               '--h1-color-override',
@@ -2906,7 +2979,7 @@ function armInstallWatchdog() {
         const out       = document.getElementById('update-status');
         if (installBt && installBt.dataset.assetUrl) installBt.disabled = false;
         if (out) {
-            out.textContent = 'Install timed out — no response from the background installer. '
+            out.textContent = 'Install timed out. No response from the background installer. '
                             + 'Retry the install or close and reopen this dialog.';
         }
     }, INSTALL_WATCHDOG_MS);
@@ -3008,9 +3081,20 @@ function onHostMessage(event) {
             // Native: {type:'paneTheme', mode:'dark'|'light', paneBg:'#rrggbb'}
             // Sets the resolution target for theme='auto'. Re-apply
             // immediately in case userSettings already arrived.
+            //
+            // When userSettings arrives FIRST (race condition), populateFromState
+            // runs while panePaletteMode is still undefined. resolveTheme() then
+            // returns 'light' as its fallback, body.theme-light is applied, and
+            // refreshEmptyColourPlaceholders snapshots placeholders against the
+            // light theme cascade (purple --accent, deep purple --strong, teal
+            // --emphasis). When paneTheme then arrives and flips body to
+            // theme-dark, the placeholders stay stuck at the light values.
+            // Re-run the refresh here so they pick up the now-correct body
+            // class. No-op when no body flip occurred.
             panePaletteMode = (m.mode === 'dark') ? 'dark' : 'light';
             panePaneBg      = m.paneBg || null;
             applyOwnTheme();
+            refreshEmptyColourPlaceholders();
             break;
         case 'fonts':
             // Native: {type:'fonts', list:[...installed font face names]}
@@ -3031,7 +3115,7 @@ function onHostMessage(event) {
                 // saved theme snapshot before this Apply ran.
                 syncPresetPicker();
             } else {
-                setStatus('Save failed — check that %APPDATA%\\HyperWorX\\mdWorX\\ is writable.', 'fail');
+                setStatus('Save failed. Check that %APPDATA%\\HyperWorX\\mdWorX\\ is writable.', 'fail');
             }
             break;
         case 'customThemesList':
@@ -3405,9 +3489,23 @@ async function boot() {
         currentCustomTheme = null;
         currentBuiltinPalette = null;
         appliedSnapshot = null;
+        // Drop the curated per-token code colours too. They're not in
+        // the form schema (they ride along with the active palette via
+        // applyPreset) so the schema loop above didn't touch them.
+        // Without this delete, applyOwnPalette continues to push
+        // --code-<role>-palette-override on every refresh and the
+        // dialog's syntax preview keeps showing the previous palette's
+        // code colours after Reset All.
+        delete userSettings.codePaletteColors;
         // Re-theme the dialog AND snap the preset picker back to
         // "Default Auto" so the dropdown reflects the cleared state.
         applyOwnTheme();
+        // Same placeholder-staleness fix as populateFromState: the
+        // setControlValue(null) calls above computed placeholders
+        // against the pre-reset cascade. applyOwnTheme has now cleared
+        // the overrides, so empty colour placeholders need a re-render
+        // against the now-default cascade.
+        refreshEmptyColourPlaceholders();
         syncPresetPicker();
         updateThemeActionsVisibility();
         setStatus('All fields cleared. Click Apply to save, or Close to discard.', '');
