@@ -16,8 +16,7 @@ There are three views, switched from the top toolbar:
 
 ![Live mode keeps formatting visible while you edit](img/liveedit.png)
 
-Double-click an `.md` file and the viewer pops out into its own window (you may need to point DOpus at its viewer for markdown first; see [Tips](#tips)). Same modes, same split view, just without the DOpus chrome around it. The pop-out window keeps unsaved edits if you switch focus to DOpus and come back; the in-pane viewer reloads when you click a different file, so save first.
-
+Double-click an `.md` file and the viewer pops out into its own window (you may need to point DOpus at its viewer for markdown first; see [Tips](#tips)). Same modes, same split view, just without the DOpus chrome around it. Keeps unsaved edits if you switch focus to another file in DOpus and come back.
 ### Split preview in Source mode
 
 Source mode can split into two panes: raw markdown on the left, live-rendered preview on the right.
