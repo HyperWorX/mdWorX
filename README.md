@@ -6,7 +6,11 @@ A Markdown viewer and editor that runs inside Directory Opus, in the viewer pane
 
 I built this because I work with a lot of Markdown files day to day and didn't want to fire up another app every time I needed a small edit. The existing DOpus options kept throwing errors for me, partly because of a WebView2 DPI bug they don't work around, so I rolled my own. It's a solo project, shared in case it's useful to anyone else.
 
+<div align="center">
+
 <a href="https://www.buymeacoffee.com/HyperWorX"><img src="https://img.buymeacoffee.com/button-api/?text=Buy me a coffee&emoji=👾&slug=HyperWorX&button_colour=ffed29&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=FFDD00" /></a>
+
+</div>
 
 ## How it works
 
