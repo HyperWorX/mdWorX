@@ -156,6 +156,21 @@ cd ../plugin
 
 The DLL ends up in `build-out\Release\` and the web assets in `build-out\mdWorX_assets\`. See [`docs/dev-setup.md`](docs/dev-setup.md) for the full toolchain setup, including the DOpus viewer plugin SDK.
 
+---
+
+<div align="center">
+
+### Support
+
+If you find this useful, you can buy me a coffee.
+
+<a href="https://www.buymeacoffee.com/HyperWorX" target="_blank">
+  <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="48" width="200">
+</a>
+
+</div>
+
+
 ## Licence
 
 [MIT](LICENSE). © 2026 HyperWorX.
