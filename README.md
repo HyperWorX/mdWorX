@@ -6,6 +6,8 @@ A Markdown viewer and editor that runs inside Directory Opus, in the viewer pane
 
 I built this because I work with a lot of Markdown files day to day and didn't want to fire up another app every time I needed a small edit. The existing DOpus options kept throwing errors for me, partly because of a WebView2 DPI bug they don't work around, so I rolled my own. It's a solo project, shared in case it's useful to anyone else.
 
+<a href="https://www.buymeacoffee.com/HyperWorX"><img src="https://img.buymeacoffee.com/button-api/?text=Buy me a coffee&emoji=👾&slug=HyperWorX&button_colour=ffed29&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=FFDD00" /></a>
+
 ## How it works
 
 There are three views, switched from the top toolbar:
@@ -164,9 +166,7 @@ The DLL ends up in `build-out\Release\` and the web assets in `build-out\mdWorX_
 
 If you find this useful, you can buy me a coffee.
 
-<a href="https://www.buymeacoffee.com/HyperWorX" target="_blank">
-  <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="48" width="200">
-</a>
+<a href="https://www.buymeacoffee.com/HyperWorX"><img src="https://img.buymeacoffee.com/button-api/?text=Buy me a coffee&emoji=👾&slug=HyperWorX&button_colour=ffed29&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=FFDD00" /></a>
 
 </div>
 
